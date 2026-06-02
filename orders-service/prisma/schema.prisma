@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id                   String    @id @default(uuid()) @db.Char(36)
+  userId               String    @map("user_id") @db.Char(36)
+  ticketItemId         String    @map("ticket_item_id") @db.Char(36)
+  ticketId             String    @map("ticket_id") @db.Char(36)
+  ticketTitle          String    @map("ticket_title") @db.VarChar(180)
+  trainNumber          String?   @map("train_number") @db.VarChar(64)
+  departureStationCode String?   @map("departure_station_code") @db.VarChar(24)
+  departureStationName String?   @map("departure_station_name") @db.VarChar(120)
+  arrivalStationCode   String?   @map("arrival_station_code") @db.VarChar(24)
+  arrivalStationName   String?   @map("arrival_station_name") @db.VarChar(120)
+  departureTime        DateTime? @map("departure_time")
+  arrivalTime          DateTime? @map("arrival_time")
+  coachCode            String?   @map("coach_code") @db.VarChar(48)
+  seatClass            String?   @map("seat_class") @db.VarChar(80)
+  seatType             String?   @map("seat_type") @db.VarChar(80)
+  quantity             Int
+  unitPrice            BigInt    @map("unit_price")
+  totalPrice           BigInt    @map("total_price")
+  ticketCode           String?   @unique @map("ticket_code") @db.VarChar(24)
+  qrPayload            String?   @map("qr_payload") @db.VarChar(2000)
+  status               Int       @default(0)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  seatLabels OrderSeatLabel[]
+  passengers OrderPassenger[]
+
+  @@index([userId])
+  @@index([ticketId])
+  @@index([ticketItemId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderSeatLabel {
+  orderId   String @map("order_id") @db.Char(36)
+  seatLabel String @map("seat_label") @db.VarChar(32)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@id([orderId, seatLabel])
+  @@map("order_seat_labels")
+}
+
+model OrderPassenger {
+  orderId        String  @map("order_id") @db.Char(36)
+  fullName       String  @map("full_name") @db.VarChar(120)
+  passengerType  String  @map("passenger_type") @db.VarChar(40)
+  identityNumber String? @map("identity_number") @db.VarChar(40)
+  phoneNumber    String? @map("phone_number") @db.VarChar(24)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@id([orderId, fullName, passengerType])
+  @@map("order_passengers")
+}

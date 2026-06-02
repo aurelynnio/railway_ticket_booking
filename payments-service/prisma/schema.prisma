@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Payment {
+  id            String    @id @default(uuid()) @db.Char(36)
+  orderId       String    @map("order_id") @db.Char(36)
+  userId        String?   @map("user_id") @db.Char(36)
+  amount        BigInt
+  paymentMethod String    @map("payment_method") @db.VarChar(36)
+  status        Int       @default(0)
+  transactionId String    @unique @map("transaction_id") @db.Char(36)
+  paidAt        DateTime? @map("paid_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}

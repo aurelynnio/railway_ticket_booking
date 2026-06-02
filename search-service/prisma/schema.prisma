@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model SearchTicket {
+  id                   String             @id @map("_id")
+  title                String?
+  trainNumber          String?
+  departureStationCode String?
+  departureStationName String?
+  arrivalStationCode   String?
+  arrivalStationName   String?
+  journeyNote          String?
+  dateStart            DateTime?
+  dateEnd              DateTime?
+  status               Int?
+  ticketItems          SearchTicketItem[]
+  createdAt            DateTime?
+  updatedAt            DateTime?
+  deletedAt            DateTime?
+
+  @@map("ticket-search")
+}
+
+type SearchTicketItem {
+  id                  String?
+  ticketId            String?
+  name                String?
+  description         String?
+  coachCode           String?
+  seatClass           String?
+  seatType            String?
+  seatLabels          String[]
+  availableSeatLabels String[]
+  stockInitial        Int?
+  stockAvailable      Int?
+  stockPrepared       Boolean?
+  priceOriginal       BigInt?
+  priceFlash          BigInt?
+  saleStartTime       DateTime?
+  saleEndTime         DateTime?
+  createdAt           DateTime?
+  updatedAt           DateTime?
+  deletedAt           DateTime?
+}

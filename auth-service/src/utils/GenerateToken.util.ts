@@ -1,0 +1,29 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+
+export interface AuthTokenPayload {
+  userId: string;
+  email: string;
+  role?: number;
+}
+
+@Injectable()
+export class TokenService {
+  constructor(private readonly jwtService: JwtService) {}
+
+  generateAccessToken(payload: AuthTokenPayload): Promise<string> {
+    return this.jwtService.signAsync(payload, { expiresIn: '15m' });
+  }
+
+  generateRefreshToken(payload: AuthTokenPayload): Promise<string> {
+    return this.jwtService.signAsync(payload, { expiresIn: '7d' });
+  }
+
+  async verifyToken(token: string): Promise<AuthTokenPayload> {
+    try {
+      return await this.jwtService.verifyAsync<AuthTokenPayload>(token);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+  }
+}
