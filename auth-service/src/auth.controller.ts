@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Controller, Body, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type {
   LoginRequest,
   RegisterRequest,
   RefreshTokenRequest,
+  ForgotPasswordRequest,
 } from './dto/auth.dto';
+import { MessagePattern } from '@nestjs/microservices';
 
 @Controller('auth')
 export class AuthController {
@@ -15,18 +17,28 @@ export class AuthController {
     return this.authService.health();
   }
 
-  @Post('register')
+  @MessagePattern({ cmd: 'auth.register' })
   register(@Body() payload: RegisterRequest) {
     return this.authService.register(payload);
   }
 
-  @Post('login')
+  @MessagePattern({ cmd: 'auth.login' })
   login(@Body() payload: LoginRequest) {
     return this.authService.login(payload);
   }
 
-  @Post('refresh-token')
+  @MessagePattern({ cmd: 'auth.refreshToken' })
   refreshToken(@Body() payload: RefreshTokenRequest) {
     return this.authService.refreshToken(payload);
+  }
+
+  @MessagePattern({ cmd: 'auth.forgotPassword' })
+  forgotPassword(@Body() email: ForgotPasswordRequest) {
+    return this.authService.forgotPassword(email);
+  }
+
+  @MessagePattern({ cmd: 'auth.resetPassword' })
+  resetPassword(@Body() data: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(data.token, data.newPassword);
   }
 }

@@ -6,8 +6,8 @@ import type {
   ForgotPasswordRequest,
 } from './dto/auth.dto';
 import { PrismaClient } from '@prisma/client';
-import { comparePassword } from './utils/HashPassword.util';
-import { TokenService } from './utils/GenerateToken.util';
+import { comparePassword, hashPassword } from './utils/hash-password.util';
+import { TokenService } from './utils/generate-token.util';
 
 @Injectable()
 export class AuthService {
@@ -81,7 +81,45 @@ export class AuthService {
     }
   }
 
-  async forgotPassword(payload: ForgotPasswordRequest) {}
+  async forgotPassword(payload: ForgotPasswordRequest): Promise<String> {
+    if (!payload.email) {
+      throw new Error('Missing email');
+    }
+    const user: any = await this.prisma.authAccount.findUnique({
+      where: { email: payload.email },
+    });
+    if (!user) {
+      throw new Error('Email not found');
+    }
+    const resetToken = await this.tokenService.generatePasswordResetToken(
+      user.email,
+    );
+    if (!resetToken) {
+      throw new Error('Failed to generate reset token');
+    }
+    return resetToken;
+  }
 
-  async resetPassword(token: string, newPassword: string) {}
+  async resetPassword(token: string, newPassword: string) {
+    if (!token || !newPassword) {
+      throw new Error('Missing token or new password');
+    }
+    const payload = await this.tokenService.verifyToken(token);
+    const user: any = await this.prisma.authAccount.findUnique({
+      where: { email: payload.email },
+    });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    if (hashedPassword) {
+      throw new Error('New password cannot be the same as the old password');
+    }
+
+    await this.prisma.authAccount.update({
+      where: { email: payload.email },
+      data: { password: hashedPassword },
+    });
+  }
 }
