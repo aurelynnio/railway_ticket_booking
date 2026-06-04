@@ -5,7 +5,12 @@ async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
   const port = Number(process.env.PORT ?? 3000);
 
+  app.enableCors({
+    origin: '*',
+    Credential: true,
+  });
+
   await app.listen(port);
-  console.log(`api-gateway running at http://localhost:${port}`);
+  console.log(`ApiGateway running at http://localhost:${port}`);
 }
 void bootstrap();

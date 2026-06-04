@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 export class ApiGatewayService {
   health() {
     return {
-      service: 'api-gateway',
+      service: 'ApiGateway',
       status: 'ok',
       timestamp: new Date().toISOString(),
     };
