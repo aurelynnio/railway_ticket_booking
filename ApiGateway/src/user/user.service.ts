@@ -34,6 +34,6 @@ export class UserService {
     return this.userClient.send({ cmd: 'users.get_by_id' }, userId);
   }
   findByEmail(email: FindByEmailRequest) {
-    return this.userClient.send({ cmd: 'users.find_by_email' }, { email });
+    return this.userClient.send({ cmd: 'users.find_by_email' }, email);
   }
 }
