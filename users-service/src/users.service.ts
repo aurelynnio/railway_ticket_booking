@@ -1,9 +1,15 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
+interface ListUsersQuery {
+  page?: number;
+  limit?: number;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaClient) {}
+
   health() {
     return {
       service: 'users-service',
@@ -12,8 +18,32 @@ export class UsersService {
     };
   }
 
-  async list(): Promise<any[]> {
-    return this.prisma.user.findMany();
+  async list(query: ListUsersQuery = {}) {
+    const page = this.normalizePositiveInteger(query.page, 1);
+    const limit = this.normalizePositiveInteger(query.limit, 10);
+    const skip = (page - 1) * limit;
+
+    const [total, users] = await this.prisma.$transaction([
+      this.prisma.user.count({
+        where: { deletedAt: null },
+      }),
+      this.prisma.user.findMany({
+        where: { deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
   }
 
   async profile(userId: string) {
@@ -61,5 +91,18 @@ export class UsersService {
       throw new HttpException('User ID is required', 400);
     }
     return this.prisma.user.findUnique({ where: { id: userId } });
+  }
+
+  private normalizePositiveInteger(
+    value: number | string | undefined,
+    fallback: number,
+  ) {
+    const parsed = Number(value);
+
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      return fallback;
+    }
+
+    return parsed;
   }
 }

@@ -12,8 +12,8 @@ export class UsersController {
   }
 
   @MessagePattern({ cmd: 'users.list' })
-  list() {
-    return this.usersService.list();
+  list(@Payload() query: { page?: number; limit?: number }) {
+    return this.usersService.list(query);
   }
 
   @MessagePattern({ cmd: 'users.profile' })
