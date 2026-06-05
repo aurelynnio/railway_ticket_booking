@@ -1,9 +1,10 @@
-import { Controller, Get, Inject, Post } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { UserService } from './user.service';
 import {
   CreateUserRequest,
   FindByEmailRequest,
   GetUserByIdRequest,
+  ListUsersQuery,
   UpdateUserRequest,
 } from '../common/dto/user.dto';
 import { UserProfile } from '../common/dto/user.dto';
@@ -13,8 +14,8 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get('/list')
-  list() {
-    return this.userService.list();
+  list(@Query() query: ListUsersQuery) {
+    return this.userService.list(query);
   }
 
   @Get('/profile')

@@ -34,6 +34,18 @@ export class FindTicketsQuery {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
 }
 
 export class CreateTicketItemRequest {
@@ -423,4 +435,14 @@ export interface TicketAvailabilityResponse {
   status: number;
   saleOpen: boolean;
   items: TicketItemResponse[];
+}
+
+export interface PaginatedTicketResponse {
+  data: TicketResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }

@@ -4,6 +4,7 @@ import {
   CreateUserRequest,
   FindByEmailRequest,
   GetUserByIdRequest,
+  ListUsersQuery,
   UpdateUserRequest,
   UserProfile,
 } from '../common/dto/user.dto';
@@ -14,8 +15,8 @@ export class UserService {
     @Inject('user_service') private readonly userClient: ClientProxy,
   ) {}
 
-  list() {
-    return this.userClient.send({ cmd: 'users.list' }, {});
+  list(query: ListUsersQuery) {
+    return this.userClient.send({ cmd: 'users.list' }, query);
   }
 
   profile(userId: UserProfile) {
