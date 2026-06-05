@@ -5,7 +5,7 @@ import { Transport } from '@nestjs/microservices';
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(OrdersModule, {
     transport: Transport.RMQ,
-    optiions: {
+    options: {
       urls: ['amqp://localhost:5672'],
       queue: 'orders_queue',
       queueOptions: {
