@@ -1,16 +1,18 @@
 # Railway Ticket Booking Services
 
-Repo này đã được tách lại thành nhiều NestJS project độc lập. Mỗi service có `package.json`, config TypeScript/Nest và thư mục `src` riêng.
+Repo gồm nhiều NestJS project độc lập. Mỗi service có `package.json`, cấu hình TypeScript/Nest và thư mục `src` riêng.
 
 ## Services
 
-- `api-gateway`: cổng vào hệ thống, port mặc định `3000`
-- `auth-service`: đăng ký, đăng nhập, port mặc định `3001`
-- `users-service`: danh sách user, profile user, port mặc định `3002`
-- `search-service`: tìm chuyến tàu, port mặc định `3003`
-- `tickets-service`: kiểm tra và giữ vé, port mặc định `3004`
-- `orders-service`: tạo và xem order, port mặc định `3005`
-- `payments-service`: tạo và xem trạng thái thanh toán, port mặc định `3006`
+| Service | Chức năng | Port mặc định |
+| --- | --- | --- |
+| `api-gateway` | cổng vào hệ thống | `3000` |
+| `auth-service` | đăng ký, đăng nhập | `3001` |
+| `users-service` | danh sách user, profile user | `3002` |
+| `search-service` | tìm chuyến tàu | `3003` |
+| `tickets-service` | kiểm tra và giữ vé | `3004` |
+| `orders-service` | tạo và xem order | `3005` |
+| `payments-service` | tạo và xem trạng thái thanh toán | `3006` |
 
 ## Chạy một service
 
@@ -20,10 +22,14 @@ npm install
 npm run start:dev
 ```
 
-Bạn có thể đổi port bằng biến môi trường:
+Đổi port bằng biến môi trường:
+
+```powershell
+$env:PORT=4001; npm run start:dev
+```
 
 ```bash
-$env:PORT=4001; npm run start:dev
+PORT=4001 npm run start:dev
 ```
 
 ## Build một service
@@ -34,4 +40,6 @@ npm install
 npm run build
 ```
 
-Mỗi service hiện vẫn là API demo, chưa có database, message broker, Docker hay deploy config.
+## Ghi chú
+
+Các service hiện là API demo, chưa có database, message broker, Docker hay cấu hình deploy.

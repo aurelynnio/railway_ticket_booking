@@ -23,6 +23,7 @@ pnpm-debug.log*
 *.sqlite
 *.db
 *.db-journal
+.jest-localstorage*
 
 # IDE and OS files
 .DS_Store
