@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -14,6 +13,12 @@ model Payment {
   userId        String?   @map("user_id") @db.Char(36)
   amount        BigInt
   paymentMethod String    @map("payment_method") @db.VarChar(36)
+  /// 0 = pending
+  /// 1 = processing
+  /// 2 = paid
+  /// 3 = failed
+  /// 4 = cancelled
+  /// 5 = expired
   status        Int       @default(0)
   transactionId String    @unique @map("transaction_id") @db.Char(36)
   paidAt        DateTime? @map("paid_at")
