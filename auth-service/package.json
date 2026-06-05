@@ -6,12 +6,16 @@
   "scripts": {
     "build": "tsgo -p tsconfig.build.json",
     "build:nest": "nest build",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
-    "lint": "eslint \"src/**/*.ts\" --fix",
-    "test": "jest --passWithNoTests",
+    "lint": "eslint \"{src,test}/**/*.ts\" --fix",
+    "test": "node --localstorage-file=.jest-localstorage node_modules/jest/bin/jest.js --runInBand",
+    "test:watch": "node --localstorage-file=.jest-localstorage node_modules/jest/bin/jest.js --watch",
+    "test:cov": "node --localstorage-file=.jest-localstorage node_modules/jest/bin/jest.js --coverage --runInBand",
+    "test:debug": "node --inspect-brk --localstorage-file=.jest-localstorage -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest.js --runInBand",
+    "test:e2e": "node --localstorage-file=.jest-localstorage node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "typecheck:tsc": "tsc --noEmit -p tsconfig.json"
   },
@@ -60,5 +64,16 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }
