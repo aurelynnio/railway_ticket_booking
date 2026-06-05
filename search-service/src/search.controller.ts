@@ -1,18 +1,19 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { SearchService } from './search.service';
-import type { SearchTripsQuery } from './search.service';
+import { SearchTripsQuery } from './search.dto';
 
-@Controller('search')
+@Controller()
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
-  @Get('health')
+  @MessagePattern({ cmd: 'search.health' })
   health() {
     return this.searchService.health();
   }
 
-  @Get('trips')
-  trips(@Query() query: SearchTripsQuery) {
+  @MessagePattern({ cmd: 'search.trips' })
+  trips(@Payload() query: SearchTripsQuery) {
     return this.searchService.trips(query);
   }
 }

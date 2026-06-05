@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -8,44 +7,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model SearchTicket {
-  id                   String             @id @map("_id")
+model Ticket {
+  id                   String       @id @default(uuid()) @map("_id")
   title                String?
-  trainNumber          String?
-  departureStationCode String?
-  departureStationName String?
-  arrivalStationCode   String?
-  arrivalStationName   String?
-  journeyNote          String?
-  dateStart            DateTime?
-  dateEnd              DateTime?
-  status               Int?
-  ticketItems          SearchTicketItem[]
-  createdAt            DateTime?
-  updatedAt            DateTime?
-  deletedAt            DateTime?
+  trainNumber          String?      @map("train_number")
+  departureStationCode String?      @map("departure_station_code")
+  departureStationName String?      @map("departure_station_name")
+  arrivalStationCode   String?      @map("arrival_station_code")
+  arrivalStationName   String?      @map("arrival_station_name")
+  journeyNote          String?      @map("journey_note")
+  dateStart            DateTime?    @map("date_start")
+  dateEnd              DateTime?    @map("date_end")
+  status               Int          @default(0)
+  ticketItems          TicketItem[]
+  createdAt            DateTime?    @map("created_at")
+  updatedAt            DateTime?    @map("updated_at")
+  deletedAt            DateTime?    @map("deleted_at")
 
-  @@map("ticket-search")
+  @@map("ticket")
 }
 
-type SearchTicketItem {
-  id                  String?
-  ticketId            String?
+type TicketItem {
+  id                  String    @default(uuid())
+  ticketId            String?   @map("ticket_id")
   name                String?
   description         String?
-  coachCode           String?
-  seatClass           String?
-  seatType            String?
-  seatLabels          String[]
-  availableSeatLabels String[]
-  stockInitial        Int?
-  stockAvailable      Int?
-  stockPrepared       Boolean?
-  priceOriginal       BigInt?
-  priceFlash          BigInt?
-  saleStartTime       DateTime?
-  saleEndTime         DateTime?
-  createdAt           DateTime?
-  updatedAt           DateTime?
-  deletedAt           DateTime?
+  coachCode           String?   @map("coach_code")
+  seatClass           String?   @map("seat_class")
+  seatType            String?   @map("seat_type")
+  seatLabels          String[]  @map("seat_labels")
+  availableSeatLabels String[]  @map("available_seat_labels")
+  stockInitial        Int?      @map("stock_initial")
+  stockAvailable      Int?      @map("stock_available")
+  stockPrepared       Boolean   @default(false) @map("is_stock_prepared")
+  priceOriginal       BigInt?   @map("price_original")
+  priceFlash          BigInt?   @map("price_flash")
+  saleStartTime       DateTime? @map("sale_start_time")
+  saleEndTime         DateTime? @map("sale_end_time")
+  createdAt           DateTime? @map("created_at")
+  updatedAt           DateTime? @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
 }

@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { SearchModule } from './search.module';
 import { Transport } from '@nestjs/microservices';
@@ -8,11 +9,18 @@ async function bootstrap() {
     options: {
       urls: ['amqp://localhost:5672'],
       queue: 'search_queue',
-      quesueOptions: {
+      queueOptions: {
         durable: false,
       },
     },
   });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  );
 
   await app.listen();
 }
