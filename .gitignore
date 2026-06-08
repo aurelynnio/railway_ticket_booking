@@ -23,6 +23,7 @@ pnpm-debug.log*
 *.sqlite
 *.db
 *.db-journal
+# Jest localStorage backing files created by Node test runs
 .jest-localstorage*
 
 # IDE and OS files

@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import type {
+import {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
   CreateTicketItemRequest,
