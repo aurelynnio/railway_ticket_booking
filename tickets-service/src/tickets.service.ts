@@ -42,10 +42,19 @@ import {
   toTicketResponse,
   uniqueLabels,
 } from './utils/ticket.utils';
+import { RedisCacheService } from './redis/redis.service';
+
+const TICKETS_LIST_CACHE_TTL_SECONDS = 300;
+const TICKET_DETAIL_CACHE_TTL_SECONDS = 300;
+const TICKET_AVAILABILITY_CACHE_TTL_SECONDS = 15;
+const TICKET_SEAT_MAP_CACHE_TTL_SECONDS = 15;
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly redisCacheRedis: RedisCacheService,
+  ) {}
 
   health() {
     return {
@@ -84,10 +93,25 @@ export class TicketsService {
       },
     });
 
+    await this.invalidateTicketListCache();
     return toTicketResponse(created);
   }
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
+    const key = this.getTicketsListCacheKey(query);
+    const cached = await this.getCachedValue<PaginatedTicketResponse>(key);
+    if (cached) {
+      return cached;
+    }
+
+    const result = await this.findAllInternal(query);
+    await this.setCachedValue(key, result, TICKETS_LIST_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  private async findAllInternal(
+    query: FindTicketsQuery,
+  ): Promise<PaginatedTicketResponse> {
     const where: Prisma.TicketWhereInput = {
       deletedAt: null,
     };
@@ -148,8 +172,16 @@ export class TicketsService {
   }
 
   async findOne(ticketId: string): Promise<TicketResponse> {
+    const key = this.getTicketCacheKey(ticketId);
+    const cached = await this.getCachedValue<TicketResponse>(key);
+    if (cached) {
+      return cached;
+    }
+
     const ticket = await this.getTicketOrThrow(ticketId);
-    return toTicketResponse(ticket);
+    const result = toTicketResponse(ticket);
+    await this.setCachedValue(key, result, TICKET_DETAIL_CACHE_TTL_SECONDS);
+    return result;
   }
 
   async update(
@@ -176,6 +208,7 @@ export class TicketsService {
       },
     });
 
+    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -190,23 +223,36 @@ export class TicketsService {
       },
     });
 
+    await this.invalidateTicketCache(ticketId);
     return {
       message: `Ticket ${ticketId} has been deleted`,
     };
   }
 
   async availability(ticketId: string): Promise<TicketAvailabilityResponse> {
+    const key = this.getTicketAvailabilityCacheKey(ticketId);
+    const cached = await this.getCachedValue<TicketAvailabilityResponse>(key);
+    if (cached) {
+      return cached;
+    }
+
     const ticket = await this.getTicketOrThrow(ticketId);
     const items = getActiveItems(ticket).map((item) =>
       toTicketItemResponse(item),
     );
 
-    return {
+    const result = {
       ticketId: ticket.id,
       status: ticket.status,
       saleOpen: items.some((item) => item.saleOpen),
       items,
     };
+    await this.setCachedValue(
+      key,
+      result,
+      TICKET_AVAILABILITY_CACHE_TTL_SECONDS,
+    );
+    return result;
   }
 
   async reserve(
@@ -271,6 +317,7 @@ export class TicketsService {
       },
     });
 
+    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -334,6 +381,7 @@ export class TicketsService {
       }),
     );
 
+    await this.invalidateTicketCache(ticketId);
     return {
       message: `Ticket item ${ticketItemId} has been deleted`,
     };
@@ -390,6 +438,7 @@ export class TicketsService {
       },
     });
 
+    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -403,6 +452,7 @@ export class TicketsService {
       },
     });
 
+    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -495,9 +545,15 @@ export class TicketsService {
   }
 
   async seatMap(ticketId: string) {
+    const key = this.getTicketSeatMapCacheKey(ticketId);
+    const cached = await this.getCachedValue(key);
+    if (cached) {
+      return cached;
+    }
+
     const ticket = await this.getTicketOrThrow(ticketId);
 
-    return {
+    const result = {
       ticketId: ticket.id,
       items: getActiveItems(ticket).map((item) => ({
         ticketItemId: item.id,
@@ -511,6 +567,8 @@ export class TicketsService {
         ),
       })),
     };
+    await this.setCachedValue(key, result, TICKET_SEAT_MAP_CACHE_TTL_SECONDS);
+    return result;
   }
 
   async findTicketItem(
@@ -693,7 +751,7 @@ export class TicketsService {
   }
 
   private async persistTicketItems(ticketId: string, items: TicketItem[]) {
-    return this.prisma.ticket.update({
+    const updated = await this.prisma.ticket.update({
       where: { id: ticketId },
       data: {
         ticketItems: {
@@ -702,5 +760,50 @@ export class TicketsService {
         updatedAt: new Date(),
       },
     });
+
+    await this.invalidateTicketCache(ticketId);
+    return updated;
+  }
+
+  private getTicketsListCacheKey(query: FindTicketsQuery) {
+    return `tickets:${JSON.stringify(query)}`;
+  }
+
+  private getTicketCacheKey(ticketId: string) {
+    return `ticket:${ticketId}`;
+  }
+
+  private getTicketAvailabilityCacheKey(ticketId: string) {
+    return `ticket:availability:${ticketId}`;
+  }
+
+  private getTicketSeatMapCacheKey(ticketId: string) {
+    return `ticket:seat-map:${ticketId}`;
+  }
+
+  private async getCachedValue<T>(key: string): Promise<T | null> {
+    const cached = await this.redisCacheRedis.get(key);
+    return cached ? (JSON.parse(cached) as T) : null;
+  }
+
+  private async setCachedValue<T>(
+    key: string,
+    value: T,
+    ttlSeconds: number,
+  ): Promise<void> {
+    await this.redisCacheRedis.set(key, JSON.stringify(value), ttlSeconds);
+  }
+
+  private async invalidateTicketListCache(): Promise<void> {
+    await this.redisCacheRedis.patternDel('tickets:*');
+  }
+
+  private async invalidateTicketCache(ticketId: string): Promise<void> {
+    await Promise.all([
+      this.redisCacheRedis.del(this.getTicketCacheKey(ticketId)),
+      this.redisCacheRedis.del(this.getTicketAvailabilityCacheKey(ticketId)),
+      this.redisCacheRedis.del(this.getTicketSeatMapCacheKey(ticketId)),
+      this.invalidateTicketListCache(),
+    ]);
   }
 }

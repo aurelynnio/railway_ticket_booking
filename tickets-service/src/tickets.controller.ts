@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TicketsService } from './tickets.service';
-import type {
+import {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
   CreateTicketItemRequest,
