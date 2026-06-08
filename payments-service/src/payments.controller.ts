@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CreatePaymentRequest } from './payment.dto';
 import { PaymentsService } from './payments.service';
-import type { CreatePaymentRequest } from './payments.service';
 
 @Controller('payments')
 export class PaymentsController {
@@ -13,11 +13,11 @@ export class PaymentsController {
 
   @Post()
   create(@Body() payload: CreatePaymentRequest) {
-    return this.paymentsService.create(payload);
+    return this.paymentsService.createPayment(payload);
   }
 
   @Get(':orderId')
-  status(@Param('orderId') orderId: string) {
-    return this.paymentsService.status(orderId);
+  listByOrderId(@Param('orderId') orderId: string) {
+    return this.paymentsService.listPaymentsByOrderId(orderId);
   }
 }
