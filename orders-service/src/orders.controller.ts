@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { OrdersService } from './orders.service';
-import type {
+import {
   CancelOrderRequest,
   CreateOrderRequest,
   ListOrdersQuery,
@@ -41,7 +41,10 @@ export class OrdersController {
   @MessagePattern('orders.updatePassengers')
   updatePassengers(
     @Payload()
-    data: { orderId: string; payload: UpdateOrderPassengersRequest },
+    data: {
+      orderId: string;
+      payload: UpdateOrderPassengersRequest;
+    },
   ) {
     return this.ordersService.updatePassengers(data.orderId, data.payload);
   }
@@ -49,7 +52,10 @@ export class OrdersController {
   @MessagePattern('orders.updateSeatLabels')
   updateSeatLabels(
     @Payload()
-    data: { orderId: string; payload: UpdateOrderSeatLabelsRequest },
+    data: {
+      orderId: string;
+      payload: UpdateOrderSeatLabelsRequest;
+    },
   ) {
     return this.ordersService.updateSeatLabels(data.orderId, data.payload);
   }

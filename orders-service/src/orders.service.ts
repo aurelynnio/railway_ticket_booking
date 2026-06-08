@@ -40,6 +40,11 @@ export class OrdersService {
     };
   }
 
+  /*
+   * This method creates a new order based on the provided payload
+   * It performs serverla validations on the input data, such as checking for required fields, ensuring numeric values are within expected ranges, and validating the lengths of arrays
+   * If any validation fails, it throws an HttpException with an appropriate error message and status code
+   * */
   create(payload: CreateOrderRequest): OrderResponse {
     assertRequired(payload.userId, 'userId');
     assertRequired(payload.ticketId, 'ticketId');
@@ -47,7 +52,10 @@ export class OrdersService {
     assertRequired(payload.ticketTitle, 'ticketTitle');
 
     const quantity = normalizePositiveInteger(payload.quantity, 'quantity');
-    const unitPrice = normalizeNonNegativeInteger(payload.unitPrice, 'unitPrice');
+    const unitPrice = normalizeNonNegativeInteger(
+      payload.unitPrice,
+      'unitPrice',
+    );
     const seatLabels = normalizeSeatLabels(payload.seatLabels);
     const passengers = normalizePassengers(payload.passengers);
 
@@ -263,10 +271,7 @@ export class OrdersService {
         OrderStatus.Refunded,
       ].includes(order.status)
     ) {
-      throw new HttpException(
-        'Order is already closed',
-        HttpStatus.CONFLICT,
-      );
+      throw new HttpException('Order is already closed', HttpStatus.CONFLICT);
     }
 
     order.status = OrderStatus.Cancelled;
