@@ -8,6 +8,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { Reflector } from '@nestjs/core';
 import { firstValueFrom } from 'rxjs';
+import { ACCESS_TOKEN_COOKIE_NAME } from '../../auth/auth.constants';
 import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
 
 @Injectable()
@@ -29,16 +30,16 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
+    const cookieToken = request.cookies?.[ACCESS_TOKEN_COOKIE_NAME];
     const authHeader = request.headers['authorization'];
+    const bearerToken =
+      typeof authHeader === 'string'
+        ? this.extractBearerToken(authHeader)
+        : undefined;
+    const token = cookieToken ?? bearerToken;
 
-    if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
-    }
-
-    const [type, token] = authHeader.split(' ');
-
-    if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Invalid Authorization header format');
+    if (!token) {
+      throw new UnauthorizedException('Missing authentication token');
     }
 
     try {
@@ -50,5 +51,15 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid token');
     }
     return true;
+  }
+
+  private extractBearerToken(header: string) {
+    const [type, token] = header.split(' ');
+
+    if (type !== 'Bearer' || !token) {
+      return undefined;
+    }
+
+    return token;
   }
 }

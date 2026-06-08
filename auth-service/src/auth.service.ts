@@ -4,6 +4,8 @@ import type {
   RegisterRequest,
   RefreshTokenRequest,
   ForgotPasswordRequest,
+  LogoutRequest,
+  ResetPasswordRequest,
 } from './dto/auth.dto';
 import { PrismaClient } from '@prisma/client';
 import { comparePassword, hashPassword } from './utils/hash-password.util';
@@ -79,6 +81,39 @@ export class AuthService {
     if (!payload.refreshToken) {
       throw new Error('Missing refresh token');
     }
+
+    const tokenPayload = await this.tokenService.verifyToken(payload.refreshToken);
+
+    const accessToken = await this.tokenService.generateAccessToken({
+      userId: tokenPayload.userId,
+      email: tokenPayload.email,
+      role: tokenPayload.role,
+    });
+    const refreshToken = await this.tokenService.generateRefreshToken({
+      userId: tokenPayload.userId,
+      email: tokenPayload.email,
+      role: tokenPayload.role,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async validateToken(token: string) {
+    if (!token) {
+      throw new Error('Missing token');
+    }
+
+    return this.tokenService.verifyToken(token);
+  }
+
+  async logout(_payload?: LogoutRequest) {
+    return {
+      success: true,
+      message: 'Logout successful',
+    };
   }
 
   async forgotPassword(payload: ForgotPasswordRequest): Promise<String> {
@@ -100,25 +135,25 @@ export class AuthService {
     return resetToken;
   }
 
-  async resetPassword(token: string, newPassword: string) {
-    if (!token || !newPassword) {
+  async resetPassword(payload: ResetPasswordRequest) {
+    if (!payload.token || !payload.newPassword) {
       throw new Error('Missing token or new password');
     }
-    const payload = await this.tokenService.verifyToken(token);
+    const verifiedPayload = await this.tokenService.verifyToken(payload.token);
     const user: any = await this.prisma.authAccount.findUnique({
-      where: { email: payload.email },
+      where: { email: verifiedPayload.email },
     });
     if (!user) {
       throw new Error('User not found');
     }
 
-    const hashedPassword = await hashPassword(newPassword);
+    const hashedPassword = await hashPassword(payload.newPassword);
     if (hashedPassword) {
       throw new Error('New password cannot be the same as the old password');
     }
 
     await this.prisma.authAccount.update({
-      where: { email: payload.email },
+      where: { email: verifiedPayload.email },
       data: { password: hashedPassword },
     });
   }

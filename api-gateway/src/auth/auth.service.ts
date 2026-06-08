@@ -3,6 +3,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import {
   ForgotPasswordRequest,
   LoginRequest,
+  LogoutRequest,
   RegisterRequest,
   RefreshTokenRequest,
   ResetPasswordRequest,
@@ -30,6 +31,16 @@ export class AuthService {
       refreshToken,
     );
   }
+
+  logout(logoutDto: LogoutRequest) {
+    return this.authClient.send(
+      {
+        cmd: 'auth.logout',
+      },
+      logoutDto,
+    );
+  }
+
   forgotPassword(forgotPasswordDto: ForgotPasswordRequest) {
     return this.authClient.send(
       {

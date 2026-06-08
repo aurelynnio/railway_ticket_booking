@@ -1,4 +1,10 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class RegisterRequest {
   @IsEmail()
@@ -9,6 +15,7 @@ export class RegisterRequest {
   password: string;
 
   @IsString()
+  @IsNotEmpty()
   username: string;
 }
 
@@ -28,7 +35,31 @@ export class ForgotPasswordRequest {
 
 export class RefreshTokenRequest {
   @IsString()
+  @IsNotEmpty()
   refreshToken: string;
 }
 
+export class ValidateTokenRequest {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+
+export class LogoutRequest {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  refreshToken?: string;
+}
+
 export class NewUser {}
+
+export class ResetPasswordRequest {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
+}

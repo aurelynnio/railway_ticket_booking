@@ -1,45 +1,75 @@
-import { Controller, Get, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import {
   CreateUserRequest,
   FindByEmailRequest,
-  GetUserByIdRequest,
   ListUsersQuery,
-  UpdateUserRequest,
 } from '../common/dto/user.dto';
-import { UserProfile } from '../common/dto/user.dto';
+import { JwtAuthGuard } from '../common/guards/jwt.guard';
 
-@Controller('user')
+@Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get('/list')
+  @Get()
   list(@Query() query: ListUsersQuery) {
     return this.userService.list(query);
   }
 
-  @Get('/profile')
-  profile(userId: UserProfile) {
-    return this.userService.profile(userId);
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  profile(
+    @Req() request: { user?: { id?: string; userId?: string } },
+  ) {
+    const resolvedUserId = request.user?.id ?? request.user?.userId;
+
+    return this.userService.profile({ userId: resolvedUserId ?? '' });
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  updateMe(
+    @Req() request: { user?: { id?: string; userId?: string } },
+    @Body() payload: Record<string, unknown>,
+  ) {
+    const resolvedUserId = request.user?.id ?? request.user?.userId;
+
+    return this.userService.update({
+      userId: resolvedUserId ?? '',
+      payload,
+    });
+  }
+
+  @Get('by-email')
+  findByEmail(@Query() email: FindByEmailRequest) {
+    return this.userService.findByEmail(email);
+  }
+
+  @Get(':userId')
+  getUserById(@Param('userId') userId: string) {
+    return this.userService.getUserById({ userId });
   }
 
   @Post()
-  create(payload: CreateUserRequest) {
+  create(@Body() payload: CreateUserRequest) {
     return this.userService.create(payload);
   }
 
-  @Post('/update/:userId')
-  update(data: UpdateUserRequest) {
-    return this.userService.update(data);
-  }
-
-  @Get('/:userId')
-  getUserById(userId: GetUserByIdRequest) {
-    return this.userService.getUserById(userId);
-  }
-
-  @Get('/email')
-  findByEmail(email: FindByEmailRequest) {
-    return this.userService.findByEmail(email);
+  @Patch(':userId')
+  update(
+    @Param('userId') userId: string,
+    @Body() payload: Record<string, unknown>,
+  ) {
+    return this.userService.update({ userId, payload });
   }
 }
