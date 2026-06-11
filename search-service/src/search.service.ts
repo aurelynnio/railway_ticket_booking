@@ -26,6 +26,10 @@ export class SearchService {
     };
   }
 
+  /*
+   * Search narrows the Prisma read set by day first, then applies route
+   * matching in memory because departure and arrival checks are domain-specific.
+   */
   async trips(query: SearchTripsQuery): Promise<PaginatedSearchTripResponse> {
     const where: Prisma.TicketWhereInput = {
       deletedAt: null,
@@ -82,6 +86,10 @@ export class SearchService {
   }
 
   private toSearchTrip(ticket: Ticket): SearchTripResponse {
+    /*
+     * Collapse active ticket items into one trip-facing summary so the client
+     * can render price and seat availability without item-level joins.
+     */
     const activeItems = ticket.ticketItems.filter(
       (item: TicketItem) => !item.deletedAt,
     );

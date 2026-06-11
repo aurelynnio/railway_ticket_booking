@@ -9,8 +9,14 @@ async function bootstrap() {
     options: {
       urls: ['amqp://localhost:5672'],
       queue: 'orders_queue',
+      noAck: true,
+      prefectchCount: 1,
       queueOptions: {
         durable: false,
+        arguments: {
+          'x-dead-letter-exchange': 'orders_dead_letter_exchange',
+          'x-dead-letter-routing-key': 'orders_dead_letter_queue',
+        },
       },
     },
   });

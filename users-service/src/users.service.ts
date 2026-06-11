@@ -18,6 +18,10 @@ export class UsersService {
     };
   }
 
+  /*
+   * User listing keeps deleted accounts out of both the count and page query
+   * so pagination metadata always reflects only active records.
+   */
   async list(query: ListUsersQuery = {}) {
     const page = this.normalizePositiveInteger(query.page, 1);
     const limit = this.normalizePositiveInteger(query.limit, 10);
@@ -58,6 +62,10 @@ export class UsersService {
       throw new HttpException('User ID is required', 400);
     }
 
+    /*
+     * Profile updates pass the validated caller payload straight to Prisma,
+     * making this service the single write path for mutable user fields.
+     */
     return this.prisma.user.update({
       where: { id: userId },
       data: payload,
@@ -76,6 +84,11 @@ export class UsersService {
     if (!payload.name || !payload.email) {
       throw new HttpException('Name and email are required', 400);
     }
+
+    /*
+     * Create enforces a minimal identity payload before persistence so callers
+     * cannot insert incomplete user records through this service.
+     */
     return this.prisma.user.create({ data: payload });
   }
 

@@ -41,10 +41,9 @@ export class OrdersService {
   }
 
   /*
-   * This method creates a new order based on the provided payload
-   * It performs serverla validations on the input data, such as checking for required fields, ensuring numeric values are within expected ranges, and validating the lengths of arrays
-   * If any validation fails, it throws an HttpException with an appropriate error message and status code
-   * */
+   * Normalize the incoming order payload and derive computed fields once
+   * so every later status transition works on a consistent order snapshot.
+   */
   create(payload: CreateOrderRequest): OrderResponse {
     assertRequired(payload.userId, 'userId');
     assertRequired(payload.ticketId, 'ticketId');
@@ -107,6 +106,10 @@ export class OrdersService {
     return order;
   }
 
+  /*
+   * Apply soft-delete aware filters first, then paginate the surviving orders
+   * so the returned counts and slices stay aligned with the query criteria.
+   */
   list(query: ListOrdersQuery = {}): PaginatedOrdersResponse {
     const page = normalizePageValue(query.page, 1);
     const limit = normalizePageValue(query.limit, 10);
@@ -240,6 +243,10 @@ export class OrdersService {
     ]);
   }
 
+  /*
+   * Ticket issuance is the point where a paid order gains immutable travel
+   * artifacts, so the code lazily generates them exactly once.
+   */
   issueTicket(orderId: string): OrderResponse {
     const order = this.getOrderOrThrow(orderId);
 
@@ -331,6 +338,10 @@ export class OrdersService {
     nextStatus: OrderStatus,
     allowedCurrentStatuses: OrderStatus[],
   ): OrderResponse {
+    /*
+     * Keep lifecycle rules in one place so every public status-changing method
+     * enforces the same transition guard and timestamp update.
+     */
     if (!allowedCurrentStatuses.includes(order.status)) {
       throw new HttpException(
         `Cannot move order from status ${order.status} to ${nextStatus}`,

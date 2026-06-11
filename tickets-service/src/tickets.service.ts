@@ -64,6 +64,10 @@ export class TicketsService {
     };
   }
 
+  /*
+   * Ticket creation validates journey timing once and stores the root ticket
+   * together with its initial item set so stock starts from a coherent snapshot.
+   */
   async create(payload: CreateTicketRequest): Promise<TicketResponse> {
     ensureJourneyDates(payload.dateStart, payload.dateEnd);
 
@@ -109,6 +113,10 @@ export class TicketsService {
     return result;
   }
 
+  /*
+   * Cache misses fall back to the real paginated Prisma query, where filters
+   * are normalized before count and page reads are executed in parallel.
+   */
   private async findAllInternal(
     query: FindTicketsQuery,
   ): Promise<PaginatedTicketResponse> {
@@ -261,6 +269,10 @@ export class TicketsService {
   ): Promise<TicketItemResponse> {
     ensureTicketItemId(payload.ticketItemId);
 
+    /*
+     * Reservations branch early into seat-level locking when a label is given;
+     * otherwise they consume aggregate stock for non-seat-specific inventory.
+     */
     if (payload.seatLabel) {
       return this.reserveSeat(ticketId, payload.ticketItemId, {
         seatLabel: payload.seatLabel,
@@ -465,6 +477,10 @@ export class TicketsService {
       ? new Set([payload.ticketItemId])
       : new Set(getActiveItems(ticket).map((item: TicketItem) => item.id));
 
+    /*
+     * Stock preparation rebuilds seat availability from either the request or
+     * the saved layout so later reserve/release calls operate on synced values.
+     */
     const updatedItems = ticket.ticketItems.map((item: TicketItem) => {
       if (!targetIds.has(item.id) || item.deletedAt) {
         return item;
@@ -751,6 +767,10 @@ export class TicketsService {
   }
 
   private async persistTicketItems(ticketId: string, items: TicketItem[]) {
+    /*
+     * All item mutations converge here so ticket-item writes always refresh the
+     * parent timestamp and clear the derived caches in one place.
+     */
     const updated = await this.prisma.ticket.update({
       where: { id: ticketId },
       data: {
