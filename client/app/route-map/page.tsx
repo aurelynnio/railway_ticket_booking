@@ -1,40 +1,69 @@
-import Link from "next/link";
-
 import { AppShell, Panel } from "@/components/app-shell";
+import { SectionHeading, SurfaceLink } from "@/components/railway-ui";
+
+const routeGroups = [
+  {
+    title: "Passenger flow",
+    items: [
+      ["/search", "Trip discovery"],
+      ["/tickets", "Ticket inventory"],
+      ["/orders", "Orders registry"],
+      ["/payments", "Payments ledger"],
+    ],
+  },
+  {
+    title: "Account flow",
+    items: [
+      ["/login", "Login"],
+      ["/register", "Register"],
+      ["/profile", "Profile"],
+      ["/profile/tickets", "Issued tickets"],
+    ],
+  },
+  {
+    title: "Operations flow",
+    items: [
+      ["/admin", "Admin dashboard"],
+      ["/admin/tickets", "Ticket operations"],
+      ["/admin/orders", "Order operations"],
+      ["/admin/users", "User operations"],
+      ["/admin/payments", "Payment operations"],
+    ],
+  },
+] as const;
 
 export default function RouteMapPage() {
   return (
     <AppShell
-      title="Client Route Map"
-      description="Trang route-map nay la diem vao nhanh de di den search, ticket detail, order detail va profile flow."
+      title="Route map"
+      description="Tong hop cac route chinh dang co trong `client/app`, chia theo passenger, account va operations de navigate nhanh khi tiep tuc phat trien."
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Panel
-          title="Nguoi dung"
-          description="Cac route phuc vu tim chuyen, xem chi tiet va theo doi order."
-        >
-          <div className="flex flex-col gap-3 text-sm text-zinc-700">
-            <Link className="font-medium text-amber-700 hover:underline" href="/search">
-              /search
-            </Link>
-            <Link className="font-medium text-amber-700 hover:underline" href="/tickets">
-              /tickets
-            </Link>
-            <Link className="font-medium text-amber-700 hover:underline" href="/profile">
-              /profile
-            </Link>
-          </div>
-        </Panel>
-        <Panel
-          title="Ghi chu"
-          description="Profile va order hien tai dua tren session cookie. Login xong la client co the goi luong profile/order cua user hien tai."
-        >
-          <p className="text-sm leading-6 text-zinc-700">
-            Backend orders hien van la in-memory scaffold, nen luong tao order
-            tot nhat la bat dau tu trang chi tiet ticket.
-          </p>
-        </Panel>
-      </div>
+      <Panel
+        title="Route surface"
+        description="Route map nay gio khong con la scaffold trong suot, ma la mot menu tac nghiep de nhay nhanh den tung view da duoc redesign."
+      >
+        <div className="space-y-8">
+          {routeGroups.map((group) => (
+            <div key={group.title} className="space-y-4">
+              <SectionHeading
+                eyebrow="Navigation"
+                title={group.title}
+                description="Moi nhom route di kem ngu canh su dung chinh de giu bo cuc thong nhat va de tra cuu nhanh."
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                {group.items.map(([href, title]) => (
+                  <SurfaceLink
+                    key={href}
+                    href={href}
+                    title={title}
+                    description={`Mo ${href} trong bo design system moi.`}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </AppShell>
   );
 }

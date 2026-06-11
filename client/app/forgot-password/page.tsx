@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ArrowRight } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
+import { AuthShell } from "@/components/auth-shell";
+import { StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useForgotPassword } from "@/hooks/auth.hook";
@@ -13,47 +15,62 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [tokenPreview, setTokenPreview] = useState<string | null>(null);
 
-  async function handleSubmit() {
-    const result = await forgotPassword.mutateAsync({ email });
-    setTokenPreview(typeof result === "string" ? result : JSON.stringify(result));
-  }
-
   return (
-    <AppShell
-      title="Forgot Password"
-      description="Form nay goi POST /auth/forgotPassword. Backend hien tra reset token thang ve client."
+    <AuthShell
+      eyebrow="Quên mật khẩu"
+      title="Gửi yêu cầu khôi phục tài khoản"
+      description="Form này vẫn gọi endpoint forgot-password hiện có, nhưng giao diện được bố trí lại để rõ luồng action, thông tin phản hồi và bước tiếp theo."
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>Đã nhớ mật khẩu?</span>
+          <Link href="/login" className="font-semibold text-primary">
+            Quay về đăng nhập
+          </Link>
+        </div>
+      }
     >
-      <div className="mx-auto w-full max-w-xl">
-        <Panel title="Lay reset token" description="Day la flow demo; backend hien tra token truc tiep thay vi gui email.">
-          <div className="grid gap-3">
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-            <Button
-              type="button"
-              disabled={forgotPassword.isPending || !email}
-              onClick={() => void handleSubmit()}
-            >
-              {forgotPassword.isPending ? "Dang tao token..." : "Lay reset token"}
-            </Button>
-            {forgotPassword.isError ? (
-              <p className="text-sm text-red-600">Khong tao duoc token. Kiem tra auth-service va email.</p>
-            ) : null}
-            {tokenPreview ? (
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
-                <p className="font-medium">Reset token</p>
-                <p className="mt-2 break-all font-mono text-xs">{tokenPreview}</p>
-                <Link className="mt-3 inline-block text-amber-700 hover:underline" href="/reset-password">
-                  Sang trang reset password
-                </Link>
-              </div>
-            ) : null}
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Email
+          </p>
+          <Input
+            placeholder="ban@railway.test"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </div>
+
+        <Button
+          type="button"
+          size="lg"
+          disabled={forgotPassword.isPending}
+          onClick={async () => {
+            const result = await forgotPassword.mutateAsync({ email });
+            setTokenPreview(typeof result?.token === "string" ? result.token : null);
+          }}
+        >
+          {forgotPassword.isPending ? "Đang gửi..." : "Gửi yêu cầu"}
+          <ArrowRight />
+        </Button>
+
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge label="Auth gateway" tone="brand" />
+          <StatusBadge label="Token preview local nếu có" tone="warning" />
+        </div>
+
+        {tokenPreview ? (
+          <div className="rounded-[1.2rem] bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Token preview
+            </p>
+            <p className="mt-2 break-all font-mono text-xs text-foreground">{tokenPreview}</p>
+            <Link href="/reset-password" className="mt-3 inline-flex font-semibold text-primary">
+              Đi tới màn reset
+            </Link>
           </div>
-        </Panel>
+        ) : null}
       </div>
-    </AppShell>
+    </AuthShell>
   );
 }

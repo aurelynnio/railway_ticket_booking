@@ -1,16 +1,15 @@
 "use client";
 
-import Link from "next/link";
-
 import { AppShell, Panel } from "@/components/app-shell";
+import { EmptyState, SectionHeading, SeatCloud, StatusBadge } from "@/components/railway-ui";
 import { useAuthSession } from "@/hooks/auth.hook";
-import { Badge } from "@/components/ui/badge";
 import { useOrders } from "@/hooks/order.hook";
 import { OrderStatus } from "@/lib/api-types";
 import {
   formatCurrency,
   formatDateTime,
   formatOrderStatus,
+  getOrderStatusTone,
 } from "@/lib/formatters";
 
 export default function ProfileTicketsPage() {
@@ -27,86 +26,86 @@ export default function ProfileTicketsPage() {
     Boolean(sessionUserId),
   );
 
+  const tickets = query.data?.data ?? [];
+
   return (
     <AppShell
-      title="Issued Tickets"
-      description="Backend chua co endpoint tickets theo user, nen trang nay suy ra ticket da issue tu orders cua user dang dang nhap."
-      actions={
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500">
-            {sessionQuery.data?.email ?? "Dang tai session..."}
-          </span>
-          <Link
-            className="text-sm font-medium text-amber-700 hover:underline"
-            href="/profile/orders"
-          >
-            Mo danh sach orders
-          </Link>
-        </div>
-      }
+      title="Issued tickets"
+      description="Repo hien chua co endpoint ticket-by-user rieng, nen view nay duoc suy ra tu orders co `TicketIssued` de tao mot wallet manh lac."
     >
       <Panel
-        title="Tickets da issue"
-        description="Danh sach nay dua tren order.ticketCode va order.qrPayload."
+        title="Ticket wallet"
+        description="Moi item dai dien cho mot order da issue, gom ma ve, route, ghe va QR payload de support di chuyen hay doi soat."
       >
-        {sessionQuery.isLoading ? (
-          <p className="text-sm text-zinc-600">Dang tai session...</p>
-        ) : null}
-        {sessionQuery.isError ? (
-          <p className="text-sm text-red-600">
-            Khong doc duoc session hien tai. Dang chuyen ve login.
-          </p>
-        ) : null}
-        {!sessionUserId && !sessionQuery.isLoading ? (
-          <p className="text-sm text-zinc-600">
-            Can dang nhap de xem issued tickets.
-          </p>
-        ) : null}
-        {query.isLoading ? (
-          <p className="text-sm text-zinc-600">Dang tai issued tickets...</p>
-        ) : null}
-        {query.isError ? (
-          <p className="text-sm text-red-600">Khong tai duoc issued tickets.</p>
-        ) : null}
-        <div className="grid gap-4">
-          {query.data?.data.map((order) => (
-            <div
-              key={order.id}
-              className="rounded-2xl border border-zinc-200 bg-white p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{order.ticketTitle}</p>
-                  <p className="text-xs text-zinc-500">
-                    {order.ticketCode ?? "No ticket code"}
+        <div className="space-y-5">
+          <SectionHeading
+            eyebrow="Travel wallet"
+            title="Ve da phat hanh"
+            description="The hien bo cueu thong tin toi thieu de user scan nhanh tren mobile: route, seat, ticket code va qr payload."
+          />
+
+          {!sessionUserId && !sessionQuery.isLoading ? (
+            <EmptyState
+              title="Can dang nhap"
+              description="Khong co session hop le nen khong the doc ticket wallet cua user hien tai."
+              href="/login"
+              cta="Mo dang nhap"
+            />
+          ) : null}
+
+          {tickets.length === 0 && sessionUserId ? (
+            <EmptyState
+              title="Chua co ve nao da issue"
+              description="Khi order duoc issue ticket, no se xuat hien ngay trong wallet nay."
+            />
+          ) : null}
+
+          <div className="grid gap-4">
+            {tickets.map((order) => (
+              <article
+                key={order.id}
+                className="surface-panel grid gap-5 rounded-[1.95rem] px-5 py-5 lg:grid-cols-[1.05fr_0.95fr]"
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                        {order.ticketTitle}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {order.ticketCode ?? "No ticket code"}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      label={formatOrderStatus(order.status)}
+                      tone={getOrderStatusTone(order.status)}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {order.departureStationName ?? order.departureStationCode ?? "?"} den{" "}
+                    {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
+                  </p>
+                  <SeatCloud labels={order.seatLabels} />
+                </div>
+
+                <div className="rounded-[1.7rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                    Ticket payload
+                  </p>
+                  <p className="mt-3 font-heading text-2xl font-semibold tracking-[-0.03em]">
+                    {formatCurrency(order.totalPrice)}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Issue time gan nhat: {formatDateTime(order.updatedAt)}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground break-all">
+                    QR: {order.qrPayload ?? "Dang cap nhat"}
                   </p>
                 </div>
-                <Badge variant="outline">
-                  {formatOrderStatus(order.status)}
-                </Badge>
-              </div>
-              <div className="mt-3 grid gap-2 text-sm text-zinc-700 md:grid-cols-2">
-                <p>Total: {formatCurrency(order.totalPrice)}</p>
-                <p>Issued at: {formatDateTime(order.updatedAt)}</p>
-                <p>Seats: {order.seatLabels.join(", ") || "N/A"}</p>
-                <p>QR payload: {order.qrPayload ?? "N/A"}</p>
-                <p>Hello world</p>
-              </div>
-              <p className="mt-3 text-xs text-zinc-500">
-                Route:{" "}
-                {order.departureStationName ??
-                  order.departureStationCode ??
-                  "?"}{" "}
-                to {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
-              </p>
-            </div>
-          ))}
+              </article>
+            ))}
+          </div>
         </div>
-        {query.data && query.data.data.length === 0 ? (
-          <p className="text-sm text-zinc-600">
-            Chua co ticket nao da issue cho user hien tai.
-          </p>
-        ) : null}
       </Panel>
     </AppShell>
   );

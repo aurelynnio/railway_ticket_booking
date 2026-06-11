@@ -1,145 +1,537 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { type ReactNode, useDeferredValue, useState } from "react";
+import {
+  ArrowRight,
+  CalendarDays,
+  Clock3,
+  Search,
+  Ticket,
+  TrainFront,
+  Wallet,
+} from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { Badge } from "@/components/ui/badge";
+import {
+  EmptyState,
+  PaginationBar,
+  SectionHeading,
+  StatusBadge,
+} from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useSearchTrips } from "@/hooks/search.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+
+type SortFilter = "recommended" | "price" | "departure";
+
+const sortOptions: Array<{ label: string; value: SortFilter }> = [
+  { label: "Phù hợp nhất", value: "recommended" },
+  { label: "Giá thấp trước", value: "price" },
+  { label: "Khởi hành sớm", value: "departure" },
+];
 
 export default function SearchPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [date, setDate] = useState("");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortFilter>("recommended");
+
+  const deferredFrom = useDeferredValue(from);
+  const deferredTo = useDeferredValue(to);
+  const deferredDate = useDeferredValue(date);
+  const deferredPage = useDeferredValue(page);
 
   const query = useSearchTrips({
-    from: from || undefined,
-    to: to || undefined,
-    date: date || undefined,
-    page,
-    limit: 10,
+    from: deferredFrom || undefined,
+    to: deferredTo || undefined,
+    date: deferredDate || undefined,
+    page: deferredPage,
+    limit: 8,
+  });
+
+  const trips = [...(query.data?.data ?? [])].sort((left, right) => {
+    if (sort === "price") {
+      return (left.minPrice ?? Number.MAX_SAFE_INTEGER) - (right.minPrice ?? Number.MAX_SAFE_INTEGER);
+    }
+
+    if (sort === "departure") {
+      return compareDate(left.dateStart, right.dateStart);
+    }
+
+    return right.availableSeats - left.availableSeats;
   });
 
   const pagination = query.data?.pagination;
+  const availableSeats = trips.reduce((total, trip) => total + trip.availableSeats, 0);
+  const cheapest = trips.reduce<number | null>((min, trip) => {
+    if (trip.minPrice === null) {
+      return min;
+    }
+
+    if (min === null || trip.minPrice < min) {
+      return trip.minPrice;
+    }
+
+    return min;
+  }, null);
 
   return (
     <AppShell
-      title="Search Trips"
-      description="Route nay map truc tiep den GET /search/trips va hien thi data phan trang tu search-service."
+      title="Tìm vé theo tuyến, thời gian và nhu cầu đặt chỗ"
+      description="Search page được đổi nhịp gần `vetau/client`: hero metric ở trên, filter panel tách rõ, kết quả dạng card collection và CTA đi thẳng vào ticket detail."
       actions={
-        <div className="grid gap-3 md:grid-cols-4">
-          <Input
-            placeholder="Ga di, vd: HN"
-            value={from}
-            onChange={(event) => {
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            onClick={() => {
+              setFrom("");
+              setTo("");
+              setDate("");
               setPage(1);
-              setFrom(event.target.value);
+              setSort("recommended");
             }}
-          />
-          <Input
-            placeholder="Ga den, vd: SG"
-            value={to}
-            onChange={(event) => {
-              setPage(1);
-              setTo(event.target.value);
-            }}
-          />
-          <Input
-            type="date"
-            value={date}
-            onChange={(event) => {
-              setPage(1);
-              setDate(event.target.value);
-            }}
-          />
-          <Button type="button" variant="outline" onClick={() => setPage(1)}>
-            Refresh
+          >
+            Xóa bộ lọc
+          </Button>
+          <Button asChild size="lg">
+            <Link href="/tickets">
+              Mở toàn bộ tồn vé
+              <ArrowRight />
+            </Link>
           </Button>
         </div>
       }
     >
       <Panel
-        title="Ket qua"
-        description="Neu anh chua nhap bo loc, route van lay danh sach theo trang tu backend."
+        title="Bộ lọc hành trình"
+        description="Bộ lọc được đưa vào một panel lớn để user quét nhanh và sửa query mà không bị tản mạn. Hiện tại repo này mới hỗ trợ `from`, `to` và `date`, nên UI giữ đúng phạm vi backend thật."
       >
-        {query.isLoading ? <p className="text-sm text-zinc-600">Dang tai du lieu...</p> : null}
-        {query.isError ? (
-          <p className="text-sm text-red-600">
-            Khong tai duoc danh sach chuyen. Kiem tra api-gateway va search-service.
-          </p>
-        ) : null}
-        <div className="grid gap-4">
-          {query.data?.data.map((trip) => (
-            <Card key={trip.ticketId} className="border border-zinc-200">
-              <CardHeader>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>{trip.title ?? "Untitled Trip"}</CardTitle>
-                    <CardDescription>
-                      {trip.trainNumber ?? "No train number"} • {trip.from.name ?? trip.from.code ?? "?"} to{" "}
-                      {trip.to.name ?? trip.to.code ?? "?"}
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline">{trip.availableSeats} cho trong</Badge>
+        <div className="space-y-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_19rem]">
+            <div className="rounded-[1.95rem] bg-muted/35 px-5 py-5 ring-1 ring-border">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <span className="route-pill">Hành trình thực</span>
+                  <StatusBadge
+                    label={query.isFetching ? "Đang tải" : "Dữ liệu mới nhất"}
+                    tone={query.isFetching ? "warning" : "brand"}
+                  />
                 </div>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-                <div className="grid gap-2 text-sm text-zinc-700">
-                  <p>Khoi hanh: {formatDateTime(trip.dateStart)}</p>
-                  <p>Den noi: {formatDateTime(trip.dateEnd)}</p>
-                  <p>Gia tu: {formatCurrency(trip.minPrice)}</p>
-                  <p>
-                    Hang ghe:{" "}
-                    {[...trip.seatClasses, ...trip.seatTypes].filter(Boolean).join(", ") || "N/A"}
+                <div className="space-y-2">
+                  <h2 className="font-heading text-3xl font-semibold tracking-[-0.04em] text-balance text-foreground sm:text-[3.4rem] sm:leading-[0.94]">
+                    Tìm vé theo điểm đi, điểm đến và ngày khởi hành.
+                  </h2>
+                  <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
+                    Search này được bố trí lại theo logic product: user vào page thấy
+                    ngay metric, bộ lọc và kết quả trong cùng một nhóm surface để dễ
+                    scan hơn giao diện cũ.
                   </p>
                 </div>
-                <Button asChild>
-                  <Link href={`/tickets/${trip.ticketId}`}>Xem ticket</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        {query.data && query.data.data.length === 0 ? (
-          <p className="text-sm text-zinc-600">Khong co ket qua nao khop bo loc hien tai.</p>
-        ) : null}
-        {pagination ? (
-          <div className="mt-6 flex items-center justify-between gap-4 border-t border-zinc-200 pt-4 text-sm text-zinc-600">
-            <span>
-              Trang {pagination.page}/{Math.max(pagination.totalPages, 1)} • Tong {pagination.total}
-            </span>
-            <div className="flex gap-2">
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 overflow-hidden rounded-[1.95rem] bg-background ring-1 ring-border xl:grid-cols-1">
+              <SearchStat label="Chuyến" value={String(trips.length)} />
+              <SearchStat label="Chỗ trống" value={String(availableSeats)} />
+              <SearchStat label="Giá từ" value={formatCurrency(cheapest)} />
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-[1.95rem] bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-2 xl:grid-cols-4">
+            <Field label="Ga đi">
+              <Input
+                placeholder="Ví dụ: Hà Nội"
+                value={from}
+                onChange={(event) => {
+                  setPage(1);
+                  setFrom(event.target.value);
+                }}
+              />
+            </Field>
+            <Field label="Ga đến">
+              <Input
+                placeholder="Ví dụ: Đà Nẵng"
+                value={to}
+                onChange={(event) => {
+                  setPage(1);
+                  setTo(event.target.value);
+                }}
+              />
+            </Field>
+            <Field label="Ngày đi">
+              <Input
+                type="date"
+                value={date}
+                onChange={(event) => {
+                  setPage(1);
+                  setDate(event.target.value);
+                }}
+              />
+            </Field>
+            <Field label="Sắp xếp">
+              <Select
+                value={sort}
+                onChange={(event) => {
+                  setPage(1);
+                  setSort(event.target.value as SortFilter);
+                }}
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Search className="size-4 text-primary" />
+              Search sẽ gọi `api-gateway/search/trips` với bộ tham số thật của repo.
+            </div>
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
-                disabled={pagination.page <= 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                onClick={() => {
+                  setFrom("");
+                  setTo("");
+                  setDate("");
+                  setPage(1);
+                  setSort("recommended");
+                }}
               >
-                Truoc
+                Đặt lại
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pagination.totalPages === 0 || pagination.page >= pagination.totalPages}
-                onClick={() =>
-                  setPage((current) =>
-                    pagination.totalPages === 0
-                      ? current
-                      : Math.min(pagination.totalPages, current + 1),
-                  )
-                }
-              >
-                Sau
+              <Button asChild>
+                <Link href="/profile/orders">
+                  Đơn của tôi
+                  <Ticket className="size-4" />
+                </Link>
               </Button>
             </div>
           </div>
-        ) : null}
+        </div>
       </Panel>
+
+      <Panel
+        title="Kết quả hành trình"
+        description="Mỗi card có tuyến, tàu, thời gian, chỗ trống, seat labels và giá, giống cách `vetau` trình bày collection search nhưng đã fit với schema hiện có."
+      >
+        <div className="space-y-5">
+          <SectionHeading
+            eyebrow="Storefront results"
+            title="Route đang mở theo bộ lọc hiện tại"
+            description="Kết quả được sắp thành thẻ card lớn, ưu tiên scan nhanh trên desktop và có nhiều nhận diện hơn layout search cũ."
+            action={
+              <Button asChild variant="outline">
+                <Link href="/">Trang chủ</Link>
+              </Button>
+            }
+          />
+
+          {query.isLoading ? (
+            <div className="grid gap-4">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-52 animate-pulse rounded-[2rem] bg-muted/60"
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {query.isError ? (
+            <EmptyState
+              title="Không tải được kết quả"
+              description="Kiểm tra `api-gateway` và `search-service`, sau đó load lại page để tiếp tục."
+            />
+          ) : null}
+
+          {!query.isLoading && !query.isError && trips.length === 0 ? (
+            <EmptyState
+              title="Chưa có chuyến phù hợp"
+              description="Thử đổi ga đi, ga đến hoặc bỏ ngày khởi hành để mở rộng tồn vé."
+            />
+          ) : null}
+
+          <div className="grid gap-4">
+            {trips.map((trip) => (
+              <article
+                key={trip.ticketId}
+                className="surface-panel rounded-[2rem] px-5 py-5"
+              >
+                <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge
+                            label={trip.trainNumber ?? compactTripCode(trip.ticketId)}
+                            tone="brand"
+                          />
+                          <StatusBadge
+                            label={trip.availableSeats > 0 ? "Sẵn sàng đặt vé" : "Hết chỗ"}
+                            tone={trip.availableSeats > 0 ? "positive" : "danger"}
+                          />
+                        </div>
+                        <h3 className="mt-4 font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                          {(trip.from.name ?? trip.from.code ?? "?") +
+                            " -> " +
+                            (trip.to.name ?? trip.to.code ?? "?")}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          {trip.title ?? "Tuyến chưa đặt tên"}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.5rem] bg-muted/30 px-4 py-4 ring-1 ring-border xl:min-w-44">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Giá từ
+                        </p>
+                        <p className="mt-2 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+                          {formatCurrency(trip.minPrice)}
+                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {trip.availableSeats} chỗ đang mở
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <InfoTile
+                        icon={<CalendarDays className="size-4 text-primary" />}
+                        label="Khởi hành"
+                        value={compactDate(trip.dateStart)}
+                      />
+                      <InfoTile
+                        icon={<Clock3 className="size-4 text-primary" />}
+                        label="Kết thúc"
+                        value={compactDate(trip.dateEnd)}
+                      />
+                      <InfoTile
+                        icon={<TrainFront className="size-4 text-primary" />}
+                        label="Tàu"
+                        value={trip.trainNumber ?? "Đang cập nhật"}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {trip.seatClasses.map((item) => (
+                        <span
+                          key={`${trip.ticketId}-${item}`}
+                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground ring-1 ring-border"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                      {trip.seatTypes.map((item) => (
+                        <span
+                          key={`${trip.ticketId}-${item}`}
+                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground ring-1 ring-border"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.9rem] bg-muted/25 px-5 py-5 ring-1 ring-border">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Vì sao card này dễ quyết định
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">
+                          Giá, route và thời gian được đưa lên cùng một surface. User có
+                          thể scan nhanh rồi đi thẳng vào ticket detail mà không bị đứt
+                          mạch thông tin.
+                        </p>
+                      </div>
+
+                      <div className="rounded-[1.45rem] bg-background px-4 py-4 ring-1 ring-border">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Bản tóm tắt
+                        </p>
+                        <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Route</span>
+                            <span className="font-medium text-foreground">
+                              {(trip.from.code ?? "?") + " -> " + (trip.to.code ?? "?")}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Chỗ trống</span>
+                            <span className="font-medium text-foreground">
+                              {trip.availableSeats}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Nhãn ghế</span>
+                            <span className="font-medium text-foreground">
+                              {trip.seatClasses.length + trip.seatTypes.length}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <Button asChild className="flex-1">
+                        <Link href={`/tickets/${trip.ticketId}`}>
+                          Xem vé
+                          <ArrowRight />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline">
+                        <Link href="/tickets">Danh mục</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {pagination ? (
+            <PaginationBar
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              onPrev={() => setPage((current) => Math.max(1, current - 1))}
+              onNext={() =>
+                setPage((current) =>
+                  pagination.totalPages === 0
+                    ? current
+                    : Math.min(pagination.totalPages, current + 1),
+                )
+              }
+            />
+          ) : null}
+        </div>
+      </Panel>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <SupportCard
+          icon={<Ticket className="size-5" />}
+          title="Vé của tôi"
+          description="Nếu đã đăng nhập, mở khu `profile/orders` để xem đơn và trạng thái."
+          href="/profile/orders"
+        />
+        <SupportCard
+          icon={<Wallet className="size-5" />}
+          title="Thanh toán"
+          description="Theo dõi payment record và đối chiếu khi cần debug payment flow."
+          href="/payments"
+        />
+        <SupportCard
+          icon={<TrainFront className="size-5" />}
+          title="Danh mục tồn vé"
+          description="Khi cần scan rộng hơn search hiện tại, mở thẳng trang tickets."
+          href="/tickets"
+        />
+      </section>
     </AppShell>
   );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </p>
+      {children}
+    </label>
+  );
+}
+
+function SearchStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b border-border px-4 py-4 last:border-b-0 xl:border-b xl:last:border-b-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function InfoTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[1.45rem] bg-muted/25 px-4 py-4 ring-1 ring-border">
+      <div className="flex items-center gap-2">
+        {icon}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {label}
+        </p>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function SupportCard({
+  icon,
+  title,
+  description,
+  href,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="surface-panel block rounded-[1.95rem] px-5 py-5 transition-colors hover:bg-muted/30"
+    >
+      <div className="flex size-11 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
+        {icon}
+      </div>
+      <h3 className="mt-5 font-heading text-xl font-semibold tracking-[-0.03em] text-foreground">
+        {title}
+      </h3>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
+    </Link>
+  );
+}
+
+function compactDate(value: string | null | undefined) {
+  const formatted = formatDateTime(value);
+  return formatted === "N/A" ? formatted : formatted.replace(", ", " · ");
+}
+
+function compactTripCode(value: string) {
+  if (value.length <= 8) {
+    return value;
+  }
+
+  return value.slice(0, 8).toUpperCase();
+}
+
+function compareDate(
+  left: string | null | undefined,
+  right: string | null | undefined,
+) {
+  const leftTime = left ? new Date(left).getTime() : Number.MAX_SAFE_INTEGER;
+  const rightTime = right ? new Date(right).getTime() : Number.MAX_SAFE_INTEGER;
+  return leftTime - rightTime;
 }

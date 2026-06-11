@@ -2,21 +2,33 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { useAuthSession } from "@/hooks/auth.hook";
-import { Badge } from "@/components/ui/badge";
+import {
+  MetaGrid,
+  SectionHeading,
+  SeatCloud,
+  StatusBadge,
+} from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuthSession } from "@/hooks/auth.hook";
 import { useCreateOrder } from "@/hooks/order.hook";
 import { useSeatMap, useTicket, useTicketAvailability } from "@/hooks/ticket.hook";
-import { formatCurrency, formatDateTime, formatTicketStatus } from "@/lib/formatters";
+import {
+  formatCurrency,
+  formatDateTime,
+  formatTicketStatus,
+  getTicketStatusTone,
+} from "@/lib/formatters";
 
 export default function TicketDetailPage() {
+  const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const ticketId = typeof params.id === "string" ? params.id : "";
+  const isAdminView = pathname.startsWith("/admin");
 
   const ticketQuery = useTicket(ticketId);
   const availabilityQuery = useTicketAvailability(ticketId);
@@ -29,21 +41,21 @@ export default function TicketDetailPage() {
   const [quantity, setQuantity] = useState("1");
   const [seatLabels, setSeatLabels] = useState("");
   const [passengerName, setPassengerName] = useState("");
+
+  const ticket = ticketQuery.data;
   const resolvedSelectedTicketItemId =
-    selectedTicketItemId || ticketQuery.data?.ticketItems[0]?.id || "";
+    selectedTicketItemId || ticket?.ticketItems[0]?.id || "";
 
   const selectedItem = useMemo(
     () =>
-      ticketQuery.data?.ticketItems.find(
-        (item) => item.id === resolvedSelectedTicketItemId,
-      ) ??
-      ticketQuery.data?.ticketItems[0] ??
+      ticket?.ticketItems.find((item) => item.id === resolvedSelectedTicketItemId) ??
+      ticket?.ticketItems[0] ??
       null,
-    [resolvedSelectedTicketItemId, ticketQuery.data?.ticketItems],
+    [resolvedSelectedTicketItemId, ticket?.ticketItems],
   );
 
   async function handleCreateOrder() {
-    if (!ticketQuery.data || !selectedItem) {
+    if (!ticket || !selectedItem) {
       return;
     }
 
@@ -52,16 +64,16 @@ export default function TicketDetailPage() {
 
     const result = await createOrder.mutateAsync({
       userId: sessionUserId ?? "",
-      ticketId: ticketQuery.data.id,
+      ticketId: ticket.id,
       ticketItemId: selectedItem.id,
-      ticketTitle: ticketQuery.data.title ?? "Untitled ticket",
-      trainNumber: ticketQuery.data.trainNumber,
-      departureStationCode: ticketQuery.data.departureStationCode,
-      departureStationName: ticketQuery.data.departureStationName,
-      arrivalStationCode: ticketQuery.data.arrivalStationCode,
-      arrivalStationName: ticketQuery.data.arrivalStationName,
-      departureTime: ticketQuery.data.dateStart,
-      arrivalTime: ticketQuery.data.dateEnd,
+      ticketTitle: ticket.title ?? "Untitled ticket",
+      trainNumber: ticket.trainNumber,
+      departureStationCode: ticket.departureStationCode,
+      departureStationName: ticket.departureStationName,
+      arrivalStationCode: ticket.arrivalStationCode,
+      arrivalStationName: ticket.arrivalStationName,
+      departureTime: ticket.dateStart,
+      arrivalTime: ticket.dateEnd,
       coachCode: selectedItem.coachCode,
       seatClass: selectedItem.seatClass,
       seatType: selectedItem.seatType,
@@ -72,12 +84,7 @@ export default function TicketDetailPage() {
         .map((value) => value.trim())
         .filter(Boolean),
       passengers: passengerName
-        ? [
-            {
-              fullName: passengerName,
-              passengerType: "ADULT",
-            },
-          ]
+        ? [{ fullName: passengerName, passengerType: "ADULT" }]
         : [],
     });
 
@@ -86,91 +93,138 @@ export default function TicketDetailPage() {
 
   return (
     <AppShell
-      title="Ticket Detail"
-      description="Trang nay ghep du lieu tu GET /tickets/:id, /availability va /seat-map, dong thoi cho phep tao order scaffold."
+      title={isAdminView ? "Chi tiết điều phối vé" : "Chi tiết vé"}
+      description="Xem ticket core, availability, seat map và lựa chọn ticket item trên cùng một nhịp. Admin mode ưu tiên tồn vé, còn passenger mode ưu tiên đặt chỗ."
       actions={
-        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-700">
-          <Link className="font-medium text-amber-700 hover:underline" href="/tickets">
-            Quay lai danh sach
-          </Link>
-          {ticketQuery.data ? (
-            <Badge variant="outline">{formatTicketStatus(ticketQuery.data.status)}</Badge>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button asChild variant="ghost">
+            <Link href={isAdminView ? "/admin/tickets" : "/tickets"}>
+              Quay lại danh sách
+            </Link>
+          </Button>
+          {ticket ? (
+            <StatusBadge
+              label={formatTicketStatus(ticket.status)}
+              tone={getTicketStatusTone(ticket.status)}
+            />
           ) : null}
         </div>
       }
     >
-      <div className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Panel
-          title={ticketQuery.data?.title ?? "Loading ticket"}
-          description={ticketQuery.data?.trainNumber ?? "Dang tai thong tin hanh trinh"}
+          title={ticket?.title ?? "Đang tải vé"}
+          description="Hành trình, lịch chạy và danh sách ticket item bên trong vé."
         >
-          {ticketQuery.isLoading ? <p className="text-sm text-zinc-600">Dang tai chi tiet ticket...</p> : null}
-          {ticketQuery.data ? (
-            <div className="grid gap-3 text-sm text-zinc-700">
-              <p>
-                Hanh trinh: {ticketQuery.data.departureStationName ?? ticketQuery.data.departureStationCode ?? "?"} to{" "}
-                {ticketQuery.data.arrivalStationName ?? ticketQuery.data.arrivalStationCode ?? "?"}
-              </p>
-              <p>Khoi hanh: {formatDateTime(ticketQuery.data.dateStart)}</p>
-              <p>Den noi: {formatDateTime(ticketQuery.data.dateEnd)}</p>
-              <p>Ghi chu: {ticketQuery.data.journeyNote ?? "N/A"}</p>
-              <div className="grid gap-3 md:grid-cols-2">
-                {ticketQuery.data.ticketItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`rounded-2xl border p-4 ${
-                      item.id === resolvedSelectedTicketItemId
-                        ? "border-amber-400 bg-amber-50"
-                        : "border-zinc-200 bg-zinc-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{item.name ?? item.coachCode ?? "Ticket item"}</p>
-                        <p className="text-xs text-zinc-500">
-                          {item.seatClass ?? "Unknown class"} • {item.seatType ?? "Unknown type"}
-                        </p>
-                      </div>
-                      <Button
+          <div className="space-y-5">
+            <SectionHeading
+              eyebrow="Hành trình"
+              title={ticket?.trainNumber ?? "Tổng quan tuyến"}
+              description={ticket?.journeyNote ?? "Chưa có ghi chú hành trình."}
+            />
+
+            {ticket ? (
+              <>
+                <MetaGrid
+                  items={[
+                    {
+                      label: "Ga đi",
+                      value: ticket.departureStationName ?? ticket.departureStationCode ?? "?",
+                    },
+                    {
+                      label: "Ga đến",
+                      value: ticket.arrivalStationName ?? ticket.arrivalStationCode ?? "?",
+                    },
+                    { label: "Khởi hành", value: formatDateTime(ticket.dateStart) },
+                    { label: "Đến nơi", value: formatDateTime(ticket.dateEnd) },
+                    { label: "Trạng thái", value: formatTicketStatus(ticket.status) },
+                    { label: "Hạng vé", value: String(ticket.ticketItems.length) },
+                  ]}
+                  columns={3}
+                />
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {ticket.ticketItems.map((item) => {
+                    const isSelected = item.id === resolvedSelectedTicketItemId;
+
+                    return (
+                      <button
+                        key={item.id}
                         type="button"
-                        size="sm"
-                        variant={
-                          item.id === resolvedSelectedTicketItemId
-                            ? "default"
-                            : "outline"
-                        }
                         onClick={() => setSelectedTicketItemId(item.id)}
+                        className={`rounded-[1.7rem] px-4 py-4 text-left transition ${
+                          isSelected
+                            ? "bg-muted/55 ring-1 ring-foreground/18"
+                            : "bg-background ring-1 ring-border hover:bg-muted/25"
+                        }`}
                       >
-                        Chon
-                      </Button>
-                    </div>
-                    <div className="mt-3 grid gap-1 text-xs text-zinc-600">
-                      <p>Gia flash: {formatCurrency(item.priceFlash)}</p>
-                      <p>Gia goc: {formatCurrency(item.priceOriginal)}</p>
-                      <p>Cho trong: {item.availableSeatLabels.length}</p>
-                      <p>So ghe: {item.seatLabels.join(", ") || "N/A"}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-foreground">
+                                {item.name ?? item.coachCode ?? "Hạng vé"}
+                              </p>
+                              {isSelected ? (
+                                <span className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-background">
+                                  Đang chọn
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {item.seatClass ?? "Chưa rõ hạng ghế"} •{" "}
+                              {item.seatType ?? "Chưa rõ loại ghế"}
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {formatCurrency(item.priceFlash ?? item.priceOriginal)}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          <ItemMetric label="Toa" value={item.coachCode ?? "N/A"} />
+                          <ItemMetric
+                            label="Chỗ còn"
+                            value={String(item.availableSeatLabels.length)}
+                          />
+                          <ItemMetric
+                            label="Giá gốc"
+                            value={formatCurrency(item.priceOriginal)}
+                          />
+                          <ItemMetric
+                            label="Mã ghế"
+                            value={item.availableSeatLabels.slice(0, 3).join(", ") || "N/A"}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+          </div>
         </Panel>
 
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           <Panel
-            title="Availability"
-            description="Snapshot tu GET /tickets/:ticketId/availability"
+            title="Ảnh chụp khả dụng"
+            description="Lấy từ `/availability` để đọc tồn chỗ và trạng thái mở bán hiện tại."
           >
-            {availabilityQuery.isLoading ? <p className="text-sm text-zinc-600">Dang tai availability...</p> : null}
             {availabilityQuery.data ? (
-              <div className="grid gap-2 text-sm text-zinc-700">
-                <p>Sale open: {availabilityQuery.data.saleOpen ? "Yes" : "No"}</p>
+              <div className="space-y-4">
+                <StatusBadge
+                  label={availabilityQuery.data.saleOpen ? "Đang mở bán" : "Tạm đóng bán"}
+                  tone={availabilityQuery.data.saleOpen ? "positive" : "warning"}
+                />
                 {availabilityQuery.data.items.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-zinc-200 p-3">
-                    <p className="font-medium">{item.name ?? item.coachCode ?? item.id}</p>
-                    <p className="text-xs text-zinc-500">
-                      Available {item.availableSeatLabels.length} / {item.seatLabels.length}
+                  <div
+                    key={item.id}
+                    className="rounded-[1.45rem] bg-white/64 px-4 py-4 ring-1 ring-black/6"
+                  >
+                    <p className="font-medium text-foreground">
+                      {item.name ?? item.coachCode ?? item.id}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Còn {item.availableSeatLabels.length} / {item.seatLabels.length} chỗ
                     </p>
                   </div>
                 ))}
@@ -178,76 +232,111 @@ export default function TicketDetailPage() {
             ) : null}
           </Panel>
 
+          {selectedItem ? (
+            <Panel
+              title={isAdminView ? "Khối tồn vé đang chọn" : "Khung đặt chỗ"}
+              description={
+                isAdminView
+                  ? "Thông tin chi tiết của ticket item đang chọn, kèm lượng ghế và khoảng giá."
+                  : "Nhập payload đặt vé nhanh trên ticket item đang chọn."
+              }
+            >
+              <div className="space-y-4">
+                <MetaGrid
+                  items={[
+                    { label: "Toa", value: selectedItem.coachCode ?? "N/A" },
+                    { label: "Hạng ghế", value: selectedItem.seatClass ?? "N/A" },
+                    { label: "Loại ghế", value: selectedItem.seatType ?? "N/A" },
+                    {
+                      label: "Giá gốc",
+                      value: formatCurrency(selectedItem.priceOriginal),
+                    },
+                    {
+                      label: "Giá hiện tại",
+                      value: formatCurrency(selectedItem.priceFlash),
+                    },
+                    {
+                      label: "Chỗ còn",
+                      value: String(selectedItem.availableSeatLabels.length),
+                    },
+                  ]}
+                  columns={3}
+                />
+                <SeatCloud labels={selectedItem.availableSeatLabels} />
+
+                {isAdminView ? (
+                  <Button asChild variant="outline">
+                    <Link href={`/admin/tickets/${ticketId}/items/${selectedItem.id}`}>
+                      Mở ticket item
+                    </Link>
+                  </Button>
+                ) : (
+                  <div className="grid gap-3">
+                    <Input
+                      placeholder="Họ tên hành khách"
+                      value={passengerName}
+                      onChange={(event) => setPassengerName(event.target.value)}
+                    />
+                    <Input
+                      placeholder="Mã ghế, ví dụ A1,A2"
+                      value={seatLabels}
+                      onChange={(event) => setSeatLabels(event.target.value)}
+                    />
+                    <Input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(event) => setQuantity(event.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      disabled={!sessionUserId || createOrder.isPending}
+                      onClick={() => void handleCreateOrder()}
+                    >
+                      {createOrder.isPending ? "Đang tạo đơn..." : "Tạo đơn"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Panel>
+          ) : null}
+
           <Panel
-            title="Create Order"
-            description="Order service hien la scaffold in-memory. User tao order se duoc lay tu session cookie hien tai."
+            title="Sơ đồ ghế"
+            description="Snapshot từ `/seat-map` để nhìn nhanh trạng thái ghế."
           >
             <div className="grid gap-3">
-              {sessionQuery.isLoading ? (
-                <p className="text-sm text-zinc-600">Dang tai session...</p>
-              ) : null}
-              {sessionUserId ? (
-                <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                  Dang tao order cho user `{sessionQuery.data?.email ?? sessionUserId}`
-                </p>
-              ) : (
-                <p className="text-sm text-zinc-600">
-                  Can dang nhap de tao order tu ticket nay.
-                </p>
-              )}
-              <Input
-                placeholder="Passenger full name"
-                value={passengerName}
-                onChange={(event) => setPassengerName(event.target.value)}
-              />
-              <Input
-                placeholder="Seat labels, vd A1,A2"
-                value={seatLabels}
-                onChange={(event) => setSeatLabels(event.target.value)}
-              />
-              <Input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-              />
-              <Button
-                type="button"
-                disabled={!sessionUserId || !selectedItem || createOrder.isPending}
-                onClick={() => void handleCreateOrder()}
-              >
-                {createOrder.isPending ? "Dang tao order..." : "Tao order"}
-              </Button>
-              {createOrder.isError ? (
-                <p className="text-sm text-red-600">
-                  Tao order that bai. Kiem tra session dang nhap, ticket item va orders-service.
-                </p>
-              ) : null}
+              {seatMapQuery.data?.items.map((item) => (
+                <div
+                  key={item.ticketItemId}
+                  className="rounded-[1.45rem] bg-white/64 px-4 py-4 ring-1 ring-black/6"
+                >
+                  <p className="font-medium text-foreground">
+                    {item.coachCode ?? "Toa"} • {item.seatClass ?? "Chưa rõ"}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Còn trống: {item.availableSeatLabels.join(", ") || "N/A"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Đã giữ: {item.occupiedSeatLabels.join(", ") || "Chưa có"}
+                  </p>
+                </div>
+              ))}
             </div>
-          </Panel>
-
-          <Panel title="Seat Map" description="Snapshot tu GET /tickets/:ticketId/seat-map">
-            {seatMapQuery.isLoading ? <p className="text-sm text-zinc-600">Dang tai seat map...</p> : null}
-            {seatMapQuery.data ? (
-              <div className="grid gap-3 text-sm text-zinc-700">
-                {seatMapQuery.data.items.map((item) => (
-                  <div key={item.ticketItemId} className="rounded-xl border border-zinc-200 p-3">
-                    <p className="font-medium">
-                      {item.coachCode ?? "Coach"} • {item.seatClass ?? "Unknown"}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Free: {item.availableSeatLabels.join(", ") || "N/A"}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Occupied: {item.occupiedSeatLabels.join(", ") || "None"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </Panel>
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function ItemMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.15rem] bg-muted/35 px-3 py-3 ring-1 ring-border">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-medium text-foreground">{value}</p>
+    </div>
   );
 }
