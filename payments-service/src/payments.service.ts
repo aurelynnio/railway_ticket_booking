@@ -34,6 +34,10 @@ export class PaymentsService {
     };
   }
 
+  /*
+   * Validate the write payload at the edge, then create a pending payment
+   * with a generated transaction id so provider reconciliation can happen later.
+   */
   async createPayment(payload: CreatePaymentRequest): Promise<PaymentDto> {
     requireObjectPayload(payload, 'payload');
     const orderId = requireNonEmptyString(payload.orderId, 'orderId');
@@ -108,6 +112,10 @@ export class PaymentsService {
     return this.listPayments(pagination, { userId: normalizedUserId });
   }
 
+  /*
+   * Build one Prisma filter object from optional query fields before running
+   * the count and page query together to keep pagination metadata consistent.
+   */
   async listPayments(
     pagination: PaginationQuery = {},
     query: ListPaymentsQuery = {},
@@ -177,6 +185,10 @@ export class PaymentsService {
     );
   }
 
+  /*
+   * Marking a payment as paid is stricter than other status changes because
+   * it also records the settlement time and rejects duplicate confirmation.
+   */
   async markPaid(payload: MarkPaidRequest): Promise<PaymentDto> {
     requireObjectPayload(payload, 'payload');
     const lookup = requirePaymentLookup(payload);
@@ -241,6 +253,10 @@ export class PaymentsService {
     lookup: PaymentLookupRequest,
     status: PaymentStatus,
   ): Promise<PaymentDto> {
+    /*
+     * Centralize simple status writes so non-paid transitions reuse the same
+     * lookup and persistence path instead of duplicating update code.
+     */
     const payment = await this.getPaymentOrThrow(lookup);
     const updated = await this.prisma.payment.update({
       where: { id: payment.id },
