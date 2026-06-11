@@ -36,7 +36,9 @@ export class AuthController {
     @Body() loginDto: LoginRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const authResult = (await firstValueFrom(this.authService.login(loginDto))) as {
+    const authResult = (await firstValueFrom(
+      this.authService.login(loginDto),
+    )) as {
       accessToken: string;
       refreshToken: string;
     };
@@ -95,7 +97,8 @@ export class AuthController {
   @Get('session')
   @UseGuards(JwtAuthGuard)
   session(
-    @Req() request: {
+    @Req()
+    request: {
       user?: { userId?: string; email?: string; role?: number };
     },
   ) {
@@ -133,14 +136,8 @@ export class AuthController {
   }
 
   private clearAuthCookies(response: Response) {
-    response.clearCookie(
-      ACCESS_TOKEN_COOKIE_NAME,
-      this.buildCookieOptions(),
-    );
-    response.clearCookie(
-      REFRESH_TOKEN_COOKIE_NAME,
-      this.buildCookieOptions(),
-    );
+    response.clearCookie(ACCESS_TOKEN_COOKIE_NAME, this.buildCookieOptions());
+    response.clearCookie(REFRESH_TOKEN_COOKIE_NAME, this.buildCookieOptions());
   }
 
   private buildCookieOptions(maxAge?: number): CookieOptions {

@@ -26,9 +26,15 @@ export class TokenService {
       throw new UnauthorizedException('Invalid or expired token');
     }
   }
-  generatePasswordResetToken(payload: AuthTokenPayload): Promise<string> {
+
+  generatePasswordResetToken(
+    payload: Pick<AuthTokenPayload, 'userId' | 'email'>,
+  ): Promise<string> {
     return this.jwtService.signAsync(
-      { email: payload.email },
+      {
+        userId: payload.userId,
+        email: payload.email,
+      },
       { expiresIn: '1h' },
     );
   }
