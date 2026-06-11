@@ -23,6 +23,17 @@ export const useUpdateProfile = () => {
   });
 };
 
+export const useUser = (userId?: string, enabled = true) => {
+  return useQuery({
+    queryKey: ["user", userId],
+    enabled: enabled && Boolean(userId),
+    queryFn: async () => {
+      const res = await instance.get<UserResponse>(`/users/${userId}`);
+      return res.data;
+    },
+  });
+};
+
 export const useListUsers = (page = 1, limit = 10) => {
   return useQuery({
     queryKey: ["users", page, limit],
@@ -30,6 +41,26 @@ export const useListUsers = (page = 1, limit = 10) => {
       const res = await instance.get<PaginatedResponse<UserResponse>>("/users", {
         params: { page, limit },
       });
+      return res.data;
+    },
+  });
+};
+
+export const useCreateUser = () => {
+  return useMutation({
+    mutationKey: ["createUser"],
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await instance.post<UserResponse>("/users", data);
+      return res.data;
+    },
+  });
+};
+
+export const useUpdateUser = (userId?: string) => {
+  return useMutation({
+    mutationKey: ["updateUser", userId],
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await instance.patch<UserResponse>(`/users/${userId}`, data);
       return res.data;
     },
   });

@@ -1,32 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import {
+  AuthSessionResponse,
+  ForgotPasswordRequest,
+  LoginRequest,
+  RegisterRequest,
+  ResetPasswordRequest,
+} from "@/lib/api-types";
 import instance from "@/lib/http";
-
-export interface RegisterPayload {
-  email: string;
-  password: string;
-  username: string;
-}
-
-export interface LoginPayload {
-  email: string;
-  password: string;
-}
-
-export interface AuthSessionResponse {
-  userId: string;
-  email: string;
-  role?: number;
-}
-
-export interface ForgotPasswordPayload {
-  email: string;
-}
-
-export interface ResetPasswordPayload {
-  token: string;
-  newPassword: string;
-}
 
 export const useAuthSession = () => {
   return useQuery({
@@ -41,7 +22,7 @@ export const useAuthSession = () => {
 
 export const useLogin = () => {
   return useMutation({
-    mutationFn: async (data: LoginPayload) => {
+    mutationFn: async (data: LoginRequest) => {
       const res = await instance.post("/auth/login", data);
       return res.data;
     },
@@ -50,7 +31,7 @@ export const useLogin = () => {
 
 export const useRegister = () => {
   return useMutation({
-    mutationFn: async (data: RegisterPayload) => {
+    mutationFn: async (data: RegisterRequest) => {
       const res = await instance.post("/auth/register", data);
       return res.data;
     },
@@ -68,7 +49,7 @@ export const useRefreshToken = () => {
 
 export const useForgotPassword = () => {
   return useMutation({
-    mutationFn: async (data: ForgotPasswordPayload) => {
+    mutationFn: async (data: ForgotPasswordRequest) => {
       const res = await instance.post("/auth/forgotPassword", data);
       return res.data;
     },
@@ -77,7 +58,7 @@ export const useForgotPassword = () => {
 
 export const useResetPassword = () => {
   return useMutation({
-    mutationFn: async (data: ResetPasswordPayload) => {
+    mutationFn: async (data: ResetPasswordRequest) => {
       const res = await instance.post("/auth/resetPassword", data);
       return res.data;
     },

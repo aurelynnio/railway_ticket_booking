@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   PaginatedResponse,
@@ -17,6 +17,37 @@ export interface TicketsQuery {
   status?: string;
   page?: number;
   limit?: number;
+}
+
+export interface CreateTicketItemPayload {
+  name?: string;
+  description?: string;
+  coachCode?: string;
+  seatClass?: string;
+  seatType?: string;
+  seatLabels?: string[];
+  availableSeatLabels?: string[];
+  stockInitial?: number;
+  stockAvailable?: number;
+  stockPrepared?: boolean;
+  priceOriginal?: number | string;
+  priceFlash?: number | string;
+  saleStartTime?: string;
+  saleEndTime?: string;
+}
+
+export interface CreateTicketPayload {
+  title?: string;
+  trainNumber?: string;
+  departureStationCode?: string;
+  departureStationName?: string;
+  arrivalStationCode?: string;
+  arrivalStationName?: string;
+  journeyNote?: string;
+  dateStart?: string;
+  dateEnd?: string;
+  status?: number;
+  ticketItems?: CreateTicketItemPayload[];
 }
 
 export function useTickets(query: TicketsQuery) {
@@ -67,6 +98,33 @@ export function useSeatMap(ticketId?: string) {
         `/tickets/${ticketId}/seat-map`,
       );
       return res.data;
+    },
+  });
+}
+
+export function useTicketItem(ticketId?: string, ticketItemId?: string) {
+  return useQuery({
+    queryKey: ["ticket-item", ticketId, ticketItemId],
+    enabled: Boolean(ticketId && ticketItemId),
+    queryFn: async () => {
+      const res = await instance.get(
+        `/tickets/${ticketId}/ticket-items/${ticketItemId}`,
+      );
+      return res.data as TicketResponse["ticketItems"][number];
+    },
+  });
+}
+
+export function useCreateTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateTicketPayload) => {
+      const res = await instance.post<TicketResponse>("/tickets", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
     },
   });
 }
