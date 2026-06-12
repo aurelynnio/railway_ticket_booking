@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import {
   CancelOrderRequest,
+  CheckoutOrderRequest,
   CreateOrderRequest,
   ListOrdersQuery,
   UpdateOrderPassengersRequest,
@@ -16,6 +17,10 @@ export class OrderService {
 
   health() {
     return this.orderClient.send('orders.health', {});
+  }
+
+  checkout(payload: CheckoutOrderRequest) {
+    return this.orderClient.send('orders.checkout', payload);
   }
 
   create(payload: CreateOrderRequest) {
@@ -62,6 +67,10 @@ export class OrderService {
 
   issueTicket(data: { orderId: string }) {
     return this.orderClient.send('orders.issueTicket', data);
+  }
+
+  cancelWorkflow(data: { orderId: string; payload?: CancelOrderRequest }) {
+    return this.orderClient.send('orders.cancelWorkflow', data);
   }
 
   cancel(data: { orderId: string; payload?: CancelOrderRequest }) {

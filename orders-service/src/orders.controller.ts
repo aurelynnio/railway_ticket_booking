@@ -1,8 +1,10 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { OrdersService } from './orders.service';
+import type { PaymentPaidEventPayload } from './orders.contracts';
 import {
   CancelOrderRequest,
+  CheckoutOrderRequest,
   CreateOrderRequest,
   ListOrdersQuery,
   UpdateOrderPassengersRequest,
@@ -21,6 +23,11 @@ export class OrdersController {
   @MessagePattern('orders.create')
   create(@Payload() payload: CreateOrderRequest) {
     return this.ordersService.create(payload);
+  }
+
+  @MessagePattern('orders.checkout')
+  checkout(@Payload() payload: CheckoutOrderRequest) {
+    return this.ordersService.checkout(payload);
   }
 
   @MessagePattern('orders.list')
@@ -70,6 +77,11 @@ export class OrdersController {
     return this.ordersService.markPaid(data.orderId);
   }
 
+  @EventPattern('payment.paid')
+  handlePaymentPaid(@Payload() payload: PaymentPaidEventPayload) {
+    return this.ordersService.handlePaymentPaidEvent(payload);
+  }
+
   @MessagePattern('orders.confirm')
   confirm(@Payload() data: { orderId: string }) {
     return this.ordersService.confirm(data.orderId);
@@ -83,6 +95,13 @@ export class OrdersController {
   @MessagePattern('orders.cancel')
   cancel(@Payload() data: { orderId: string; payload?: CancelOrderRequest }) {
     return this.ordersService.cancel(data.orderId, data.payload);
+  }
+
+  @MessagePattern('orders.cancelWorkflow')
+  cancelWorkflow(
+    @Payload() data: { orderId: string; payload?: CancelOrderRequest },
+  ) {
+    return this.ordersService.cancelWorkflow(data);
   }
 
   @MessagePattern('orders.expire')

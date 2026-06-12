@@ -12,6 +12,7 @@ import { OrderService } from './order.service';
 import {
   CancelOrderRequest,
   CreateOrderRequest,
+  CheckoutOrderRequest,
   ListOrdersQuery,
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
@@ -24,6 +25,11 @@ export class OrderController {
   @Get('health')
   health() {
     return this.orderService.health();
+  }
+
+  @Post('checkout')
+  checkout(@Body() payload: CheckoutOrderRequest) {
+    return this.orderService.checkout(payload);
   }
 
   @Post()
@@ -87,7 +93,7 @@ export class OrderController {
     @Param('orderId') orderId: string,
     @Body() payload?: CancelOrderRequest,
   ) {
-    return this.orderService.cancel({ orderId, payload });
+    return this.orderService.cancelWorkflow({ orderId, payload });
   }
 
   @Post(':orderId/expire')

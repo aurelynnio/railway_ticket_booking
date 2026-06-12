@@ -105,6 +105,37 @@ export interface PaginatedOrdersResponse {
   };
 }
 
+export interface OrderCheckoutResponse {
+  order: OrderResponse;
+  payment: {
+    id: string;
+    orderId: string;
+    userId: string | null;
+    amount: string;
+    paymentMethod: string;
+    status: number;
+    transactionId: string;
+    paidAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: string | null;
+  };
+  reservation: {
+    ticketId: string;
+    ticketItemId: string;
+    reservedSeatLabels: string[];
+    reservedQuantity: number;
+  };
+}
+
+export interface CancelOrderWorkflowResponse {
+  order: CancelledOrderResponse;
+  releasedSeatLabels: string[];
+  releasedQuantity: number;
+  cancelledPaymentIds: string[];
+  warnings: string[];
+}
+
 export class CreateOrderRequest {
   @IsString()
   @IsNotEmpty()
@@ -193,6 +224,13 @@ export class CreateOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => OrderPassengerPayload)
   passengers?: OrderPassengerPayload[];
+}
+
+export class CheckoutOrderRequest extends CreateOrderRequest {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  paymentMethod?: string;
 }
 
 export class ListOrdersQuery {
