@@ -1,0 +1,326 @@
+import { HttpException, HttpStatus } from '@nestjs/common';
+import type { ClientProxy } from '@nestjs/microservices';
+import { of, throwError } from 'rxjs';
+import { OrderStatus, type CheckoutOrderRequest } from './orders.dto';
+import { OrdersService } from './orders.service';
+
+describe('OrdersService', () => {
+  let service: OrdersService;
+  let paymentClient: { send: jest.Mock };
+  let ticketClient: { send: jest.Mock };
+
+  const ticketSnapshot = {
+    id: 'ticket-1',
+    title: 'SE1 Ha Noi - Da Nang',
+    trainNumber: 'SE1',
+    departureStationCode: 'HN',
+    departureStationName: 'Ha Noi',
+    arrivalStationCode: 'DN',
+    arrivalStationName: 'Da Nang',
+    dateStart: '2026-06-12T08:00:00.000Z',
+    dateEnd: '2026-06-12T20:00:00.000Z',
+  };
+
+  const ticketItemSnapshot = {
+    id: 'item-1',
+    ticketId: 'ticket-1',
+    coachCode: 'A1',
+    seatClass: 'soft-seat',
+    seatType: 'window',
+    priceOriginal: 100000,
+    priceFlash: 90000,
+    stockAvailable: 10,
+    availableSeatLabels: ['A1', 'A2', 'A3'],
+  };
+
+  const paymentDto = {
+    id: 'payment-1',
+    orderId: 'order-1',
+    userId: 'user-1',
+    amount: '180000',
+    paymentMethod: 'VNPAY',
+    status: 0,
+    transactionId: 'txn-1',
+    paidAt: null,
+    createdAt: '2026-06-12T08:00:00.000Z',
+    updatedAt: '2026-06-12T08:00:00.000Z',
+    deletedAt: null,
+  };
+
+  beforeEach(() => {
+    paymentClient = {
+      send: jest.fn(),
+    };
+    ticketClient = {
+      send: jest.fn(),
+    };
+
+    service = new OrdersService(
+      paymentClient as unknown as ClientProxy,
+      ticketClient as unknown as ClientProxy,
+    );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('create should normalize the order and compute the total price', () => {
+    const order = service.create({
+      userId: ' user-1 ',
+      ticketId: ' ticket-1 ',
+      ticketItemId: ' item-1 ',
+      ticketTitle: ' SE1 ',
+      quantity: 2,
+      unitPrice: 90000,
+      seatLabels: ['A1', 'A2'],
+      passengers: [
+        {
+          fullName: 'Nguyen Van A',
+          passengerType: 'adult',
+        },
+      ],
+    });
+
+    expect(order.userId).toBe('user-1');
+    expect(order.ticketId).toBe('ticket-1');
+    expect(order.ticketItemId).toBe('item-1');
+    expect(order.totalPrice).toBe(180000);
+    expect(order.status).toBe(OrderStatus.PendingPayment);
+    expect(order.seatLabels).toEqual(['A1', 'A2']);
+  });
+
+  it('checkout should reserve inventory and create a payment', async () => {
+    const sendTicket = ticketClient.send.mockImplementation(
+      (pattern: { cmd: string }) => {
+        switch (pattern.cmd) {
+          case 'tickets.find_one':
+            return of(ticketSnapshot);
+          case 'tickets.find_ticket_item':
+            return of(ticketItemSnapshot);
+          case 'tickets.reserve_seat':
+          case 'tickets.reserve':
+            return of({ success: true });
+          default:
+            throw new Error(`Unexpected ticket pattern: ${pattern.cmd}`);
+        }
+      },
+    );
+
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.create') {
+        return of(paymentDto);
+      }
+
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
+
+    const payload: CheckoutOrderRequest = {
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'ignored-at-checkout',
+      quantity: 2,
+      unitPrice: 0,
+      seatLabels: ['A1'],
+      passengers: [
+        {
+          fullName: 'Nguyen Van A',
+          passengerType: 'adult',
+        },
+      ],
+      paymentMethod: 'VNPAY',
+    };
+
+    const result = await service.checkout(payload);
+
+    expect(result.order.ticketTitle).toBe(ticketSnapshot.title);
+    expect(result.order.totalPrice).toBe(180000);
+    expect(result.reservation.reservedSeatLabels).toEqual(['A1']);
+    expect(result.reservation.reservedQuantity).toBe(2);
+
+    expect(sendTicket).toHaveBeenCalledWith(
+      { cmd: 'tickets.reserve_seat' },
+      {
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        payload: { seatLabel: 'A1' },
+      },
+    );
+    expect(sendTicket).toHaveBeenCalledWith(
+      { cmd: 'tickets.reserve' },
+      {
+        ticketId: 'ticket-1',
+        payload: { ticketItemId: 'item-1', quantity: 1 },
+      },
+    );
+    expect(paymentClient.send).toHaveBeenCalledWith(
+      'payments.create',
+      expect.objectContaining({
+        userId: 'user-1',
+        amount: '180000',
+        paymentMethod: 'VNPAY',
+      }),
+    );
+  });
+
+  it('checkout should release reservations and cancel the compensating order on payment failure', async () => {
+    ticketClient.send.mockImplementation((pattern: { cmd: string }) => {
+      switch (pattern.cmd) {
+        case 'tickets.find_one':
+          return of(ticketSnapshot);
+        case 'tickets.find_ticket_item':
+          return of(ticketItemSnapshot);
+        case 'tickets.reserve_seat':
+        case 'tickets.reserve':
+        case 'tickets.release_seat':
+        case 'tickets.release':
+          return of({ success: true });
+        default:
+          throw new Error(`Unexpected ticket pattern: ${pattern.cmd}`);
+      }
+    });
+
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.create') {
+        return throwError(() => new Error('payment provider failed'));
+      }
+
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
+
+    await expect(
+      service.checkout({
+        userId: 'user-1',
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        ticketTitle: 'ignored-at-checkout',
+        quantity: 2,
+        unitPrice: 0,
+        seatLabels: ['A1'],
+        paymentMethod: 'VNPAY',
+      }),
+    ).rejects.toThrow('payment provider failed');
+
+    expect(ticketClient.send).toHaveBeenCalledWith(
+      { cmd: 'tickets.release_seat' },
+      {
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        payload: { seatLabel: 'A1' },
+      },
+    );
+    expect(ticketClient.send).toHaveBeenCalledWith(
+      { cmd: 'tickets.release' },
+      {
+        ticketId: 'ticket-1',
+        payload: { ticketItemId: 'item-1', quantity: 1 },
+      },
+    );
+    expect(service.list().data[0].status).toBe(OrderStatus.Cancelled);
+  });
+
+  it('handlePaymentPaidEvent should advance a pending payment order to ticket issued', () => {
+    const created = service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+    });
+
+    const result = service.handlePaymentPaidEvent({
+      paymentId: 'payment-1',
+      orderId: created.id,
+      userId: 'user-1',
+      transactionId: 'txn-1',
+      paidAt: '2026-06-12T09:00:00.000Z',
+    });
+
+    expect(result.advancedOrderStatuses).toEqual([
+      OrderStatus.Paid,
+      OrderStatus.Confirmed,
+      OrderStatus.TicketIssued,
+    ]);
+    expect(result.order.status).toBe(OrderStatus.TicketIssued);
+    expect(result.order.ticketCode).toBeTruthy();
+    expect(result.order.qrPayload).toBeTruthy();
+  });
+
+  it('cancelWorkflow should cancel pending payments and collect downstream warnings', async () => {
+    const created = service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 2,
+      unitPrice: 90000,
+      seatLabels: ['A1'],
+    });
+
+    paymentClient.send.mockImplementation(
+      (pattern: string, payload: unknown) => {
+        if (pattern === 'payments.listByOrderId') {
+          return of([
+            { id: 'payment-1', status: 0 },
+            { id: 'payment-2', status: 1 },
+            { id: 'payment-3', status: 2 },
+          ]);
+        }
+
+        if (pattern === 'payments.cancel') {
+          const lookup = payload as { id: string };
+          if (lookup.id === 'payment-2') {
+            return throwError(() => new Error('cancel failed'));
+          }
+          return of({ success: true });
+        }
+
+        throw new Error(`Unexpected payment pattern: ${pattern}`);
+      },
+    );
+
+    ticketClient.send.mockImplementation((pattern: { cmd: string }) => {
+      if (pattern.cmd === 'tickets.release_seat') {
+        return of({ success: true });
+      }
+
+      if (pattern.cmd === 'tickets.release') {
+        return throwError(() => new Error('inventory release failed'));
+      }
+
+      throw new Error(`Unexpected ticket pattern: ${pattern.cmd}`);
+    });
+
+    const result = await service.cancelWorkflow({ orderId: created.id });
+
+    expect(result.order.status).toBe(OrderStatus.Cancelled);
+    expect(result.cancelledPaymentIds).toEqual(['payment-1']);
+    expect(result.releasedSeatLabels).toEqual(['A1']);
+    expect(result.releasedQuantity).toBe(2);
+    expect(result.warnings).toEqual([
+      'cancel payment payment-2: cancel failed',
+      'inventory release failed',
+    ]);
+  });
+
+  it('create should reject seat labels that exceed quantity', () => {
+    expect(() =>
+      service.create({
+        userId: 'user-1',
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        ticketTitle: 'SE1',
+        quantity: 1,
+        unitPrice: 90000,
+        seatLabels: ['A1', 'A2'],
+      }),
+    ).toThrow(
+      new HttpException(
+        'seatLabels cannot exceed quantity',
+        HttpStatus.BAD_REQUEST,
+      ),
+    );
+  });
+});
