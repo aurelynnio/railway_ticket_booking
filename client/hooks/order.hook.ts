@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  OrderCheckoutResponse,
   OrderResponse,
   OrderSummaryResponse,
   PaginatedResponse,
@@ -37,6 +38,7 @@ export interface CreateOrderPayload {
   seatType?: string | null;
   quantity: number;
   unitPrice: number;
+  paymentMethod?: string;
   seatLabels?: string[];
   passengers?: OrderPassengerPayload[];
 }
@@ -90,10 +92,19 @@ export function useOrderSummary(orderId?: string) {
 }
 
 export function useCreateOrder() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (payload: CreateOrderPayload) => {
-      const res = await instance.post<OrderResponse>("/orders", payload);
+      const res = await instance.post<OrderCheckoutResponse>(
+        "/orders/checkout",
+        payload,
+      );
       return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["payments"] });
     },
   });
 }

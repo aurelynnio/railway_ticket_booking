@@ -9,6 +9,7 @@ import {
   ListPaymentsByUserIdRequest,
   ListPaymentsQuery,
   MarkFailedRequest,
+  PaymentMarkedPaidResponse,
   MarkPaidRequest,
   MarkProcessingRequest,
   PaginatedPaymentsResponse,
@@ -151,7 +152,27 @@ export function useMarkPaymentProcessing() {
 }
 
 export function useMarkPaymentPaid() {
-  return usePaymentAction<MarkPaidRequest>("/payments/mark-paid");
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: MarkPaidRequest) => {
+      const res = await instance.post<PaymentMarkedPaidResponse>(
+        "/payments/mark-paid",
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (result) => {
+      invalidatePaymentQueries(queryClient, result.payment);
+      void queryClient.invalidateQueries({
+        queryKey: ["order", result.payment.orderId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["order-summary", result.payment.orderId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
 }
 
 export function useMarkPaymentFailed() {

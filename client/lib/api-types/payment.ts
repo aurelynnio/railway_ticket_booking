@@ -81,3 +81,12 @@ export interface SoftDeletePaymentRequest {
 }
 
 export type PaginatedPaymentsResponse = PaginatedResponse<PaymentDto>;
+
+export interface PaymentMarkedPaidResponse {
+  payment: PaymentDto;
+  event: {
+    name: "payment.paid";
+    orderId: string;
+    emittedAt: string;
+  };
+}

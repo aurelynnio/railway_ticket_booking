@@ -83,12 +83,12 @@ export default function TicketDetailPage() {
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean),
-      passengers: passengerName
-        ? [{ fullName: passengerName, passengerType: "ADULT" }]
-        : [],
+        passengers: passengerName
+          ? [{ fullName: passengerName, passengerType: "ADULT" }]
+          : [],
     });
 
-    router.push(`/orders/${result.id}`);
+    router.push(`/payments/${result.payment.id}`);
   }
 
   return (
@@ -293,7 +293,9 @@ export default function TicketDetailPage() {
                       disabled={!sessionUserId || createOrder.isPending}
                       onClick={() => void handleCreateOrder()}
                     >
-                      {createOrder.isPending ? "Đang tạo đơn..." : "Tạo đơn"}
+                      {createOrder.isPending
+                        ? "Đang giữ chỗ..."
+                        : "Giữ chỗ & tạo thanh toán"}
                     </Button>
                   </div>
                 )}

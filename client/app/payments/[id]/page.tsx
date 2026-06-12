@@ -55,7 +55,7 @@ export default function PaymentDetailPage() {
             disabled={!payment}
             onClick={() => markPaid.mutate({ id: paymentId })}
           >
-            Mark paid
+            Mark paid + issue
           </Button>
           <Button
             type="button"
@@ -133,7 +133,7 @@ export default function PaymentDetailPage() {
 
         <Panel
           title="State machine"
-          description="Cac action mutation dang goi truc tiep route gateway de doi trang thai thanh toan."
+          description="Action paid gio phat event `payment.paid` tu payments-service, sau do orders-service tu dong advance order lifecycle o background."
         >
           <MetaGrid
             items={[

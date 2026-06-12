@@ -28,9 +28,7 @@ export class UserController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  profile(
-    @Req() request: { user?: { id?: string; userId?: string } },
-  ) {
+  profile(@Req() request: { user?: { id?: string; userId?: string } }) {
     const resolvedUserId = request.user?.id ?? request.user?.userId;
 
     return this.userService.profile({ userId: resolvedUserId ?? '' });

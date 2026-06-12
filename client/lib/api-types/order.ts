@@ -59,3 +59,22 @@ export interface OrderSummaryResponse {
   status: OrderStatus;
   ticketIssued: boolean;
 }
+
+export interface OrderCheckoutResponse {
+  order: OrderResponse;
+  payment: import("./payment").PaymentDto;
+  reservation: {
+    ticketId: string;
+    ticketItemId: string;
+    reservedSeatLabels: string[];
+    reservedQuantity: number;
+  };
+}
+
+export interface CancelOrderWorkflowResponse {
+  order: OrderResponse;
+  releasedSeatLabels: string[];
+  releasedQuantity: number;
+  cancelledPaymentIds: string[];
+  warnings: string[];
+}

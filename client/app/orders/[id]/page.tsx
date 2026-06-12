@@ -61,30 +61,34 @@ export default function OrderDetailPage() {
       description="Chi tiet order gom snapshot booking, seat labels, passenger payload, tong tien va cac status transition cua `orders-service`."
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!orderId || isMutating}
-            onClick={() => markPaid.mutate({ orderId })}
-          >
-            Mark paid
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!orderId || isMutating}
-            onClick={() => confirm.mutate({ orderId })}
-          >
-            Confirm
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!orderId || isMutating}
-            onClick={() => issueTicket.mutate({ orderId })}
-          >
-            Issue ticket
-          </Button>
+          {isAdminView ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!orderId || isMutating}
+                onClick={() => markPaid.mutate({ orderId })}
+              >
+                Mark paid
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!orderId || isMutating}
+                onClick={() => confirm.mutate({ orderId })}
+              >
+                Confirm
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!orderId || isMutating}
+                onClick={() => issueTicket.mutate({ orderId })}
+              >
+                Issue ticket
+              </Button>
+            </>
+          ) : null}
           <Button
             type="button"
             variant="destructive"
