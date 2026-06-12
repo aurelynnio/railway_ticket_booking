@@ -17,9 +17,7 @@ import {
 
 @Injectable()
 export class PaymentService {
-  constructor(
-    @Inject('payment_service') private readonly paymentClient: ClientProxy,
-  ) {}
+  constructor(@Inject('payment_service') private readonly paymentClient: ClientProxy) {}
 
   health() {
     return this.paymentClient.send('payments.health', {});
@@ -55,6 +53,10 @@ export class PaymentService {
 
   markPaid(payload: MarkPaidRequest) {
     return this.paymentClient.send('payments.markPaid', payload);
+  }
+
+  markPaidWorkflow(payload: MarkPaidRequest) {
+    return this.paymentClient.send('payments.markPaidWorkflow', payload);
   }
 
   markFailed(payload: MarkFailedRequest) {

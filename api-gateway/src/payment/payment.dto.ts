@@ -172,3 +172,12 @@ export interface PaginatedPaymentsResponse {
     totalPages: number;
   };
 }
+
+export interface PaymentMarkedPaidResponse {
+  payment: PaymentDto;
+  event: {
+    name: 'payment.paid';
+    orderId: string;
+    emittedAt: string;
+  };
+}

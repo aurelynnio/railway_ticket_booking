@@ -71,7 +71,7 @@ export class PaymentController {
 
   @Post('mark-paid')
   markPaid(@Body() payload: MarkPaidRequest) {
-    return this.paymentService.markPaid(payload);
+    return this.paymentService.markPaidWorkflow(payload);
   }
 
   @Post('mark-failed')

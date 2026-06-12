@@ -172,3 +172,31 @@ export interface PaginatedPaymentsResponse {
     totalPages: number;
   };
 }
+
+export enum OrderStatus {
+  Draft = 0,
+  PendingPayment = 1,
+  Paid = 2,
+  Confirmed = 3,
+  TicketIssued = 4,
+  Cancelled = 5,
+  Expired = 6,
+  Refunded = 7,
+}
+
+export interface PaymentPaidEventPayload {
+  paymentId: string;
+  orderId: string;
+  userId: string | null;
+  transactionId: string;
+  paidAt: string | null;
+}
+
+export interface PaymentMarkedPaidResponse {
+  payment: PaymentDto;
+  event: {
+    name: 'payment.paid';
+    orderId: string;
+    emittedAt: string;
+  };
+}

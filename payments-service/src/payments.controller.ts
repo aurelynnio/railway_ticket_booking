@@ -75,6 +75,11 @@ export class PaymentsController {
     return this.paymentsService.markPaid(payload);
   }
 
+  @MessagePattern('payments.markPaidWorkflow')
+  markPaidWorkflow(@Payload() payload: MarkPaidRequest) {
+    return this.paymentsService.markPaidWorkflow(payload);
+  }
+
   @MessagePattern('payments.markFailed')
   markFailed(@Payload() payload: MarkFailedRequest) {
     return this.paymentsService.markFailed(payload);

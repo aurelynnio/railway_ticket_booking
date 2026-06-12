@@ -1,12 +1,16 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { Prisma, PrismaClient, type Payment } from '@prisma/client';
+import { lastValueFrom } from 'rxjs';
 import type {
   CreatePaymentRequest,
   ListPaymentsQuery,
   MarkPaidRequest,
   PaymentDto,
   PaymentLookupRequest,
+  PaymentMarkedPaidResponse,
+  PaymentPaidEventPayload,
   PaginatedPaymentsResponse,
   PaginationQuery,
 } from './payment.dto';
@@ -24,7 +28,10 @@ import {
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    @Inject('order_service') private readonly orderClient: ClientProxy,
+  ) {}
 
   health() {
     return {
@@ -216,6 +223,29 @@ export class PaymentsService {
     return toPaymentDto(updated);
   }
 
+  async markPaidWorkflow(
+    payload: MarkPaidRequest,
+  ): Promise<PaymentMarkedPaidResponse> {
+    const payment = await this.markPaid(payload);
+    const emittedAt = new Date().toISOString();
+    await this.emitPaymentPaidEvent({
+      paymentId: payment.id,
+      orderId: payment.orderId,
+      userId: payment.userId,
+      transactionId: payment.transactionId,
+      paidAt: payment.paidAt,
+    });
+
+    return {
+      payment,
+      event: {
+        name: 'payment.paid',
+        orderId: payment.orderId,
+        emittedAt,
+      },
+    };
+  }
+
   async markFailed(lookup: PaymentLookupRequest): Promise<PaymentDto> {
     return this.updatePaymentStatus(
       requirePaymentLookup(lookup),
@@ -283,5 +313,17 @@ export class PaymentsService {
       deletedAt: null,
       ...normalizedLookup,
     };
+  }
+
+  private async emitPaymentPaidEvent(
+    payload: PaymentPaidEventPayload,
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.orderClient.emit('payment.paid', payload).subscribe({
+        next: () => resolve(),
+        error: reject,
+        complete: () => resolve(),
+      });
+    });
   }
 }
