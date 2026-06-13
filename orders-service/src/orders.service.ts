@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { lastValueFrom } from 'rxjs';
 import type {
   PaymentDto,
@@ -35,18 +35,22 @@ import {
   normalizeSeatLabels,
   toNullableDate,
   toNullableString,
+  toOrderResponse,
+  type OrderWithRelations,
 } from './utils/orders.utils';
 
-type OrderRecord = OrderResponse;
+const orderInclude = {
+  seatLabels: true,
+  passengers: true,
+} satisfies Prisma.OrderInclude;
 
 @Injectable()
 export class OrdersService {
   constructor(
+    private readonly prisma: PrismaClient,
     @Inject('payment_service') private readonly paymentClient: ClientProxy,
     @Inject('ticket_service') private readonly ticketClient: ClientProxy,
   ) {}
-
-  private readonly orders: OrderRecord[] = [];
 
   health() {
     return {
@@ -88,7 +92,7 @@ export class OrdersService {
         },
       );
 
-      order = this.create({
+      order = await this.create({
         userId: payload.userId,
         ticketId: ticket.id,
         ticketItemId: ticketItem.id,
@@ -146,7 +150,7 @@ export class OrdersService {
    * Normalize the incoming order payload and derive computed fields once
    * so every later status transition works on a consistent order snapshot.
    */
-  create(payload: CreateOrderRequest): OrderResponse {
+  async create(payload: CreateOrderRequest): Promise<OrderResponse> {
     assertRequired(payload.userId, 'userId');
     assertRequired(payload.ticketId, 'ticketId');
     assertRequired(payload.ticketItemId, 'ticketItemId');
@@ -174,82 +178,91 @@ export class OrdersService {
       );
     }
 
-    const now = new Date().toISOString();
-    const order: OrderRecord = {
-      id: randomUUID(),
-      userId: payload.userId.trim(),
-      ticketItemId: payload.ticketItemId.trim(),
-      ticketId: payload.ticketId.trim(),
-      ticketTitle: payload.ticketTitle.trim(),
-      trainNumber: toNullableString(payload.trainNumber),
-      departureStationCode: toNullableString(payload.departureStationCode),
-      departureStationName: toNullableString(payload.departureStationName),
-      arrivalStationCode: toNullableString(payload.arrivalStationCode),
-      arrivalStationName: toNullableString(payload.arrivalStationName),
-      departureTime: toNullableDate(payload.departureTime, 'departureTime'),
-      arrivalTime: toNullableDate(payload.arrivalTime, 'arrivalTime'),
-      coachCode: toNullableString(payload.coachCode),
-      seatClass: toNullableString(payload.seatClass),
-      seatType: toNullableString(payload.seatType),
-      quantity,
-      unitPrice,
-      totalPrice: quantity * unitPrice,
-      ticketCode: null,
-      qrPayload: null,
-      status: OrderStatus.PendingPayment,
-      seatLabels,
-      passengers,
-      createdAt: now,
-      updatedAt: now,
-      deletedAt: null,
-    };
+    const departureTime = toNullableDate(
+      payload.departureTime,
+      'departureTime',
+    );
+    const arrivalTime = toNullableDate(payload.arrivalTime, 'arrivalTime');
 
-    this.orders.unshift(order);
-    return order;
+    const order = await this.prisma.order.create({
+      data: {
+        userId: payload.userId.trim(),
+        ticketItemId: payload.ticketItemId.trim(),
+        ticketId: payload.ticketId.trim(),
+        ticketTitle: payload.ticketTitle.trim(),
+        trainNumber: toNullableString(payload.trainNumber),
+        departureStationCode: toNullableString(payload.departureStationCode),
+        departureStationName: toNullableString(payload.departureStationName),
+        arrivalStationCode: toNullableString(payload.arrivalStationCode),
+        arrivalStationName: toNullableString(payload.arrivalStationName),
+        departureTime: departureTime ? new Date(departureTime) : null,
+        arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
+        coachCode: toNullableString(payload.coachCode),
+        seatClass: toNullableString(payload.seatClass),
+        seatType: toNullableString(payload.seatType),
+        quantity,
+        unitPrice: BigInt(unitPrice),
+        totalPrice: BigInt(quantity * unitPrice),
+        status: OrderStatus.PendingPayment,
+        seatLabels: {
+          create: seatLabels.map((seatLabel) => ({ seatLabel })),
+        },
+        passengers: {
+          create: passengers.map((passenger) => ({
+            fullName: passenger.fullName,
+            passengerType: passenger.passengerType,
+            identityNumber: passenger.identityNumber,
+            phoneNumber: passenger.phoneNumber,
+          })),
+        },
+      },
+      include: orderInclude,
+    });
+
+    return toOrderResponse(order);
   }
 
   /*
    * Apply soft-delete aware filters first, then paginate the surviving orders
    * so the returned counts and slices stay aligned with the query criteria.
    */
-  list(query: ListOrdersQuery = {}): PaginatedOrdersResponse {
+  async list(query: ListOrdersQuery = {}): Promise<PaginatedOrdersResponse> {
     const page = normalizePageValue(query.page, 1);
     const limit = normalizePageValue(query.limit, 10);
     const status = normalizeOptionalStatus(query.status);
-    const filtered = this.orders.filter((order) => {
-      if (order.deletedAt) {
-        return false;
-      }
-      if (query.userId?.trim() && order.userId !== query.userId.trim()) {
-        return false;
-      }
-      if (query.ticketId?.trim() && order.ticketId !== query.ticketId.trim()) {
-        return false;
-      }
-      if (
-        query.ticketItemId?.trim() &&
-        order.ticketItemId !== query.ticketItemId.trim()
-      ) {
-        return false;
-      }
-      if (
-        query.ticketCode?.trim() &&
-        order.ticketCode !== query.ticketCode.trim()
-      ) {
-        return false;
-      }
-      if (status !== undefined && order.status !== status) {
-        return false;
-      }
+    const where: Prisma.OrderWhereInput = {
+      deletedAt: null,
+    };
 
-      return true;
-    });
+    if (query.userId?.trim()) {
+      where.userId = query.userId.trim();
+    }
+    if (query.ticketId?.trim()) {
+      where.ticketId = query.ticketId.trim();
+    }
+    if (query.ticketItemId?.trim()) {
+      where.ticketItemId = query.ticketItemId.trim();
+    }
+    if (query.ticketCode?.trim()) {
+      where.ticketCode = query.ticketCode.trim();
+    }
+    if (status !== undefined) {
+      where.status = status;
+    }
 
-    const total = filtered.length;
-    const startIndex = (page - 1) * limit;
+    const [total, orders] = await this.prisma.$transaction([
+      this.prisma.order.count({ where }),
+      this.prisma.order.findMany({
+        where,
+        include: orderInclude,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
 
     return {
-      data: filtered.slice(startIndex, startIndex + limit),
+      data: orders.map(toOrderResponse),
       pagination: {
         page,
         limit,
@@ -259,12 +272,12 @@ export class OrdersService {
     };
   }
 
-  findOne(orderId: string): OrderResponse {
-    return this.getOrderOrThrow(orderId);
+  async findOne(orderId: string): Promise<OrderResponse> {
+    return toOrderResponse(await this.getOrderOrThrow(orderId));
   }
 
-  summary(orderId: string): OrderSummaryResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async summary(orderId: string): Promise<OrderSummaryResponse> {
+    const order = await this.findOne(orderId);
 
     return {
       orderId: order.id,
@@ -281,11 +294,11 @@ export class OrdersService {
     };
   }
 
-  updatePassengers(
+  async updatePassengers(
     orderId: string,
     payload: UpdateOrderPassengersRequest,
-  ): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  ): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     this.ensureMutable(order);
 
     const passengers = normalizePassengers(payload.passengers);
@@ -296,16 +309,33 @@ export class OrdersService {
       );
     }
 
-    order.passengers = passengers;
-    order.updatedAt = new Date().toISOString();
-    return order;
+    await this.prisma.$transaction([
+      this.prisma.orderPassenger.deleteMany({ where: { orderId: order.id } }),
+      ...passengers.map((passenger) =>
+        this.prisma.orderPassenger.create({
+          data: {
+            orderId: order.id,
+            fullName: passenger.fullName,
+            passengerType: passenger.passengerType,
+            identityNumber: passenger.identityNumber,
+            phoneNumber: passenger.phoneNumber,
+          },
+        }),
+      ),
+      this.prisma.order.update({
+        where: { id: order.id },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
+
+    return this.findOne(order.id);
   }
 
-  updateSeatLabels(
+  async updateSeatLabels(
     orderId: string,
     payload: UpdateOrderSeatLabelsRequest,
-  ): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  ): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     this.ensureMutable(order);
 
     const seatLabels = normalizeSeatLabels(payload.seatLabels);
@@ -316,13 +346,27 @@ export class OrdersService {
       );
     }
 
-    order.seatLabels = seatLabels;
-    order.updatedAt = new Date().toISOString();
-    return order;
+    await this.prisma.$transaction([
+      this.prisma.orderSeatLabel.deleteMany({ where: { orderId: order.id } }),
+      ...seatLabels.map((seatLabel) =>
+        this.prisma.orderSeatLabel.create({
+          data: {
+            orderId: order.id,
+            seatLabel,
+          },
+        }),
+      ),
+      this.prisma.order.update({
+        where: { id: order.id },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
+
+    return this.findOne(order.id);
   }
 
-  markPendingPayment(orderId: string): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async markPendingPayment(orderId: string): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     return this.transitionStatus(order, OrderStatus.PendingPayment, [
       OrderStatus.Draft,
       OrderStatus.PendingPayment,
@@ -330,15 +374,15 @@ export class OrdersService {
     ]);
   }
 
-  markPaid(orderId: string): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async markPaid(orderId: string): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     return this.transitionStatus(order, OrderStatus.Paid, [
       OrderStatus.PendingPayment,
     ]);
   }
 
-  handlePaymentPaidEvent(payload: PaymentPaidEventPayload) {
-    const order = this.getOrderOrThrow(payload.orderId);
+  async handlePaymentPaidEvent(payload: PaymentPaidEventPayload) {
+    const order = toOrderResponse(await this.getOrderOrThrow(payload.orderId));
     const advancedOrderStatuses: number[] = [];
 
     if (
@@ -358,17 +402,17 @@ export class OrdersService {
     let currentOrder = order;
 
     if (currentOrder.status === OrderStatus.PendingPayment) {
-      currentOrder = this.markPaid(currentOrder.id);
+      currentOrder = await this.markPaid(currentOrder.id);
       advancedOrderStatuses.push(currentOrder.status);
     }
 
     if (currentOrder.status === OrderStatus.Paid) {
-      currentOrder = this.confirm(currentOrder.id);
+      currentOrder = await this.confirm(currentOrder.id);
       advancedOrderStatuses.push(currentOrder.status);
     }
 
     if (currentOrder.status === OrderStatus.Confirmed) {
-      currentOrder = this.issueTicket(currentOrder.id);
+      currentOrder = await this.issueTicket(currentOrder.id);
       advancedOrderStatuses.push(currentOrder.status);
     }
 
@@ -378,8 +422,8 @@ export class OrdersService {
     };
   }
 
-  confirm(orderId: string): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async confirm(orderId: string): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     return this.transitionStatus(order, OrderStatus.Confirmed, [
       OrderStatus.Paid,
       OrderStatus.TicketIssued,
@@ -390,8 +434,8 @@ export class OrdersService {
    * Ticket issuance is the point where a paid order gains immutable travel
    * artifacts, so the code lazily generates them exactly once.
    */
-  issueTicket(orderId: string): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async issueTicket(orderId: string): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
 
     if (![OrderStatus.Paid, OrderStatus.Confirmed].includes(order.status)) {
       throw new HttpException(
@@ -400,19 +444,29 @@ export class OrdersService {
       );
     }
 
-    order.status = OrderStatus.TicketIssued;
-    order.ticketCode ??= buildTicketCode(order);
-    order.qrPayload ??= buildQrPayload(order);
-    order.updatedAt = new Date().toISOString();
+    const orderResponse = toOrderResponse(order);
+    const ticketCode = order.ticketCode ?? buildTicketCode(orderResponse);
+    const qrPayload =
+      order.qrPayload ?? buildQrPayload({ ...orderResponse, ticketCode });
 
-    return order;
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: OrderStatus.TicketIssued,
+        ticketCode,
+        qrPayload,
+      },
+      include: orderInclude,
+    });
+
+    return toOrderResponse(updated);
   }
 
-  cancel(
+  async cancel(
     orderId: string,
     payload: CancelOrderRequest = {},
-  ): CancelledOrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  ): Promise<CancelledOrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
 
     if (
       [
@@ -424,11 +478,16 @@ export class OrdersService {
       throw new HttpException('Order is already closed', HttpStatus.CONFLICT);
     }
 
-    order.status = OrderStatus.Cancelled;
-    order.updatedAt = new Date().toISOString();
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: OrderStatus.Cancelled,
+      },
+      include: orderInclude,
+    });
 
     return {
-      ...order,
+      ...toOrderResponse(updated),
       cancelReason: toNullableString(payload.reason),
     };
   }
@@ -437,8 +496,8 @@ export class OrdersService {
     orderId: string;
     payload?: CancelOrderRequest;
   }): Promise<CancelOrderWorkflowResponse> {
-    const order = this.findOne(data.orderId);
-    const cancelledOrder = this.cancel(data.orderId, data.payload);
+    const order = await this.findOne(data.orderId);
+    const cancelledOrder = await this.cancel(data.orderId, data.payload);
     const warnings: string[] = [];
     const cancelledPaymentIds = await this.cancelPendingPayments(
       order.id,
@@ -465,15 +524,15 @@ export class OrdersService {
     };
   }
 
-  expire(orderId: string): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async expire(orderId: string): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     return this.transitionStatus(order, OrderStatus.Expired, [
       OrderStatus.PendingPayment,
     ]);
   }
 
-  refund(orderId: string): OrderResponse {
-    const order = this.getOrderOrThrow(orderId);
+  async refund(orderId: string): Promise<OrderResponse> {
+    const order = await this.getOrderOrThrow(orderId);
     return this.transitionStatus(order, OrderStatus.Refunded, [
       OrderStatus.Paid,
       OrderStatus.Confirmed,
@@ -481,22 +540,31 @@ export class OrdersService {
     ]);
   }
 
-  remove(orderId: string) {
-    const order = this.getOrderOrThrow(orderId);
-    order.deletedAt = new Date().toISOString();
-    order.updatedAt = order.deletedAt;
+  async remove(orderId: string) {
+    const order = await this.getOrderOrThrow(orderId);
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
 
     return {
       message: `Order ${orderId} has been deleted`,
     };
   }
 
-  private getOrderOrThrow(orderId: string): OrderRecord {
+  private async getOrderOrThrow(orderId: string): Promise<OrderWithRelations> {
     assertRequired(orderId, 'orderId');
+    const normalizedOrderId = orderId.trim();
 
-    const order = this.orders.find(
-      (entry) => entry.id === orderId.trim() && entry.deletedAt === null,
-    );
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: normalizedOrderId,
+        deletedAt: null,
+      },
+      include: orderInclude,
+    });
 
     if (!order) {
       throw new HttpException(
@@ -508,11 +576,11 @@ export class OrdersService {
     return order;
   }
 
-  private transitionStatus(
-    order: OrderRecord,
+  private async transitionStatus(
+    order: OrderWithRelations,
     nextStatus: OrderStatus,
     allowedCurrentStatuses: OrderStatus[],
-  ): OrderResponse {
+  ): Promise<OrderResponse> {
     /*
      * Keep lifecycle rules in one place so every public status-changing method
      * enforces the same transition guard and timestamp update.
@@ -524,12 +592,16 @@ export class OrdersService {
       );
     }
 
-    order.status = nextStatus;
-    order.updatedAt = new Date().toISOString();
-    return order;
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: { status: nextStatus },
+      include: orderInclude,
+    });
+
+    return toOrderResponse(updated);
   }
 
-  private ensureMutable(order: OrderRecord) {
+  private ensureMutable(order: OrderWithRelations) {
     if (
       [
         OrderStatus.Cancelled,
@@ -665,10 +737,12 @@ export class OrdersService {
 
   private async tryCancelCompensatingOrder(orderId: string) {
     try {
-      this.cancel(orderId, {
+      await this.cancel(orderId, {
         reason: 'Checkout rollback after downstream failure',
       });
-    } catch {}
+    } catch {
+      return;
+    }
   }
 
   private async sendPayment<T>(pattern: string, payload: unknown): Promise<T> {

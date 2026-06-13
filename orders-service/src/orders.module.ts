@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { PrismaClient } from '@prisma/client';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     ClientsModule.register([
       {
         name: 'payment_service',
@@ -31,6 +36,6 @@ import { OrdersService } from './orders.service';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, PrismaClient],
 })
 export class OrdersModule {}

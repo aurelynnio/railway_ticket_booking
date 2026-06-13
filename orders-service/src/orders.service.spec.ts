@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
+import type { PrismaClient } from '@prisma/client';
 import { of, throwError } from 'rxjs';
 import { OrderStatus, type CheckoutOrderRequest } from './orders.dto';
 import { OrdersService } from './orders.service';
@@ -8,6 +9,7 @@ describe('OrdersService', () => {
   let service: OrdersService;
   let paymentClient: { send: jest.Mock };
   let ticketClient: { send: jest.Mock };
+  let prisma: ReturnType<typeof createMockPrisma>;
 
   const ticketSnapshot = {
     id: 'ticket-1',
@@ -54,8 +56,10 @@ describe('OrdersService', () => {
     ticketClient = {
       send: jest.fn(),
     };
+    prisma = createMockPrisma();
 
     service = new OrdersService(
+      prisma as unknown as PrismaClient,
       paymentClient as unknown as ClientProxy,
       ticketClient as unknown as ClientProxy,
     );
@@ -65,8 +69,8 @@ describe('OrdersService', () => {
     jest.clearAllMocks();
   });
 
-  it('create should normalize the order and compute the total price', () => {
-    const order = service.create({
+  it('create should normalize the order and compute the total price', async () => {
+    const order = await service.create({
       userId: ' user-1 ',
       ticketId: ' ticket-1 ',
       ticketItemId: ' item-1 ',
@@ -217,11 +221,11 @@ describe('OrdersService', () => {
         payload: { ticketItemId: 'item-1', quantity: 1 },
       },
     );
-    expect(service.list().data[0].status).toBe(OrderStatus.Cancelled);
+    expect((await service.list()).data[0].status).toBe(OrderStatus.Cancelled);
   });
 
-  it('handlePaymentPaidEvent should advance a pending payment order to ticket issued', () => {
-    const created = service.create({
+  it('handlePaymentPaidEvent should advance a pending payment order to ticket issued', async () => {
+    const created = await service.create({
       userId: 'user-1',
       ticketId: 'ticket-1',
       ticketItemId: 'item-1',
@@ -230,7 +234,7 @@ describe('OrdersService', () => {
       unitPrice: 90000,
     });
 
-    const result = service.handlePaymentPaidEvent({
+    const result = await service.handlePaymentPaidEvent({
       paymentId: 'payment-1',
       orderId: created.id,
       userId: 'user-1',
@@ -249,7 +253,7 @@ describe('OrdersService', () => {
   });
 
   it('cancelWorkflow should cancel pending payments and collect downstream warnings', async () => {
-    const created = service.create({
+    const created = await service.create({
       userId: 'user-1',
       ticketId: 'ticket-1',
       ticketItemId: 'item-1',
@@ -305,8 +309,8 @@ describe('OrdersService', () => {
     ]);
   });
 
-  it('create should reject seat labels that exceed quantity', () => {
-    expect(() =>
+  it('create should reject seat labels that exceed quantity', async () => {
+    await expect(
       service.create({
         userId: 'user-1',
         ticketId: 'ticket-1',
@@ -316,7 +320,7 @@ describe('OrdersService', () => {
         unitPrice: 90000,
         seatLabels: ['A1', 'A2'],
       }),
-    ).toThrow(
+    ).rejects.toThrow(
       new HttpException(
         'seatLabels cannot exceed quantity',
         HttpStatus.BAD_REQUEST,
@@ -324,3 +328,213 @@ describe('OrdersService', () => {
     );
   });
 });
+
+function createMockPrisma() {
+  type StoredSeatLabel = { orderId: string; seatLabel: string };
+  type StoredPassenger = {
+    orderId: string;
+    fullName: string;
+    passengerType: string;
+    identityNumber: string | null;
+    phoneNumber: string | null;
+  };
+  type StoredOrder = {
+    id: string;
+    userId: string;
+    ticketItemId: string;
+    ticketId: string;
+    ticketTitle: string;
+    trainNumber: string | null;
+    departureStationCode: string | null;
+    departureStationName: string | null;
+    arrivalStationCode: string | null;
+    arrivalStationName: string | null;
+    departureTime: Date | null;
+    arrivalTime: Date | null;
+    coachCode: string | null;
+    seatClass: string | null;
+    seatType: string | null;
+    quantity: number;
+    unitPrice: bigint;
+    totalPrice: bigint;
+    ticketCode: string | null;
+    qrPayload: string | null;
+    status: number;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+  };
+  type StoredOrderWithRelations = StoredOrder & {
+    seatLabels: StoredSeatLabel[];
+    passengers: StoredPassenger[];
+  };
+  type CreateOrderArgs = {
+    data: Omit<
+      StoredOrder,
+      | 'id'
+      | 'ticketCode'
+      | 'qrPayload'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'deletedAt'
+    > & {
+      seatLabels: { create: Omit<StoredSeatLabel, 'orderId'>[] };
+      passengers: { create: Omit<StoredPassenger, 'orderId'>[] };
+    };
+  };
+  type WhereArgs = { where?: Record<string, unknown> };
+  type FindManyArgs = WhereArgs & { skip?: number; take?: number };
+  type UpdateOrderArgs = {
+    where: { id: string };
+    data: Partial<StoredOrder>;
+  };
+  type DeleteManyArgs = { where: { orderId: string } };
+  type CreatePassengerArgs = { data: StoredPassenger };
+  type CreateSeatLabelArgs = { data: StoredSeatLabel };
+
+  const orders: StoredOrder[] = [];
+  const seatLabels: StoredSeatLabel[] = [];
+  const passengers: StoredPassenger[] = [];
+
+  const withRelations = (order: StoredOrder): StoredOrderWithRelations => ({
+    ...order,
+    seatLabels: seatLabels.filter((entry) => entry.orderId === order.id),
+    passengers: passengers.filter((entry) => entry.orderId === order.id),
+  });
+
+  const matchesWhere = (
+    order: StoredOrder,
+    where: Record<string, unknown> = {},
+  ) =>
+    Object.entries(where).every(([key, value]) => {
+      if (value === null) {
+        return order[key as keyof StoredOrder] === null;
+      }
+
+      return order[key as keyof StoredOrder] === value;
+    });
+
+  return {
+    order: {
+      create: jest.fn(
+        ({ data }: CreateOrderArgs): Promise<StoredOrderWithRelations> => {
+          const id = `order-${orders.length + 1}`;
+          const now = new Date('2026-06-12T08:00:00.000Z');
+          const order: StoredOrder = {
+            id,
+            userId: data.userId,
+            ticketItemId: data.ticketItemId,
+            ticketId: data.ticketId,
+            ticketTitle: data.ticketTitle,
+            trainNumber: data.trainNumber,
+            departureStationCode: data.departureStationCode,
+            departureStationName: data.departureStationName,
+            arrivalStationCode: data.arrivalStationCode,
+            arrivalStationName: data.arrivalStationName,
+            departureTime: data.departureTime,
+            arrivalTime: data.arrivalTime,
+            coachCode: data.coachCode,
+            seatClass: data.seatClass,
+            seatType: data.seatType,
+            quantity: data.quantity,
+            unitPrice: data.unitPrice,
+            totalPrice: data.totalPrice,
+            ticketCode: null,
+            qrPayload: null,
+            status: data.status,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+          };
+
+          orders.unshift(order);
+          for (const entry of data.seatLabels.create) {
+            seatLabels.push({ orderId: id, seatLabel: entry.seatLabel });
+          }
+          for (const entry of data.passengers.create) {
+            passengers.push({ orderId: id, ...entry });
+          }
+
+          return Promise.resolve(withRelations(order));
+        },
+      ),
+      count: jest.fn(({ where }: WhereArgs): Promise<number> => {
+        return Promise.resolve(
+          orders.filter((order) => matchesWhere(order, where)).length,
+        );
+      }),
+      findMany: jest.fn(
+        ({
+          where,
+          skip = 0,
+          take = orders.length,
+        }: FindManyArgs): Promise<StoredOrderWithRelations[]> => {
+          return Promise.resolve(
+            orders
+              .filter((order) => matchesWhere(order, where))
+              .slice(skip, skip + take)
+              .map(withRelations),
+          );
+        },
+      ),
+      findFirst: jest.fn(
+        ({ where }: WhereArgs): Promise<StoredOrderWithRelations | null> => {
+          const order = orders.find((entry) => matchesWhere(entry, where));
+          return Promise.resolve(order ? withRelations(order) : null);
+        },
+      ),
+      update: jest.fn(
+        ({
+          where,
+          data,
+        }: UpdateOrderArgs): Promise<StoredOrderWithRelations> => {
+          const order = orders.find((entry) => entry.id === where.id);
+          if (!order) {
+            return Promise.reject(new Error(`Order ${where.id} was not found`));
+          }
+
+          Object.assign(order, data, { updatedAt: new Date() });
+          return Promise.resolve(withRelations(order));
+        },
+      ),
+    },
+    orderPassenger: {
+      deleteMany: jest.fn(({ where }: DeleteManyArgs): Promise<void> => {
+        for (let index = passengers.length - 1; index >= 0; index -= 1) {
+          if (passengers[index].orderId === where.orderId) {
+            passengers.splice(index, 1);
+          }
+        }
+
+        return Promise.resolve();
+      }),
+      create: jest.fn(
+        ({ data }: CreatePassengerArgs): Promise<StoredPassenger> => {
+          passengers.push(data);
+          return Promise.resolve(data);
+        },
+      ),
+    },
+    orderSeatLabel: {
+      deleteMany: jest.fn(({ where }: DeleteManyArgs): Promise<void> => {
+        for (let index = seatLabels.length - 1; index >= 0; index -= 1) {
+          if (seatLabels[index].orderId === where.orderId) {
+            seatLabels.splice(index, 1);
+          }
+        }
+
+        return Promise.resolve();
+      }),
+      create: jest.fn(
+        ({ data }: CreateSeatLabelArgs): Promise<StoredSeatLabel> => {
+          seatLabels.push(data);
+          return Promise.resolve(data);
+        },
+      ),
+    },
+    $transaction: jest.fn(
+      (operations: Promise<unknown>[]): Promise<unknown[]> =>
+        Promise.all(operations),
+    ),
+  };
+}

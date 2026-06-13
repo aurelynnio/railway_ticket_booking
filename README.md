@@ -59,15 +59,15 @@ client (Next.js, http://localhost:3000)
 | `auth-service` | Prisma + MySQL |
 | `users-service` | Prisma + MySQL |
 | `payments-service` | Prisma + MySQL |
+| `orders-service` | Prisma + MySQL |
 | `search-service` | Prisma + MongoDB |
 | `tickets-service` | Prisma + MongoDB + Redis cache |
-| `orders-service` | co `schema.prisma` MySQL nhung logic hien tai van luu trong memory |
 
 Luu y quan trong:
 
 - `infra/docker/docker-compose.yml` hien chi dung MySQL, Redis, RabbitMQ.
 - Neu muon chay `search-service` va `tickets-service`, ban can tu cap them MongoDB va `DATABASE_URL` phu hop.
-- `orders-service` se mat du lieu sau khi restart vi dang dung mang in-memory trong `src/orders.service.ts`.
+- `orders-service` da luu order bang Prisma + MySQL; can chay `npx prisma generate` sau khi cai dependency hoac sua schema.
 
 ## Yeu cau moi truong
 
@@ -115,8 +115,6 @@ DATABASE_URL=mysql://app:app@localhost:3306/railway_ticket_booking
 ```env
 DATABASE_URL=mysql://app:app@localhost:3306/railway_ticket_booking
 ```
-
-Ghi chu: hien tai `orders-service` chua doc/ghi order bang Prisma nhu schema goi y, nhung van can giu dong bo cau hinh neu ban tiep tuc hoan thien service nay.
 
 ### `search-service`
 
@@ -248,7 +246,7 @@ npm run lint
 
 - Repo da tach thanh sibling services, khong phai Nest monorepo chung.
 - `api-gateway` nen giu mong, business flow dai hoi nen nam o domain service.
-- `orders-service` hien chua ben vung vi van luu order trong memory.
+- `orders-service` luu order bang Prisma + MySQL, gom order, seat labels va passengers.
 - `payments-service -> orders-service` da co event `payment.paid`, nhung phan lon flow van la command/query dong bo qua RabbitMQ.
 - `client/README.md` hien van la README mac dinh cua Next.js, khong phan anh toan bo repo nay.
 

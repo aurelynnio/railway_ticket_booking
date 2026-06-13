@@ -1,5 +1,10 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type {
+  Order,
+  OrderPassenger as PrismaOrderPassenger,
+  OrderSeatLabel,
+} from '@prisma/client';
+import type {
   OrderPassenger,
   OrderPassengerPayload,
   OrderResponse,
@@ -10,6 +15,11 @@ type TicketPayload = Pick<
   OrderResponse,
   'id' | 'ticketCode' | 'ticketId' | 'ticketItemId' | 'userId' | 'quantity'
 >;
+
+export type OrderWithRelations = Order & {
+  seatLabels: OrderSeatLabel[];
+  passengers: PrismaOrderPassenger[];
+};
 
 export function assertRequired(
   value: string | null | undefined,
@@ -118,7 +128,7 @@ export function normalizeOptionalStatus(value: number | string | undefined) {
     );
   }
 
-  return parsed as OrderStatus;
+  return parsed;
 }
 
 export function normalizePageValue(
@@ -145,4 +155,40 @@ export function buildQrPayload(order: TicketPayload) {
     userId: order.userId,
     quantity: order.quantity,
   });
+}
+
+export function toOrderResponse(order: OrderWithRelations): OrderResponse {
+  return {
+    id: order.id,
+    userId: order.userId,
+    ticketItemId: order.ticketItemId,
+    ticketId: order.ticketId,
+    ticketTitle: order.ticketTitle,
+    trainNumber: order.trainNumber,
+    departureStationCode: order.departureStationCode,
+    departureStationName: order.departureStationName,
+    arrivalStationCode: order.arrivalStationCode,
+    arrivalStationName: order.arrivalStationName,
+    departureTime: order.departureTime?.toISOString() ?? null,
+    arrivalTime: order.arrivalTime?.toISOString() ?? null,
+    coachCode: order.coachCode,
+    seatClass: order.seatClass,
+    seatType: order.seatType,
+    quantity: order.quantity,
+    unitPrice: Number(order.unitPrice),
+    totalPrice: Number(order.totalPrice),
+    ticketCode: order.ticketCode,
+    qrPayload: order.qrPayload,
+    status: order.status,
+    seatLabels: order.seatLabels.map((entry: OrderSeatLabel) => entry.seatLabel),
+    passengers: order.passengers.map((passenger: PrismaOrderPassenger) => ({
+      fullName: passenger.fullName,
+      passengerType: passenger.passengerType,
+      identityNumber: passenger.identityNumber,
+      phoneNumber: passenger.phoneNumber,
+    })),
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+    deletedAt: order.deletedAt?.toISOString() ?? null,
+  };
 }
