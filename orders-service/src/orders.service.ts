@@ -750,7 +750,7 @@ export class OrdersService {
     }
   }
 
-  private async tryCancelCompensatingOrder(orderId: string) {
+  private async tryCancelCompensatingOrder(orderId: string): Promise<void> {
     try {
       await this.cancel(orderId, {
         reason: 'Checkout rollback after downstream failure',
@@ -771,7 +771,7 @@ export class OrdersService {
     return lastValueFrom(this.ticketClient.send<T>(pattern, payload));
   }
 
-  private isNotFoundError(error: unknown) {
+  private isNotFoundError(error: unknown): boolean {
     const status =
       typeof error === 'object' && error !== null
         ? ((error as { status?: number }).status ??
@@ -782,7 +782,7 @@ export class OrdersService {
     return status === HttpStatus.NOT_FOUND;
   }
 
-  private getErrorMessage(error: unknown) {
+  private getErrorMessage(error: unknown): string {
     if (error instanceof Error) {
       return error.message;
     }
