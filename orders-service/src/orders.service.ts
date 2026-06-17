@@ -687,17 +687,27 @@ export class OrdersService {
     ticketItemId: string,
     seatLabels: string[],
     quantity: number,
-  ) {
-    for (const seatLabel of seatLabels) {
-      await this.sendTicket(
-        { cmd: 'tickets.release_seat' },
-        { ticketId, ticketItemId, payload: { seatLabel } },
-      );
-    }
+  ): Promise<void> {
+    const releaseSeatPromises = seatLabels.map(
+      (seatLabel: string): Promise<unknown> =>
+        this.sendTicket(
+          {
+            cmd: 'tickets.release_seat',
+          },
+          {
+            ticketId,
+            ticketItemId,
+            payload: { seatLabel },
+          },
+        ),
+    );
+    await Promise.all(releaseSeatPromises);
 
     if (quantity > 0) {
       await this.sendTicket(
-        { cmd: 'tickets.release' },
+        {
+          cmd: 'tickets.release',
+        },
         {
           ticketId,
           payload: {
