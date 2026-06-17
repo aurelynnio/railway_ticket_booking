@@ -647,13 +647,24 @@ export class OrdersService {
     reservedSeatLabels: string[],
     onReservedQuantity: (quantity: number) => void,
   ) {
-    for (const seatLabel of seatLabels) {
-      await this.sendTicket(
-        { cmd: 'tickets.reserve_seat' },
-        { ticketId, ticketItemId, payload: { seatLabel } },
-      );
-      reservedSeatLabels.push(seatLabel);
-    }
+    const reserveSeatPromises = seatLabels.map(
+      async (seatLabel: string): Promise<string> => {
+        await this.sendTicket(
+          {
+            cmd: 'tickets.reserve_seat',
+          },
+          {
+            ticketId,
+            ticketItemId,
+            payload: { seatLabel },
+          },
+        );
+        return seatLabel;
+      },
+    );
+
+    const reservedSeats = await Promise.all(reserveSeatPromises);
+    reservedSeatLabels.push(...reservedSeats);
 
     const remainingQuantity = quantity - seatLabels.length;
     if (remainingQuantity > 0) {
