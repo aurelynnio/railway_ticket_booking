@@ -729,23 +729,17 @@ export class OrdersService {
         { orderId },
       );
 
-      const pendingPayments = payments.filter((payment) =>
+      const pendingPayments = payments.filter((payment: PaymentDto): boolean =>
         [0, 1].includes(payment.status),
       );
 
-      const cancelledPaymentIds: string[] = [];
-      for (const payment of pendingPayments) {
-        try {
-          await this.sendPayment('payments.cancel', { id: payment.id });
-          cancelledPaymentIds.push(payment.id);
-        } catch (error) {
-          warnings.push(
-            `cancel payment ${payment.id}: ${this.getErrorMessage(error)}`,
-          );
-        }
-      }
+      const pendingPaymentIds = pendingPayments.map(
+        (p: PaymentDto): string => p.id,
+      );
 
-      return cancelledPaymentIds;
+      await this.sendPayment('payments.cancel', { id: pendingPaymentIds });
+
+      return pendingPaymentIds;
     } catch (error) {
       if (this.isNotFoundError(error)) {
         return [];
