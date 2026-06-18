@@ -33,6 +33,22 @@ import { OrdersService } from './orders.service';
           },
         },
       },
+      {
+        name: 'orders_expiration_service',
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+          queue: 'orders_expiration_queue',
+          queueOptions: {
+            durable: false,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'orders_expired_process_queue',
+              'x-message-ttl': parseInt(process.env.ORDER_EXPIRATION_TTL_MS || '600000', 10),
+            },
+          },
+        },
+      },
     ]),
   ],
   controllers: [OrdersController],

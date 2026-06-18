@@ -30,6 +30,9 @@ describe('TicketsService', () => {
     acquireLock: jest.Mock;
     releaseLock: jest.Mock;
   };
+  let searchClient: {
+    emit: jest.Mock;
+  };
 
   const buildTicketItem = (
     overrides: Partial<TicketItem> = {},
@@ -97,9 +100,14 @@ describe('TicketsService', () => {
       releaseLock: jest.fn().mockResolvedValue(1),
     };
 
+    searchClient = {
+      emit: jest.fn(),
+    };
+
     service = new TicketsService(
       prisma as unknown as PrismaClient,
       redisCache as unknown as RedisCacheService,
+      searchClient as unknown as any,
     );
   });
 

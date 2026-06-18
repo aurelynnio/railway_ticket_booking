@@ -120,4 +120,91 @@ export class SearchService {
       seatTypes,
     };
   }
+
+  async upsertTicket(data: any) {
+    await this.prisma.ticket.upsert({
+      where: { id: data.id },
+      create: {
+        id: data.id,
+        title: data.title,
+        trainNumber: data.trainNumber,
+        departureStationCode: data.departureStationCode,
+        departureStationName: data.departureStationName,
+        arrivalStationCode: data.arrivalStationCode,
+        arrivalStationName: data.arrivalStationName,
+        journeyNote: data.journeyNote,
+        dateStart: data.dateStart ? new Date(data.dateStart) : null,
+        dateEnd: data.dateEnd ? new Date(data.dateEnd) : null,
+        status: data.status,
+        createdAt: data.createdAt ? new Date(data.createdAt) : null,
+        updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
+        deletedAt: data.deletedAt ? new Date(data.deletedAt) : null,
+        ticketItems: data.ticketItems ? data.ticketItems.map((item: any) => ({
+          id: item.id,
+          ticketId: item.ticketId,
+          name: item.name,
+          description: item.description,
+          coachCode: item.coachCode,
+          seatClass: item.seatClass,
+          seatType: item.seatType,
+          seatLabels: item.seatLabels,
+          availableSeatLabels: item.availableSeatLabels,
+          stockInitial: item.stockInitial,
+          stockAvailable: item.stockAvailable,
+          stockPrepared: item.stockPrepared,
+          priceOriginal: item.priceOriginal ? BigInt(item.priceOriginal) : null,
+          priceFlash: item.priceFlash ? BigInt(item.priceFlash) : null,
+          saleStartTime: item.saleStartTime ? new Date(item.saleStartTime) : null,
+          saleEndTime: item.saleEndTime ? new Date(item.saleEndTime) : null,
+          createdAt: item.createdAt ? new Date(item.createdAt) : null,
+          updatedAt: item.updatedAt ? new Date(item.updatedAt) : null,
+          deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
+        })) : [],
+      },
+      update: {
+        title: data.title,
+        trainNumber: data.trainNumber,
+        departureStationCode: data.departureStationCode,
+        departureStationName: data.departureStationName,
+        arrivalStationCode: data.arrivalStationCode,
+        arrivalStationName: data.arrivalStationName,
+        journeyNote: data.journeyNote,
+        dateStart: data.dateStart ? new Date(data.dateStart) : null,
+        dateEnd: data.dateEnd ? new Date(data.dateEnd) : null,
+        status: data.status,
+        updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
+        deletedAt: data.deletedAt ? new Date(data.deletedAt) : null,
+        ticketItems: data.ticketItems ? data.ticketItems.map((item: any) => ({
+          id: item.id,
+          ticketId: item.ticketId,
+          name: item.name,
+          description: item.description,
+          coachCode: item.coachCode,
+          seatClass: item.seatClass,
+          seatType: item.seatType,
+          seatLabels: item.seatLabels,
+          availableSeatLabels: item.availableSeatLabels,
+          stockInitial: item.stockInitial,
+          stockAvailable: item.stockAvailable,
+          stockPrepared: item.stockPrepared,
+          priceOriginal: item.priceOriginal ? BigInt(item.priceOriginal) : null,
+          priceFlash: item.priceFlash ? BigInt(item.priceFlash) : null,
+          saleStartTime: item.saleStartTime ? new Date(item.saleStartTime) : null,
+          saleEndTime: item.saleEndTime ? new Date(item.saleEndTime) : null,
+          createdAt: item.createdAt ? new Date(item.createdAt) : null,
+          updatedAt: item.updatedAt ? new Date(item.updatedAt) : null,
+          deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
+        })) : [],
+      }
+    });
+  }
+
+  async deleteTicket(ticketId: string) {
+    await this.prisma.ticket.updateMany({
+      where: { id: ticketId },
+      data: {
+        deletedAt: new Date(),
+      }
+    });
+  }
 }

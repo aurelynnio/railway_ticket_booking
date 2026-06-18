@@ -82,6 +82,11 @@ export class OrdersController {
     return this.ordersService.handlePaymentPaidEvent(payload);
   }
 
+  @EventPattern('orders.expire_check')
+  handleOrderExpireCheck(@Payload() data: { orderId: string }) {
+    return this.ordersService.handleOrderExpireCheck(data);
+  }
+
   @MessagePattern('orders.confirm')
   confirm(@Payload() data: { orderId: string }) {
     return this.ordersService.confirm(data.orderId);

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { Prisma, PrismaClient, Ticket, TicketItem } from '@prisma/client';
+import { ClientProxy } from '@nestjs/microservices';
 import type {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
@@ -754,6 +755,7 @@ export class TicketsService extends TicketsBaseService {
   constructor(
     prisma: PrismaClient,
     private readonly redisCaching: RedisCacheService,
+    @Inject('search_service') private readonly searchClient: ClientProxy,
   ) {
     super(prisma);
   }
@@ -761,6 +763,7 @@ export class TicketsService extends TicketsBaseService {
   async create(payload: CreateTicketRequest): Promise<TicketResponse> {
     const result = await super.create(payload);
     await this.invalidateTicketListCache();
+    await this.publishToSearch('ticket.created', result);
     return result;
   }
 
@@ -934,6 +937,31 @@ export class TicketsService extends TicketsBaseService {
       this.redisCaching.del(`ticket:seat-map:${ticketId}`),
       this.invalidateTicketListCache(),
     ]);
+    void this.publishTicketUpdate(ticketId);
+  }
+
+  private async publishToSearch(pattern: string, payload: any) {
+    try {
+      this.searchClient.emit(pattern, payload);
+    } catch (error) {
+      console.error(`Failed to publish ${pattern} to search service:`, error);
+    }
+  }
+
+  private async publishTicketUpdate(ticketId: string) {
+    try {
+      const ticket = await this.findOne(ticketId);
+      await this.publishToSearch('ticket.updated', ticket);
+    } catch (error) {
+      const isNotFound =
+        error instanceof HttpException &&
+        error.getStatus() === HttpStatus.NOT_FOUND;
+      if (isNotFound) {
+        await this.publishToSearch('ticket.deleted', { ticketId });
+      } else {
+        console.error(`Failed to publish ticket update for ${ticketId}:`, error);
+      }
+    }
   }
 
   private async getCachedOrFetchWithLock<T>(

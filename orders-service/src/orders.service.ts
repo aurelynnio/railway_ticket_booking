@@ -50,6 +50,7 @@ export class OrdersService {
     private readonly prisma: PrismaClient,
     @Inject('payment_service') private readonly paymentClient: ClientProxy,
     @Inject('ticket_service') private readonly ticketClient: ClientProxy,
+    @Inject('orders_expiration_service') private readonly expirationClient: ClientProxy,
   ) {}
 
   health() {
@@ -121,6 +122,12 @@ export class OrdersService {
         amount: String(order.totalPrice),
         paymentMethod: payload.paymentMethod?.trim() || 'MANUAL',
       });
+
+      try {
+        this.expirationClient.emit('orders.expire_check', { orderId: order.id });
+      } catch (err) {
+        console.error('Failed to emit orders.expire_check event:', err);
+      }
 
       return {
         order,
@@ -846,6 +853,21 @@ export class OrdersService {
         retries - 1,
         (process.env.NODE_ENV === 'test' || typeof (global as any).jest !== 'undefined') ? 0 : delay * 2,
       );
+    }
+  }
+
+  async handleOrderExpireCheck(data: { orderId: string }) {
+    try {
+      const order = await this.getOrderOrThrow(data.orderId);
+      if (order.status === OrderStatus.PendingPayment) {
+        console.log(`Order ${data.orderId} is unpaid after TTL. Triggering cancellation workflow...`);
+        await this.cancelWorkflow({
+          orderId: data.orderId,
+          payload: { reason: 'Unpaid order expired automatically' },
+        });
+      }
+    } catch (error) {
+      console.error(`Error processing order expire check for order ${data.orderId}:`, error);
     }
   }
 }

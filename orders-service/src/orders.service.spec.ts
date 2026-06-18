@@ -9,6 +9,7 @@ describe('OrdersService', () => {
   let service: OrdersService;
   let paymentClient: { send: jest.Mock };
   let ticketClient: { send: jest.Mock };
+  let expirationClient: { emit: jest.Mock };
   let prisma: ReturnType<typeof createMockPrisma>;
 
   const ticketSnapshot = {
@@ -56,12 +57,16 @@ describe('OrdersService', () => {
     ticketClient = {
       send: jest.fn(),
     };
+    expirationClient = {
+      emit: jest.fn(),
+    };
     prisma = createMockPrisma();
 
     service = new OrdersService(
       prisma as unknown as PrismaClient,
       paymentClient as unknown as any,
       ticketClient as unknown as any,
+      expirationClient as unknown as any,
     );
   });
 
