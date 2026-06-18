@@ -3,7 +3,6 @@ import type { ClientProxy } from '@nestjs/microservices';
 import type { PrismaClient } from '@prisma/client';
 import { of, throwError } from 'rxjs';
 import { OrderStatus, type CheckoutOrderRequest } from './orders.dto';
-import { CheckoutSagaOrchestrator } from './checkout-saga.orchestrator';
 import { OrdersService } from './orders.service';
 
 describe('OrdersService', () => {
@@ -59,19 +58,11 @@ describe('OrdersService', () => {
     };
     prisma = createMockPrisma();
 
-    const orchestrator = new CheckoutSagaOrchestrator(
-      null as any,
-      prisma as unknown as PrismaClient,
-      paymentClient as unknown as ClientProxy,
-      ticketClient as unknown as ClientProxy,
-    );
-
     service = new OrdersService(
       prisma as unknown as PrismaClient,
-      orchestrator,
+      paymentClient as unknown as any,
+      ticketClient as unknown as any,
     );
-
-    (orchestrator as any).ordersService = service;
   });
 
   afterEach(() => {
