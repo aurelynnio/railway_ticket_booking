@@ -53,7 +53,7 @@ const TICKET_SEAT_MAP_CACHE_TTL_SECONDS = 15;
 export class TicketsService {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly redisCacheRedis: RedisCacheService,
+    private readonly redisCaching: RedisCacheService,
   ) {}
 
   health() {
@@ -802,7 +802,7 @@ export class TicketsService {
   }
 
   private async getCachedValue<T>(key: string): Promise<T | null> {
-    const cached = await this.redisCacheRedis.get(key);
+    const cached = await this.redisCaching.get(key);
     return cached ? (JSON.parse(cached) as T) : null;
   }
 
@@ -811,18 +811,18 @@ export class TicketsService {
     value: T,
     ttlSeconds: number,
   ): Promise<void> {
-    await this.redisCacheRedis.set(key, JSON.stringify(value), ttlSeconds);
+    await this.redisCaching.set(key, JSON.stringify(value), ttlSeconds);
   }
 
   private async invalidateTicketListCache(): Promise<void> {
-    await this.redisCacheRedis.patternDel('tickets:*');
+    await this.redisCaching.patternDel('tickets:*');
   }
 
   private async invalidateTicketCache(ticketId: string): Promise<void> {
     await Promise.all([
-      this.redisCacheRedis.del(this.getTicketCacheKey(ticketId)),
-      this.redisCacheRedis.del(this.getTicketAvailabilityCacheKey(ticketId)),
-      this.redisCacheRedis.del(this.getTicketSeatMapCacheKey(ticketId)),
+      this.redisCaching.del(this.getTicketCacheKey(ticketId)),
+      this.redisCaching.del(this.getTicketAvailabilityCacheKey(ticketId)),
+      this.redisCaching.del(this.getTicketSeatMapCacheKey(ticketId)),
       this.invalidateTicketListCache(),
     ]);
   }
