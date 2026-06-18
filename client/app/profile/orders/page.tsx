@@ -41,40 +41,40 @@ export default function ProfileOrdersPage() {
 
   return (
     <AppShell
-      title="My orders"
-      description="Danh sach order cua user dang dang nhap, lay `userId` tu session cookie-backed roi query nguoc ve `orders-service`."
+      title="Đơn của tôi"
+      description="Theo dõi đơn hàng của tài khoản đang đăng nhập, gồm trạng thái, tổng tiền và chi tiết vé đã chọn."
       actions={
         <div className="grid gap-3 md:grid-cols-2">
           <StatCard
             label="Session email"
             value={sessionQuery.data?.email ?? "Guest"}
-            helper="Nguon du lieu user hien tai tu auth session."
+            helper="Tài khoản đang đăng nhập."
           />
           <StatCard
-            label="Orders on page"
+            label="Đơn hiển thị"
             value={String(orders.length)}
-            helper="So order hien thi trong viewport profile."
+            helper="Số đơn đang có trong trang hiện tại."
           />
         </div>
       }
     >
       <Panel
-        title="Personal order feed"
-        description="Card layout uu tien thoi gian, tong tien, seat labels va diem chuyen sang order detail."
+        title="Lịch sử đặt vé"
+        description="Xem lại tuyến đã đặt, ghế đã chọn, tổng tiền và thời điểm cập nhật gần nhất."
       >
         <div className="space-y-5">
           <SectionHeading
             eyebrow="Account history"
-            title="Lich su dat ve"
-            description="Moi order giu o mot card rieng de de scan tren mobile hon so voi bang ops."
+            title="Lịch sử đặt vé"
+            description="Mỗi đơn có đường dẫn riêng để mở chi tiết khi cần kiểm tra trạng thái."
           />
 
           {!sessionUserId && !sessionQuery.isLoading ? (
             <EmptyState
               title="Can dang nhap"
-              description="Can co session hop le moi co the xem orders ca nhan."
+              description="Bạn cần đăng nhập để xem đơn hàng cá nhân."
               href="/login"
-              cta="Mo dang nhap"
+              cta="Mở đăng nhập"
             />
           ) : null}
 
@@ -87,7 +87,7 @@ export default function ProfileOrdersPage() {
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                      <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
                         {order.ticketTitle}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -100,27 +100,27 @@ export default function ProfileOrdersPage() {
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {order.departureStationName ?? order.departureStationCode ?? "?"} den{" "}
+                    {order.departureStationName ?? order.departureStationCode ?? "?"} đến{" "}
                     {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Ghe: {order.seatLabels.join(", ") || "Chua chon"}
+                    Ghế: {order.seatLabels.join(", ") || "Chưa chọn"}
                   </p>
                 </div>
 
                 <div className="rounded-[1.6rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                    Financials
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                    Tổng tiền
                   </p>
-                  <p className="mt-2 font-heading text-3xl font-semibold tracking-[-0.03em]">
+                  <p className="mt-2 font-heading text-3xl font-semibold tracking-normal">
                     {formatCurrency(order.totalPrice)}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Cap nhat {formatDateTime(order.updatedAt)}
+                    Cập nhật {formatDateTime(order.updatedAt)}
                   </p>
                   <div className="mt-4">
                     <Button asChild variant="outline">
-                      <Link href={`/profile/orders/${order.id}`}>Mo chi tiet</Link>
+                      <Link href={`/profile/orders/${order.id}`}>Mở chi tiết</Link>
                     </Button>
                   </div>
                 </div>

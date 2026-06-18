@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils";
 export type Tone = "brand" | "positive" | "warning" | "danger" | "muted";
 
 const toneClasses: Record<Tone, string> = {
-  brand: "bg-foreground text-background",
-  positive: "bg-muted text-foreground ring-1 ring-border",
-  warning: "bg-muted text-foreground ring-1 ring-border",
-  danger: "bg-secondary text-foreground ring-1 ring-border",
+  brand: "bg-primary text-primary-foreground",
+  positive: "bg-accent text-accent-foreground ring-1 ring-border",
+  warning: "bg-secondary text-secondary-foreground ring-1 ring-border",
+  danger: "bg-destructive text-primary-foreground",
   muted: "bg-muted text-muted-foreground ring-1 ring-border",
 };
 
@@ -51,7 +51,7 @@ export function SectionHeading({
           </div>
         ) : null}
         <div className="space-y-1">
-          <h2 className="font-heading text-2xl font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-3xl">
+          <h2 className="font-heading text-2xl font-semibold tracking-normal text-balance text-foreground sm:text-3xl">
             {title}
           </h2>
           {description ? (
@@ -77,10 +77,10 @@ export function StatCard({
 }) {
   return (
     <div className="surface-panel rounded-[1.8rem] px-5 py-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
-      <p className="mt-3 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+      <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
         {value}
       </p>
       {helper ? (
@@ -107,7 +107,7 @@ export function EmptyState({
         <Sparkles className="size-5" />
       </div>
       <div className="space-y-1">
-        <h3 className="font-heading text-lg font-semibold tracking-[-0.02em]">
+        <h3 className="font-heading text-lg font-semibold tracking-normal">
           {title}
         </h3>
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -145,7 +145,7 @@ export function MetaGrid({
           key={item.label}
           className="rounded-[1.35rem] bg-muted/60 px-4 py-4 ring-1 ring-border"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
             {item.label}
           </p>
           <div className="mt-2 text-sm leading-6 text-foreground">{item.value}</div>
@@ -183,11 +183,11 @@ export function PaginationBar({
   return (
     <div className="flex flex-col gap-3 rounded-[1.5rem] bg-muted/60 px-4 py-4 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">
-        Trang {page}/{Math.max(1, totalPages)}. Tong {total} ban ghi.
+        Trang {page}/{Math.max(1, totalPages)}. Tổng {total} bản ghi.
       </p>
       <div className="flex gap-2">
         <Button type="button" variant="ghost" disabled={page <= 1} onClick={onPrev}>
-          Truoc
+          Trước
         </Button>
         <Button
           type="button"
@@ -226,7 +226,7 @@ export function SurfaceLink({
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-heading text-lg font-semibold tracking-[-0.02em] text-foreground">
+          <p className="font-heading text-lg font-semibold tracking-normal text-foreground">
             {title}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">

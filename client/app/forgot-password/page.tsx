@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     >
       <div className="grid gap-4">
         <div className="grid gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
             Email
           </p>
           <Input
@@ -61,7 +61,7 @@ export default function ForgotPasswordPage() {
 
         {tokenPreview ? (
           <div className="rounded-[1.2rem] bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
               Token preview
             </p>
             <p className="mt-2 break-all font-mono text-xs text-foreground">{tokenPreview}</p>

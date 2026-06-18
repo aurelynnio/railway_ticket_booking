@@ -21,8 +21,8 @@ const headingFont = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Railway Atlas",
-  description: "Passenger and operations console for railway ticket booking",
+  title: "Railway Hub",
+  description: "Tra cứu chuyến, đặt vé, thanh toán và theo dõi đơn hàng tàu.",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="vi"
       className={`${bodyFont.variable} ${monoFont.variable} ${headingFont.variable} h-full`}
     >
       <body className="min-h-full">

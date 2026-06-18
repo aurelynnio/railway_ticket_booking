@@ -139,7 +139,7 @@ export default function OrderDetailPage() {
                 />
 
                 <div className="rounded-[1.7rem] bg-white/62 px-5 py-5 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Seat allocation
                   </p>
                   <div className="mt-3">
@@ -148,7 +148,7 @@ export default function OrderDetailPage() {
                 </div>
 
                 <div className="rounded-[1.7rem] bg-white/62 px-5 py-5 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Passenger manifest
                   </p>
                   <div className="mt-4 grid gap-3">

@@ -81,16 +81,16 @@ export function AppShell({
                   <TrainFront className="size-5" />
                 </div>
                 <div>
-                  <p className="font-heading text-lg font-semibold tracking-[-0.03em]">
-                    Railway Atlas
+                  <p className="font-heading text-lg font-semibold tracking-normal">
+                    Railway Hub
                   </p>
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  <p className="text-xs uppercase tracking-normal text-muted-foreground">
                     Bảng điều phối
                   </p>
                 </div>
               </div>
               <div className="rounded-[1.6rem] bg-muted/50 px-4 py-4 ring-1 ring-border">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                   Session
                 </p>
                 <p className="mt-2 text-sm leading-6 text-foreground">
@@ -126,7 +126,7 @@ export function AppShell({
             <nav className="grid gap-5 overflow-y-auto pr-1">
               {adminNavGroups.map((group) => (
                 <div key={group.label} className="space-y-2">
-                  <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="px-2 text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     {group.label}
                   </p>
                   <div className="grid gap-1.5">
@@ -161,12 +161,12 @@ export function AppShell({
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-3">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground ring-1 ring-border">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-normal text-muted-foreground ring-1 ring-border">
                       <span className="rail-dot" />
                       {pathname}
                     </div>
                     <div className="space-y-2">
-                      <h1 className="font-heading text-4xl font-semibold tracking-[-0.04em] text-balance text-foreground sm:text-5xl">
+                      <h1 className="font-heading text-4xl font-semibold tracking-normal text-balance text-foreground sm:text-5xl">
                         {title}
                       </h1>
                       <p className="max-w-4xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
@@ -175,12 +175,12 @@ export function AppShell({
                     </div>
                   </div>
                   <div className="rounded-[1.7rem] bg-muted/45 px-4 py-4 ring-1 ring-border lg:max-w-sm">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                       Góc nhìn điều phối
                     </p>
-                    <p className="mt-2 text-sm leading-6 text-foreground">
-                      Khu vực này tập trung vào tồn vé, đơn hàng, người dùng và thanh
-                      toán theo hướng điều hành nội bộ.
+                  <p className="mt-2 text-sm leading-6 text-foreground">
+                      Theo dõi tồn vé, đơn hàng, người dùng và thanh toán trong
+                      cùng một khu điều phối.
                     </p>
                   </div>
                 </div>
@@ -211,10 +211,10 @@ export function AppShell({
                   <TrainFront className="size-4.5" />
                 </div>
                 <div>
-                  <p className="font-heading text-lg font-semibold tracking-[-0.03em]">
-                    Railway Atlas
+                  <p className="font-heading text-lg font-semibold tracking-normal">
+                    Railway Hub
                   </p>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-[11px] uppercase tracking-normal text-muted-foreground">
                     Đặt vé tinh gọn cho tuyến Bắc Trung Nam
                   </p>
                 </div>
@@ -302,7 +302,7 @@ export function AppShell({
 
               <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
                 <Headphones className="size-4 text-foreground/70" />
-                Theo dõi tồn vé và booking trên một flow gọn.
+                Theo dõi tồn vé, đơn hàng và thanh toán liền mạch.
               </div>
             </div>
           </div>
@@ -311,6 +311,12 @@ export function AppShell({
 
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
         <section className="surface-panel-strong relative overflow-hidden rounded-[2.6rem] px-6 py-8 sm:px-8 sm:py-9">
+          <img
+            className="absolute inset-0 h-full w-full object-cover opacity-[0.06] dark:opacity-[0.02]"
+            src="/imgs/railway.png"
+            alt=""
+            aria-hidden="true"
+          />
           <div className="relative grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-end">
             <div className="space-y-4">
               <div className="route-pill">
@@ -318,7 +324,7 @@ export function AppShell({
                 {pathname === "/" ? "Giao diện hành khách" : "Không gian hành trình"}
               </div>
               <div className="space-y-3">
-                <h1 className="font-heading text-4xl font-semibold tracking-[-0.04em] text-balance text-foreground sm:text-5xl">
+                <h1 className="font-heading text-4xl font-semibold tracking-normal text-balance text-foreground sm:text-5xl">
                   {title}
                 </h1>
                 <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
@@ -352,16 +358,16 @@ export function AppShell({
         <footer className="surface-panel rounded-[2.3rem] px-6 py-6 sm:px-8">
           <div className="grid gap-8 md:grid-cols-[1.1fr_0.75fr_0.75fr]">
             <div>
-              <p className="font-heading text-lg font-semibold tracking-[-0.03em] text-foreground">
-                Railway Atlas
+              <p className="font-heading text-lg font-semibold tracking-normal text-foreground">
+                Railway Hub
               </p>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Giao diện đặt vé tàu theo hướng storefront: tìm chuyến, so sánh giá,
-                đặt chỗ và theo dõi booking trên một hệ thống nhất quán.
+                Tìm chuyến, so sánh giá, đặt chỗ và theo dõi đơn hàng trên cùng một
+                hệ thống.
               </p>
             </div>
             <div className="grid gap-2 text-sm text-muted-foreground">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                 Đặt vé
               </p>
               <Link href="/" className="hover:text-foreground">
@@ -378,7 +384,7 @@ export function AppShell({
               </Link>
             </div>
             <div className="grid gap-2 text-sm text-muted-foreground md:justify-self-end">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                 Tài khoản
               </p>
               {publicSecondaryLinks.map((item) => (
@@ -410,7 +416,7 @@ export function Panel({
     <section className="surface-panel rounded-[2rem] px-6 py-6 sm:px-7">
       <div className="flex flex-col gap-5">
         <div className="space-y-2">
-          <h2 className="font-heading text-xl font-semibold tracking-[-0.03em] text-foreground">
+          <h2 className="font-heading text-xl font-semibold tracking-normal text-foreground">
             {title}
           </h2>
           {description ? (

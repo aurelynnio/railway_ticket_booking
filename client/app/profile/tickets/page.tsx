@@ -30,33 +30,33 @@ export default function ProfileTicketsPage() {
 
   return (
     <AppShell
-      title="Issued tickets"
-      description="Repo hien chua co endpoint ticket-by-user rieng, nen view nay duoc suy ra tu orders co `TicketIssued` de tao mot wallet manh lac."
+      title="Vé đã phát hành"
+      description="Xem các vé đã được phát hành từ đơn hàng hoàn tất của tài khoản hiện tại."
     >
       <Panel
-        title="Ticket wallet"
-        description="Moi item dai dien cho mot order da issue, gom ma ve, route, ghe va QR payload de support di chuyen hay doi soat."
+        title="Ví vé"
+        description="Mỗi vé hiển thị mã vé, tuyến, ghế và mã QR để tiện kiểm tra trước chuyến đi."
       >
         <div className="space-y-5">
           <SectionHeading
             eyebrow="Travel wallet"
-            title="Ve da phat hanh"
-            description="The hien bo cueu thong tin toi thieu de user scan nhanh tren mobile: route, seat, ticket code va qr payload."
+            title="Vé đã phát hành"
+            description="Thông tin được gom gọn để bạn kiểm tra nhanh tuyến, ghế, mã vé và QR."
           />
 
           {!sessionUserId && !sessionQuery.isLoading ? (
             <EmptyState
-              title="Can dang nhap"
-              description="Khong co session hop le nen khong the doc ticket wallet cua user hien tai."
+              title="Cần đăng nhập"
+              description="Bạn cần đăng nhập để xem ví vé của tài khoản hiện tại."
               href="/login"
-              cta="Mo dang nhap"
+              cta="Mở đăng nhập"
             />
           ) : null}
 
           {tickets.length === 0 && sessionUserId ? (
             <EmptyState
-              title="Chua co ve nao da issue"
-              description="Khi order duoc issue ticket, no se xuat hien ngay trong wallet nay."
+              title="Chưa có vé nào được phát hành"
+              description="Khi đơn hàng được phát hành vé, vé sẽ xuất hiện tại đây."
             />
           ) : null}
 
@@ -69,11 +69,11 @@ export default function ProfileTicketsPage() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                      <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
                         {order.ticketTitle}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {order.ticketCode ?? "No ticket code"}
+                        {order.ticketCode ?? "Chưa có mã vé"}
                       </p>
                     </div>
                     <StatusBadge
@@ -82,24 +82,24 @@ export default function ProfileTicketsPage() {
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {order.departureStationName ?? order.departureStationCode ?? "?"} den{" "}
+                    {order.departureStationName ?? order.departureStationCode ?? "?"} đến{" "}
                     {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
                   </p>
                   <SeatCloud labels={order.seatLabels} />
                 </div>
 
                 <div className="rounded-[1.7rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                    Ticket payload
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                    Thông tin vé
                   </p>
-                  <p className="mt-3 font-heading text-2xl font-semibold tracking-[-0.03em]">
+                  <p className="mt-3 font-heading text-2xl font-semibold tracking-normal">
                     {formatCurrency(order.totalPrice)}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Issue time gan nhat: {formatDateTime(order.updatedAt)}
+                    Phát hành gần nhất: {formatDateTime(order.updatedAt)}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground break-all">
-                    QR: {order.qrPayload ?? "Dang cap nhat"}
+                    QR: {order.qrPayload ?? "Đang cập nhật"}
                   </p>
                 </div>
               </article>

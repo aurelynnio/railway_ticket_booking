@@ -22,7 +22,7 @@ export default function RegisterPage() {
     <AuthShell
       eyebrow="Tạo tài khoản"
       title="Tạo tài khoản mới để giữ booking theo người dùng"
-      description="Register page được đổi bố cục giống `vetau`: form chính ở bên trái, khung thông tin hỗ trợ ở bên phải, giúp auth pages không còn cảm giác utility page."
+      description="Tài khoản giúp lưu hồ sơ, giữ lịch sử đơn hàng và theo dõi vé đã phát hành trong các lần đặt sau."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>Đã có tài khoản?</span>
@@ -73,7 +73,7 @@ export default function RegisterPage() {
 
         {register.isError ? (
           <div className="rounded-[1.2rem] bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
-            Tạo tài khoản thất bại. Kiểm tra `auth-service` hoặc dữ liệu đầu vào.
+            Tạo tài khoản thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau.
           </div>
         ) : null}
       </div>
@@ -96,7 +96,7 @@ function Field({
 }) {
   return (
     <div className="grid gap-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
       <Input

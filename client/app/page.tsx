@@ -39,7 +39,7 @@ const experienceCards = [
   {
     title: "Storefront trước, công cụ sau",
     description:
-      "Người dùng nhìn thấy tuyến, giá và khả năng đặt vé ngay từ trang đầu thay vì gặp một layout quản trị.",
+      "Người dùng nhìn thấy tuyến, giá và khả năng đặt vé ngay từ trang đầu.",
     icon: ShieldCheck,
     tone: "bg-muted text-foreground ring-1 ring-border",
   },
@@ -78,8 +78,8 @@ export default function RootPage() {
 
   return (
     <AppShell
-      title="Đặt vé tàu theo nhịp storefront rõ ràng và dễ quét"
-      description="Trang chủ được giữ theo tinh thần `vetau/client`: hero hai cột, bảng chuyến song song, metric card gọn và CTA đi thẳng vào search hoặc tồn vé."
+      title="Đặt vé tàu nhanh cho các tuyến Bắc Trung Nam"
+      description="Tra cứu chuyến đang mở, xem số chỗ còn lại, so sánh giá và đi thẳng tới chi tiết vé để giữ chỗ."
       actions={
         <div className="grid gap-3 sm:grid-cols-2">
           <Button asChild size="lg">
@@ -96,23 +96,28 @@ export default function RootPage() {
     >
       <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
         <article className="surface-panel-strong relative overflow-hidden rounded-[2.15rem] px-6 py-6">
+          <img
+            className="absolute inset-0 h-full w-full object-cover opacity-[0.06] dark:opacity-[0.02]"
+            src="/imgs/railway.png"
+            alt=""
+            aria-hidden="true"
+          />
           <div className="relative space-y-6">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                <span className="route-pill">Railway Atlas</span>
+                <span className="route-pill">Railway Hub</span>
                 <StatusBadge
                   label={tripsQuery.isFetching ? "Đang cập nhật" : "Dữ liệu mới nhất"}
                   tone={tripsQuery.isFetching ? "warning" : "brand"}
                 />
               </div>
               <div className="space-y-3">
-                <h2 className="font-heading text-4xl font-semibold tracking-[-0.05em] text-balance text-foreground sm:text-[4rem] sm:leading-[0.94]">
+                <h2 className="font-heading text-4xl font-semibold tracking-normal text-balance text-foreground sm:text-[4rem] sm:leading-[0.94]">
                   Đặt vé tàu nhanh cho các tuyến Bắc Trung Nam.
                 </h2>
-                <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
-                  Tìm chuyến, chọn hạng vé và đi tiếp vào ticket detail trên một bố
-                  cục user-facing rõ ràng hơn, giữ bảng trắng, đen và xám để gọn và
-                  hiện đại hơn.
+                  <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
+                  Tìm chuyến, chọn hạng vé và đi tiếp vào chi tiết vé trong cùng
+                  một hành trình đặt chỗ.
                 </p>
               </div>
             </div>
@@ -168,7 +173,7 @@ export default function RootPage() {
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2">
               <span className="route-pill">Bảng chuyến</span>
-              <h2 className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+              <h2 className="font-heading text-2xl font-semibold tracking-normal text-foreground">
                 Chuyến đang mở bán
               </h2>
               <p className="text-sm leading-6 text-muted-foreground">
@@ -241,13 +246,13 @@ export default function RootPage() {
 
       <Panel
         title="Chuyến và hạng vé đang được spotlight"
-        description="Section này được đưa về style card-grid để giống storefront route collection của `vetau/client`, nhưng vẫn dùng dữ liệu search hiện có trong repo này."
+        description="Các tuyến nổi bật được lấy từ dữ liệu tìm kiếm hiện có, kèm giá mở đầu và số chỗ còn lại."
       >
         <div className="space-y-5">
           <SectionHeading
             eyebrow="Featured routes"
             title="Route được đẩy lên trước khi vào search"
-            description="Trang chủ không còn là placeholder. Nó là điểm vào chính để scan route, giá và CTA theo nhiệm vụ."
+            description="Mở nhanh những hành trình có dữ liệu mới nhất trước khi lọc chi tiết theo ga và ngày đi."
             action={
               <Button asChild variant="outline">
                 <Link href="/search">
@@ -272,7 +277,7 @@ export default function RootPage() {
                   />
                 </div>
                 <div className="mt-5 space-y-2">
-                  <h3 className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                  <h3 className="font-heading text-2xl font-semibold tracking-normal text-foreground">
                     {trip.title ?? "Tuyến chưa đặt tên"}
                   </h3>
                   <p className="text-sm leading-6 text-muted-foreground">
@@ -320,7 +325,7 @@ export default function RootPage() {
 
       <Panel
         title="Đi vào đúng tác vụ"
-        description="Các ô task và experience được bố trí như landing page sản phẩm thay vì là một route map kỹ thuật."
+        description="Chọn nhanh tác vụ phổ biến nhất: tìm hành trình, duyệt tồn vé hoặc kiểm tra đơn hàng."
       >
         <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-1">
@@ -332,7 +337,7 @@ export default function RootPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-heading text-lg font-semibold tracking-[-0.02em] text-foreground">
+                    <p className="font-heading text-lg font-semibold tracking-normal text-foreground">
                       {item.title}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -358,7 +363,7 @@ export default function RootPage() {
                 >
                   <item.icon className="size-5" />
                 </div>
-                <h3 className="mt-5 font-heading text-xl font-semibold tracking-[-0.03em] text-foreground">
+                <h3 className="mt-5 font-heading text-xl font-semibold tracking-normal text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -376,7 +381,7 @@ export default function RootPage() {
 function MetricPreview({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
       <div className="rounded-[1rem] bg-background px-4 py-3 text-sm font-medium text-foreground ring-1 ring-border">
@@ -397,10 +402,10 @@ function MiniStat({
 }) {
   return (
     <div className="rounded-[1.55rem] bg-muted/35 px-4 py-4 ring-1 ring-border">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+      <p className="mt-2 font-heading text-3xl font-semibold tracking-normal text-foreground">
         {value}
       </p>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{helper}</p>
@@ -411,7 +416,7 @@ function MiniStat({
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[1.4rem] bg-muted/30 px-4 py-4 ring-1 ring-border">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-sm leading-6 text-foreground">{value}</p>

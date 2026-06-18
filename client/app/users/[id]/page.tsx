@@ -27,19 +27,19 @@ export default function UserDetailPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "User operations detail" : "User detail"}
-      description="Chi tiet account, kem order va payment gan day de support doi soat hoac debug session theo user."
+      title={isAdminView ? "Chi tiết người dùng" : "Thông tin người dùng"}
+      description="Xem hồ sơ tài khoản cùng đơn hàng và thanh toán gần đây để hỗ trợ đối soát."
     >
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <Panel
           title={user?.name ?? user?.username ?? "User profile"}
-          description="Thong tin co ban den tu `GET /users/:id`, huu ich cho support va lien ket sang profile cap nhat."
+          description="Thông tin cơ bản của tài khoản và các mốc cập nhật gần nhất."
         >
           <div className="space-y-5">
             <SectionHeading
               eyebrow="Identity"
-              title={user?.email ?? "Dang tai user"}
-              description="Neu user co profile field it, man hinh nay van giu layout gon bang cach day phan dong luc sang orders va payments."
+              title={user?.email ?? "Đang tải người dùng"}
+              description="Dùng thông tin này để đối chiếu với đơn hàng và thanh toán liên quan."
             />
 
             {user ? (
@@ -70,8 +70,8 @@ export default function UserDetailPage() {
 
         <div className="grid gap-6">
           <Panel
-            title="Recent orders"
-            description="Lay order gan day cua user de support nhanh trong cung mot view."
+            title="Đơn gần đây"
+            description="Các đơn gần nhất của người dùng để hỗ trợ kiểm tra nhanh."
           >
             <div className="grid gap-3">
               {orders.map((order) => (
@@ -84,15 +84,15 @@ export default function UserDetailPage() {
               ))}
               {orders.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  User nay chua co order nao trong viewport truy van.
+                  Người dùng này chưa có đơn nào trong truy vấn hiện tại.
                 </p>
               ) : null}
             </div>
           </Panel>
 
           <Panel
-            title="Recent payments"
-            description="Top payment theo user de tiep tuc doi soat transaction khi can."
+            title="Thanh toán gần đây"
+            description="Các khoản thanh toán gần nhất gắn với người dùng."
           >
             <div className="grid gap-3">
               {payments.map((payment) => (
@@ -105,26 +105,26 @@ export default function UserDetailPage() {
               ))}
               {payments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Chua co payment nao gan voi user nay.
+                  Chưa có thanh toán nào gắn với người dùng này.
                 </p>
               ) : null}
             </div>
           </Panel>
 
           <Panel
-            title="Quick jump"
-            description="Duong dan nhanh den cac view lien quan khac."
+            title="Đi nhanh"
+            description="Đường dẫn tới các màn hình liên quan."
           >
             <div className="grid gap-3 md:grid-cols-2">
               <SurfaceLink
                 href="/users"
-                title="Back to directory"
-                description="Quay lai danh sach user tong."
+                title="Về danh sách người dùng"
+                description="Quay lại danh sách người dùng tổng."
               />
               <SurfaceLink
                 href="/profile"
-                title="Open current profile"
-                description="Doi chieu voi profile session hien tai tren client."
+                title="Mở hồ sơ hiện tại"
+                description="Đối chiếu với tài khoản đang đăng nhập."
               />
             </div>
           </Panel>

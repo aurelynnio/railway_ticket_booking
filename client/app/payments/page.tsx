@@ -65,11 +65,11 @@ export default function PaymentsPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "Payment control room" : "Payments ledger"}
+      title={isAdminView ? "Đối soát thanh toán" : "Danh sách thanh toán"}
       description={
         isAdminView
-          ? "Khung doi soat thanh toan cua `payments-service`, tap trung vao transaction, order link, user link va state machine sau giao dich."
-          : "Trang tong hop cac ban ghi payment de truy vet thanh toan theo order hoac transaction."
+          ? "Theo dõi giao dịch, đơn hàng, người dùng và trạng thái xử lý sau thanh toán."
+          : "Tổng hợp các bản ghi thanh toán để truy vết theo đơn hàng hoặc mã giao dịch."
       }
       actions={
         <FilterBar>
@@ -96,7 +96,7 @@ export default function PaymentsPage() {
               setStatus(event.target.value);
             }}
           >
-            <option value="">All statuses</option>
+            <option value="">Tất cả trạng thái</option>
             {Object.entries(PaymentStatus)
               .filter(([, value]) => typeof value === "number")
               .map(([label, value]) => (
@@ -106,51 +106,51 @@ export default function PaymentsPage() {
               ))}
           </Select>
           <Button type="button" variant="outline" onClick={() => setPage(1)}>
-            Lam moi
+            Làm mới
           </Button>
         </FilterBar>
       }
     >
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
-          label="Records in view"
+          label="Thanh toán hiển thị"
           value={String(payments.length)}
-          helper="So payment dang hien thi."
+          helper="Số bản ghi đang hiển thị."
         />
         <StatCard
-          label="Paid records"
+          label="Đã thanh toán"
           value={String(paidCount)}
-          helper={`${failedCount} ban ghi loi hoac bi huy trong viewport.`}
+          helper={`${failedCount} bản ghi lỗi hoặc bị hủy trong trang hiện tại.`}
         />
         <StatCard
-          label="Page volume"
+          label="Tổng tiền trang"
           value={formatCurrency(totalAmount)}
-          helper="Tong so tien dang duoc bo loc hien tai."
+          helper="Tổng số tiền đang được bộ lọc hiện tại trả về."
         />
       </div>
 
       <Panel
-        title="Payments table"
-        description="Bang toi uu cho doi soat: co orderId, transactionId, userId, amount va payment status."
+        title="Bảng thanh toán"
+        description="Đối chiếu orderId, transactionId, userId, số tiền và trạng thái thanh toán."
       >
         <div className="space-y-5">
           <SectionHeading
-            eyebrow={isAdminView ? "Reconciliation" : "Traceability"}
-            title="Danh sach payment"
-            description="Tu day co the click vao payment detail de mark processing, paid, failed, cancel hoac expire."
+            eyebrow={isAdminView ? "Đối soát" : "Truy vết"}
+            title="Danh sách thanh toán"
+            description="Mở chi tiết để xử lý trạng thái thanh toán khi cần."
           />
 
           {query.isError ? (
             <EmptyState
-              title="Khong tai duoc payments"
-              description="Kiem tra ket noi gateway va `payments-service`, sau do lam moi truy van."
+              title="Không tải được thanh toán"
+              description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
             />
           ) : null}
 
           {!query.isLoading && !query.isError && payments.length === 0 ? (
             <EmptyState
-              title="Khong co payment nao khop bo loc"
-              description="Thu bo transactionId hoac orderId filter de xem nhiu ban ghi hon."
+              title="Không có thanh toán phù hợp"
+              description="Thử bỏ transactionId hoặc orderId để xem nhiều bản ghi hơn."
             />
           ) : null}
 
@@ -159,10 +159,10 @@ export default function PaymentsPage() {
               <TableRow>
                 <TableHead>Payment</TableHead>
                 <TableHead>Order / User</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Paid at</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead>Số tiền</TableHead>
+                <TableHead>Thanh toán lúc</TableHead>
+                <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -195,7 +195,7 @@ export default function PaymentsPage() {
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`${isAdminView ? "/admin/payments" : "/payments"}/${payment.id}`}>
-                        Chi tiet
+                        Chi tiết
                       </Link>
                     </Button>
                   </TableCell>

@@ -27,24 +27,24 @@ export default function ProfilePage() {
 
   return (
     <AppShell
-      title="Profile cockpit"
-      description="Trung tam tai khoan dang dang nhap, doc session tu cookie HttpOnly va noi sang `GET/PATCH /users/me` de chinh sua thong tin co ban."
+      title="Hồ sơ cá nhân"
+      description="Quản lý thông tin tài khoản đang đăng nhập và mở nhanh đơn hàng hoặc vé đã phát hành."
       actions={
         <div className="grid gap-3 md:grid-cols-3">
           <SurfaceLink
             href="/profile/orders"
-            title="My orders"
-            description="Danh sach order theo session hien tai."
+            title="Đơn của tôi"
+            description="Danh sách đơn hàng theo tài khoản hiện tại."
           />
           <SurfaceLink
             href="/profile/tickets"
-            title="Issued tickets"
-            description="View ticket da issue duoc suy ra tu orders."
+            title="Vé đã phát hành"
+            description="Các vé đã được phát hành từ đơn hàng hoàn tất."
           />
           <SurfaceLink
             href="/login"
-            title="Session routes"
-            description="Chuyen sang login neu can reset hanh vi dang nhap."
+            title="Đăng nhập lại"
+            description="Chuyển sang đăng nhập khi cần làm mới phiên."
           />
         </div>
       }
@@ -52,13 +52,13 @@ export default function ProfilePage() {
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <Panel
           title="Current session"
-          description="Thong tin session va profile thuc te cua user dang dang nhap tren trinh duyet."
+          description="Thông tin phiên đăng nhập và hồ sơ hiện tại."
         >
           <div className="space-y-5">
             <SectionHeading
               eyebrow="Identity"
-              title={sessionQuery.data?.email ?? "Dang tai session"}
-              description="Session path cua repo nay la `client -> api-gateway -> auth-service`, sau do profile tiep tuc doc `users-service`."
+              title={sessionQuery.data?.email ?? "Đang tải session"}
+              description="Thông tin này được dùng để nối đơn hàng, vé và thanh toán với đúng tài khoản."
             />
 
             {profileQuery.data ? (
@@ -105,7 +105,7 @@ export default function ProfilePage() {
 
         <Panel
           title="Quick update"
-          description="Cap nhat username va email co ban ngay trong shell nay."
+          description="Cập nhật username và email cơ bản."
         >
           <div className="grid gap-3">
             <Input
@@ -128,16 +128,16 @@ export default function ProfilePage() {
                 })
               }
             >
-              {updateProfile.isPending ? "Dang cap nhat..." : "Cap nhat profile"}
+              {updateProfile.isPending ? "Đang cập nhật..." : "Cập nhật hồ sơ"}
             </Button>
             {updateProfile.isError ? (
               <p className="text-sm text-rose-700">
-                Cap nhat that bai. Kiem tra schema payload cua `users-service`.
+                Cập nhật thất bại. Vui lòng kiểm tra dữ liệu nhập và thử lại.
               </p>
             ) : null}
             {updateProfile.isSuccess ? (
               <p className="text-sm text-emerald-700">
-                Da gui cap nhat profile thanh cong.
+                Đã gửi cập nhật hồ sơ thành công.
               </p>
             ) : null}
           </div>

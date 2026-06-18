@@ -32,7 +32,7 @@ export default function ResetPasswordPage() {
     >
       <div className="grid gap-4">
         <div className="grid gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
             Token
           </p>
           <Input
@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="grid gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
               Mật khẩu mới
             </p>
             <Input

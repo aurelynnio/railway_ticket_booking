@@ -165,7 +165,7 @@ export default function TicketDetailPage() {
                                 {item.name ?? item.coachCode ?? "Hạng vé"}
                               </p>
                               {isSelected ? (
-                                <span className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-background">
+                                <span className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-semibold uppercase tracking-normal text-background">
                                   Đang chọn
                                 </span>
                               ) : null}
@@ -335,7 +335,7 @@ export default function TicketDetailPage() {
 function ItemMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[1.15rem] bg-muted/35 px-3 py-3 ring-1 ring-border">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-sm font-medium text-foreground">{value}</p>

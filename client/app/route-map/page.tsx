@@ -3,31 +3,31 @@ import { SectionHeading, SurfaceLink } from "@/components/railway-ui";
 
 const routeGroups = [
   {
-    title: "Passenger flow",
+    title: "Hành khách",
     items: [
-      ["/search", "Trip discovery"],
-      ["/tickets", "Ticket inventory"],
-      ["/orders", "Orders registry"],
-      ["/payments", "Payments ledger"],
+      ["/search", "Tìm hành trình"],
+      ["/tickets", "Tồn vé"],
+      ["/orders", "Danh sách đơn"],
+      ["/payments", "Thanh toán"],
     ],
   },
   {
-    title: "Account flow",
+    title: "Tài khoản",
     items: [
-      ["/login", "Login"],
-      ["/register", "Register"],
-      ["/profile", "Profile"],
-      ["/profile/tickets", "Issued tickets"],
+      ["/login", "Đăng nhập"],
+      ["/register", "Tạo tài khoản"],
+      ["/profile", "Hồ sơ"],
+      ["/profile/tickets", "Vé đã phát hành"],
     ],
   },
   {
-    title: "Operations flow",
+    title: "Điều phối",
     items: [
-      ["/admin", "Admin dashboard"],
-      ["/admin/tickets", "Ticket operations"],
-      ["/admin/orders", "Order operations"],
-      ["/admin/users", "User operations"],
-      ["/admin/payments", "Payment operations"],
+      ["/admin", "Bảng điều phối"],
+      ["/admin/tickets", "Quản lý vé"],
+      ["/admin/orders", "Quản lý đơn"],
+      ["/admin/users", "Người dùng"],
+      ["/admin/payments", "Đối soát thanh toán"],
     ],
   },
 ] as const;
@@ -35,20 +35,20 @@ const routeGroups = [
 export default function RouteMapPage() {
   return (
     <AppShell
-      title="Route map"
-      description="Tong hop cac route chinh dang co trong `client/app`, chia theo passenger, account va operations de navigate nhanh khi tiep tuc phat trien."
+      title="Bản đồ màn hình"
+      description="Tổng hợp các khu vực chính của hệ thống để chuyển nhanh giữa đặt vé, tài khoản và điều phối."
     >
       <Panel
-        title="Route surface"
-        description="Route map nay gio khong con la scaffold trong suot, ma la mot menu tac nghiep de nhay nhanh den tung view da duoc redesign."
+        title="Lối tắt thao tác"
+        description="Mở nhanh từng màn hình khi cần kiểm tra dữ liệu hoặc tiếp tục một luồng đặt vé."
       >
         <div className="space-y-8">
           {routeGroups.map((group) => (
             <div key={group.title} className="space-y-4">
               <SectionHeading
-                eyebrow="Navigation"
+                eyebrow="Điều hướng"
                 title={group.title}
-                description="Moi nhom route di kem ngu canh su dung chinh de giu bo cuc thong nhat va de tra cuu nhanh."
+                description="Mỗi nhóm tập trung vào một phần việc riêng trong hệ thống."
               />
               <div className="grid gap-3 md:grid-cols-2">
                 {group.items.map(([href, title]) => (
@@ -56,7 +56,7 @@ export default function RouteMapPage() {
                     key={href}
                     href={href}
                     title={title}
-                    description={`Mo ${href} trong bo design system moi.`}
+                    description={`Mở ${href} để tiếp tục thao tác.`}
                   />
                 ))}
               </div>

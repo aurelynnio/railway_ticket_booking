@@ -53,7 +53,7 @@ export default function AdminTicketItemPage() {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-[1.7rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Seat labels
                   </p>
                   <div className="mt-3">
@@ -61,7 +61,7 @@ export default function AdminTicketItemPage() {
                   </div>
                 </div>
                 <div className="rounded-[1.7rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Available seats
                   </p>
                   <div className="mt-3">

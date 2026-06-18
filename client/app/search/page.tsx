@@ -27,6 +27,14 @@ import { formatCurrency, formatDateTime } from "@/lib/formatters";
 
 type SortFilter = "recommended" | "price" | "departure";
 
+export const STATIONS = [
+  { name: "Hà Nội", code: "HAN" },
+  { name: "Huế", code: "HUE" },
+  { name: "Đà Nẵng", code: "DAD" },
+  { name: "Nha Trang", code: "NTR" },
+  { name: "Sài Gòn", code: "SGN" },
+] as const;
+
 const sortOptions: Array<{ label: string; value: SortFilter }> = [
   { label: "Phù hợp nhất", value: "recommended" },
   { label: "Giá thấp trước", value: "price" },
@@ -82,7 +90,7 @@ export default function SearchPage() {
   return (
     <AppShell
       title="Tìm vé theo tuyến, thời gian và nhu cầu đặt chỗ"
-      description="Search page được đổi nhịp gần `vetau/client`: hero metric ở trên, filter panel tách rõ, kết quả dạng card collection và CTA đi thẳng vào ticket detail."
+      description="Lọc theo ga đi, ga đến và ngày khởi hành để tìm các chuyến còn chỗ, giá phù hợp và đường dẫn đặt vé."
       actions={
         <div className="grid gap-3 sm:grid-cols-2">
           <Button
@@ -110,7 +118,7 @@ export default function SearchPage() {
     >
       <Panel
         title="Bộ lọc hành trình"
-        description="Bộ lọc được đưa vào một panel lớn để user quét nhanh và sửa query mà không bị tản mạn. Hiện tại repo này mới hỗ trợ `from`, `to` và `date`, nên UI giữ đúng phạm vi backend thật."
+        description="Chọn điểm đi, điểm đến, ngày khởi hành và cách sắp xếp để thu hẹp danh sách chuyến."
       >
         <div className="space-y-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_19rem]">
@@ -124,13 +132,12 @@ export default function SearchPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="font-heading text-3xl font-semibold tracking-[-0.04em] text-balance text-foreground sm:text-[3.4rem] sm:leading-[0.94]">
+                  <h2 className="font-heading text-3xl font-semibold tracking-normal text-balance text-foreground sm:text-[3.4rem] sm:leading-[0.94]">
                     Tìm vé theo điểm đi, điểm đến và ngày khởi hành.
                   </h2>
                   <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
-                    Search này được bố trí lại theo logic product: user vào page thấy
-                    ngay metric, bộ lọc và kết quả trong cùng một nhóm surface để dễ
-                    scan hơn giao diện cũ.
+                    Kết quả được cập nhật theo bộ lọc hiện tại, giúp bạn kiểm tra
+                    nhanh chỗ trống, thời gian và mức giá mở đầu.
                   </p>
                 </div>
               </div>
@@ -145,24 +152,36 @@ export default function SearchPage() {
 
           <div className="grid gap-3 rounded-[1.95rem] bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-2 xl:grid-cols-4">
             <Field label="Ga đi">
-              <Input
-                placeholder="Ví dụ: Hà Nội"
+              <Select
                 value={from}
                 onChange={(event) => {
                   setPage(1);
                   setFrom(event.target.value);
                 }}
-              />
+              >
+                <option value="">Tất cả ga đi</option>
+                {STATIONS.map((station) => (
+                  <option key={station.code} value={station.code}>
+                    {station.name} ({station.code})
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field label="Ga đến">
-              <Input
-                placeholder="Ví dụ: Đà Nẵng"
+              <Select
                 value={to}
                 onChange={(event) => {
                   setPage(1);
                   setTo(event.target.value);
                 }}
-              />
+              >
+                <option value="">Tất cả ga đến</option>
+                {STATIONS.map((station) => (
+                  <option key={station.code} value={station.code}>
+                    {station.name} ({station.code})
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field label="Ngày đi">
               <Input
@@ -194,7 +213,7 @@ export default function SearchPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <Search className="size-4 text-primary" />
-              Search sẽ gọi `api-gateway/search/trips` với bộ tham số thật của repo.
+              Dữ liệu được lấy từ tuyến tìm kiếm hiện có của hệ thống.
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -223,13 +242,13 @@ export default function SearchPage() {
 
       <Panel
         title="Kết quả hành trình"
-        description="Mỗi card có tuyến, tàu, thời gian, chỗ trống, seat labels và giá, giống cách `vetau` trình bày collection search nhưng đã fit với schema hiện có."
+        description="Mỗi kết quả hiển thị tuyến, tàu, giờ chạy, số chỗ còn lại, hạng ghế và giá mở đầu."
       >
         <div className="space-y-5">
           <SectionHeading
             eyebrow="Storefront results"
             title="Route đang mở theo bộ lọc hiện tại"
-            description="Kết quả được sắp thành thẻ card lớn, ưu tiên scan nhanh trên desktop và có nhiều nhận diện hơn layout search cũ."
+            description="Chọn một tuyến để mở chi tiết vé, xem các hạng ghế và tiếp tục giữ chỗ."
             action={
               <Button asChild variant="outline">
                 <Link href="/">Trang chủ</Link>
@@ -282,7 +301,7 @@ export default function SearchPage() {
                             tone={trip.availableSeats > 0 ? "positive" : "danger"}
                           />
                         </div>
-                        <h3 className="mt-4 font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                        <h3 className="mt-4 font-heading text-2xl font-semibold tracking-normal text-foreground">
                           {(trip.from.name ?? trip.from.code ?? "?") +
                             " -> " +
                             (trip.to.name ?? trip.to.code ?? "?")}
@@ -292,10 +311,10 @@ export default function SearchPage() {
                         </p>
                       </div>
                       <div className="rounded-[1.5rem] bg-muted/30 px-4 py-4 ring-1 ring-border xl:min-w-44">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                           Giá từ
                         </p>
-                        <p className="mt-2 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+                        <p className="mt-2 font-heading text-3xl font-semibold tracking-normal text-foreground">
                           {formatCurrency(trip.minPrice)}
                         </p>
                         <p className="mt-2 text-sm text-muted-foreground">
@@ -345,18 +364,17 @@ export default function SearchPage() {
                   <div className="rounded-[1.9rem] bg-muted/25 px-5 py-5 ring-1 ring-border">
                     <div className="space-y-4">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          Vì sao card này dễ quyết định
+                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                          Tóm tắt hành trình
                         </p>
                         <p className="mt-2 text-sm leading-6 text-foreground">
-                          Giá, route và thời gian được đưa lên cùng một surface. User có
-                          thể scan nhanh rồi đi thẳng vào ticket detail mà không bị đứt
-                          mạch thông tin.
+                          Giá, tuyến và thời gian được gom lại để bạn quyết định nhanh
+                          trước khi mở chi tiết vé.
                         </p>
                       </div>
 
                       <div className="rounded-[1.45rem] bg-background px-4 py-4 ring-1 ring-border">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                           Bản tóm tắt
                         </p>
                         <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
@@ -444,7 +462,7 @@ export default function SearchPage() {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
       {children}
@@ -455,10 +473,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function SearchStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-b border-border px-4 py-4 last:border-b-0 xl:border-b xl:last:border-b-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+      <p className="mt-2 font-heading text-3xl font-semibold tracking-normal text-foreground">
         {value}
       </p>
     </div>
@@ -478,7 +496,7 @@ function InfoTile({
     <div className="rounded-[1.45rem] bg-muted/25 px-4 py-4 ring-1 ring-border">
       <div className="flex items-center gap-2">
         {icon}
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
           {label}
         </p>
       </div>
@@ -506,7 +524,7 @@ function SupportCard({
       <div className="flex size-11 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
         {icon}
       </div>
-      <h3 className="mt-5 font-heading text-xl font-semibold tracking-[-0.03em] text-foreground">
+      <h3 className="mt-5 font-heading text-xl font-semibold tracking-normal text-foreground">
         {title}
       </h3>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>

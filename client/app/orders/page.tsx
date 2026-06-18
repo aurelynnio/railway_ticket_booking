@@ -56,16 +56,16 @@ export default function OrdersPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "Orders command center" : "Orders registry"}
+      title={isAdminView ? "Điều phối đơn hàng" : "Danh sách đơn hàng"}
       description={
         isAdminView
-          ? "Goc nhin dieu hanh cho `orders-service`, giup doi van hanh doc nhanh route, trang thai thanh toan, issue ticket va seat payload."
-          : "Muc chung de soat order, phuc vu ca debug flow dat ve lan dieu huong sang chi tiet tung order."
+          ? "Theo dõi tuyến, trạng thái thanh toán, phát hành vé và ghế đã chọn trong từng đơn."
+          : "Tra cứu đơn hàng, kiểm tra trạng thái và mở chi tiết từng đơn khi cần."
       }
       actions={
         <FilterBar>
           <Input
-            placeholder="Filter by userId"
+            placeholder="Lọc theo userId"
             value={userId}
             onChange={(event) => {
               setPage(1);
@@ -79,7 +79,7 @@ export default function OrdersPage() {
               setStatus(event.target.value);
             }}
           >
-            <option value="">All statuses</option>
+            <option value="">Tất cả trạng thái</option>
             {Object.entries(OrderStatus)
               .filter(([, value]) => typeof value === "number")
               .map(([label, value]) => (
@@ -90,10 +90,10 @@ export default function OrdersPage() {
           </Select>
           <div className="md:col-span-2 xl:col-span-2 flex gap-2">
             <Button type="button" variant="outline" onClick={() => setPage(1)}>
-              Lam moi
+              Làm mới
             </Button>
             <Button asChild variant="ghost">
-              <Link href="/profile/orders">Mo orders cua toi</Link>
+              <Link href="/profile/orders">Mở đơn của tôi</Link>
             </Button>
           </div>
         </FilterBar>
@@ -101,44 +101,44 @@ export default function OrdersPage() {
     >
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
-          label="Orders in view"
+          label="Đơn hiển thị"
           value={String(orders.length)}
-          helper="Ban ghi dang hien thi tren page hien tai."
+          helper="Bản ghi đang hiển thị trên trang hiện tại."
         />
         <StatCard
-          label="Ticket issued"
+          label="Đã phát hành vé"
           value={String(issued)}
-          helper="So order da issue ticket trong viewport."
+          helper="Số đơn đã phát hành vé trong trang hiện tại."
         />
         <StatCard
-          label="Page GMV"
+          label="Tổng tiền trang"
           value={formatCurrency(totalAmount)}
-          helper={`${pending} order dang cho thanh toan.`}
+          helper={`${pending} đơn đang chờ thanh toán.`}
         />
       </div>
 
       <Panel
-        title="Orders table"
-        description="Bang tap trung vao route, seat payload, trang thai va tong tien de giai quyet debug va support nhanh."
+        title="Bảng đơn hàng"
+        description="Theo dõi tuyến, ghế, trạng thái và tổng tiền của từng đơn."
       >
         <div className="space-y-5">
           <SectionHeading
-            eyebrow={isAdminView ? "Operations" : "Repository"}
-            title="Danh sach order"
-            description="Click vao tung dong de mo chi tiet va chay cac action status nhu mark paid, confirm, issue ticket hoac cancel."
+            eyebrow={isAdminView ? "Điều phối" : "Đơn hàng"}
+            title="Danh sách đơn"
+            description="Mở chi tiết để xem hành khách, thanh toán và các thao tác trạng thái."
           />
 
           {query.isError ? (
             <EmptyState
-              title="Khong tai duoc orders"
-              description="Kiem tra `orders-service` va `api-gateway` truoc khi thu lai."
+              title="Không tải được đơn hàng"
+              description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
             />
           ) : null}
 
           {!query.isLoading && !query.isError && orders.length === 0 ? (
             <EmptyState
-              title="Chua co order trong viewport"
-              description="Thu bo user filter hoac doi status filter de mo rong ket qua."
+              title="Chưa có đơn hàng phù hợp"
+              description="Thử bỏ lọc user hoặc đổi trạng thái để mở rộng kết quả."
             />
           ) : null}
 
@@ -147,10 +147,10 @@ export default function OrdersPage() {
               <TableRow>
                 <TableHead>Order</TableHead>
                 <TableHead>Route</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead>Tổng tiền</TableHead>
+                <TableHead>Cập nhật</TableHead>
+                <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -160,18 +160,18 @@ export default function OrdersPage() {
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">{order.ticketTitle}</p>
                       <p className="text-xs text-muted-foreground">
-                        {compactId(order.id)} • {order.ticketCode ?? "No ticket code"}
+                        {compactId(order.id)} • {order.ticketCode ?? "Chưa có mã vé"}
                       </p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <p>
-                        {order.departureStationName ?? order.departureStationCode ?? "?"} den{" "}
+                        {order.departureStationName ?? order.departureStationCode ?? "?"} đến{" "}
                         {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
                       </p>
                       <p className="text-xs">
-                        {order.seatLabels.join(", ") || "Chua chon ghe"}
+                        {order.seatLabels.join(", ") || "Chưa chọn ghế"}
                       </p>
                     </div>
                   </TableCell>
@@ -186,7 +186,7 @@ export default function OrdersPage() {
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`${isAdminView ? "/admin/orders" : "/orders"}/${order.id}`}>
-                        Chi tiet
+                        Chi tiết
                       </Link>
                     </Button>
                   </TableCell>

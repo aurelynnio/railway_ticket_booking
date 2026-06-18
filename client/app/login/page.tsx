@@ -21,7 +21,7 @@ export default function LoginPage() {
     <AuthShell
       eyebrow="Đăng nhập"
       title="Đăng nhập để tiếp tục flow đặt vé"
-      description="Trang login được đưa về đúng tinh thần của `vetau`: bên trái là form rõ ràng, bên phải là panel thông tin live. Session vẫn đi qua `api-gateway` và HttpOnly cookie như hiện tại."
+      description="Session được bảo vệ bằng HttpOnly cookie qua gateway, giúp bạn đặt vé, xem đơn hàng và quay lại thanh toán mà không cần lưu token trong trình duyệt."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>Chưa có tài khoản?</span>
@@ -33,7 +33,7 @@ export default function LoginPage() {
     >
       <div className="grid gap-4">
         <div className="grid gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
             Email
           </p>
           <Input
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
               Mật khẩu
             </p>
             <Link href="/forgot-password" className="text-sm font-medium text-primary">
@@ -80,7 +80,7 @@ export default function LoginPage() {
 
         {login.isError ? (
           <div className="rounded-[1.2rem] bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
-            Đăng nhập thất bại. Kiểm tra `auth-service`, gateway hoặc thông tin đăng nhập.
+            Đăng nhập thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau.
           </div>
         ) : null}
       </div>

@@ -16,6 +16,8 @@ import {
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { STATIONS } from "@/app/search/page";
 import { useTickets } from "@/hooks/ticket.hook";
 import {
   formatDateTime,
@@ -71,27 +73,39 @@ export default function TicketsPage() {
       }
       description={
         isAdminView
-          ? "Kho tồn vé chính của `tickets-service`, dùng cho bộ phận điều hành theo dõi hành trình, toa, seat class và khả năng mở bán."
-          : "Duyệt vé đang mở bán theo tuyến, lịch chạy và seat class trên một grid mua sắm rõ ràng, để user đi từ khám phá sang booking mà không bị loãng thông tin."
+          ? "Kho tồn vé chính cho bộ phận điều hành theo dõi hành trình, toa, hạng ghế và khả năng mở bán."
+          : "Duyệt vé đang mở bán theo tuyến, lịch chạy và hạng ghế trước khi mở chi tiết để giữ chỗ."
       }
       actions={
         <FilterBar>
-          <Input
-            placeholder={isAdminView ? "Mã ga đi" : "Ga đi"}
+          <Select
             value={departureStationCode}
             onChange={(event) => {
               setPage(1);
               setDepartureStationCode(event.target.value);
             }}
-          />
-          <Input
-            placeholder={isAdminView ? "Mã ga đến" : "Ga đến"}
+          >
+            <option value="">Tất cả ga đi</option>
+            {STATIONS.map((station) => (
+              <option key={station.code} value={station.code}>
+                {station.name} ({station.code})
+              </option>
+            ))}
+          </Select>
+          <Select
             value={arrivalStationCode}
             onChange={(event) => {
               setPage(1);
               setArrivalStationCode(event.target.value);
             }}
-          />
+          >
+            <option value="">Tất cả ga đến</option>
+            {STATIONS.map((station) => (
+              <option key={station.code} value={station.code}>
+                {station.name} ({station.code})
+              </option>
+            ))}
+          </Select>
           <Input
             type="date"
             value={dateStart}
@@ -146,7 +160,7 @@ export default function TicketsPage() {
 
           <Panel
             title="Bảng tồn vé"
-            description="Mỗi thẻ hiện hợp nhất ticket-level và ticket-item-level để bộ phận điều phối đi từ overview sang detail ngay."
+            description="Mỗi vé hiển thị tuyến, trạng thái, thời gian và các hạng ghế đang gắn với hành trình."
           >
             <div className="space-y-5">
               <SectionHeading
@@ -189,7 +203,7 @@ export default function TicketsPage() {
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                          <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
                             {ticket.title ?? "Vé chưa đặt tên"}
                           </p>
                           <p className="mt-1 text-sm text-muted-foreground">
@@ -227,7 +241,7 @@ export default function TicketsPage() {
 
                     <div className="flex flex-col justify-between gap-4 rounded-[1.7rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
                       <div className="space-y-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                           Ghi chú hành trình
                         </p>
                         <p className="text-sm leading-6 text-muted-foreground">
@@ -266,10 +280,10 @@ export default function TicketsPage() {
             <section className="surface-panel rounded-[2rem] px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Tuyến hiển thị
                   </p>
-                  <p className="mt-3 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+                  <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
                     {tickets.length}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -285,10 +299,10 @@ export default function TicketsPage() {
             <section className="surface-panel rounded-[2rem] px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Khoang ghế
                   </p>
-                  <p className="mt-3 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+                  <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
                     {ticketItems}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -304,10 +318,10 @@ export default function TicketsPage() {
             <section className="surface-panel rounded-[2rem] px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                     Ga xuất hiện
                   </p>
-                  <p className="mt-3 font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground">
+                  <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
                     {stations}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -323,13 +337,13 @@ export default function TicketsPage() {
 
           <Panel
             title="Vé tàu nổi bật"
-            description="Mỗi card được đưa về logic mua sắm: tuyến, thời gian, seat class và lý do nên mở chi tiết thay vì đọc một bảng kỹ thuật."
+            description="Chọn tuyến, xem thời gian chạy và mở chi tiết để kiểm tra từng lựa chọn ghế."
           >
             <div className="space-y-5">
               <SectionHeading
                 eyebrow="Danh mục hành khách"
                 title="Chọn tuyến trước, rồi đi sâu vào từng lựa chọn ghế"
-                description="Thể hiện ticket như một collection sản phẩm, còn các ticket item là những biến thể ghế ở trang chi tiết."
+                description="Danh sách này giúp bạn quét nhanh tuyến đang bán trước khi vào màn chọn ghế."
                 action={
                   <Button asChild variant="outline">
                     <Link href="/search">
@@ -374,7 +388,7 @@ export default function TicketsPage() {
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-heading text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                          <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
                             {ticket.title ?? "Vé chưa đặt tên"}
                           </p>
                           <p className="mt-1 text-sm text-muted-foreground">
@@ -421,15 +435,15 @@ export default function TicketsPage() {
 
                     <div className="flex flex-col justify-between gap-4 rounded-[1.9rem] bg-muted/25 px-5 py-5 ring-1 ring-border">
                       <div className="space-y-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                           Vì sao nên mở vé này
                         </p>
                         <p className="text-sm leading-6 text-muted-foreground">
                           {ticket.journeyNote ??
-                            "Điểm khác biệt nằm ở tuyến rõ ràng, thời gian dễ scan và việc gom nhiều seat-class vào một card sản phẩm."}
+                            "Tuyến, thời gian và các hạng ghế được gom lại để bạn chọn hành trình phù hợp nhanh hơn."}
                         </p>
                         <div className="rounded-[1.4rem] bg-white/72 px-4 py-4 ring-1 ring-black/6">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
                             Độ sâu chọn ghế
                           </p>
                           <p className="mt-2 text-sm leading-6 text-foreground">
@@ -475,7 +489,7 @@ export default function TicketsPage() {
 function TicketFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[1.4rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-sm leading-6 text-foreground">{value}</p>
