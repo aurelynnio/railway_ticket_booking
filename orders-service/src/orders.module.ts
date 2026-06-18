@@ -4,6 +4,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PrismaClient } from '@prisma/client';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { CheckoutSagaOrchestrator } from './checkout-saga.orchestrator';
 
 @Module({
   imports: [
@@ -36,6 +37,6 @@ import { OrdersService } from './orders.service';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService, PrismaClient],
+  providers: [OrdersService, PrismaClient, CheckoutSagaOrchestrator],
 })
 export class OrdersModule {}
