@@ -763,23 +763,48 @@ export class TicketsService {
       item.id === updatedItem.id ? updatedItem : item,
     );
 
-    return this.persistTicketItems(ticket.id, items);
+    return this.persistTicketItems(ticket.id, items, ticket.updatedAt);
   }
 
-  private async persistTicketItems(ticketId: string, items: TicketItem[]) {
+  private async persistTicketItems(
+    ticketId: string,
+    items: TicketItem[],
+    oldUpdatedAt?: Date | null,
+  ) {
     /*
-     * All item mutations converge here so ticket-item writes always refresh the
-     * parent timestamp and clear the derived caches in one place.
+     * Use updateMany for Optimistic Concurrency Control (OCC) to prevent lost updates.
      */
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
+    const now = new Date();
+    const result = await this.prisma.ticket.updateMany({
+      where: {
+        id: ticketId,
+        updatedAt: oldUpdatedAt || undefined,
+      },
       data: {
         ticketItems: {
           set: items.map((item) => toTicketItemSetInput(item)),
         },
-        updatedAt: new Date(),
+        updatedAt: now,
       },
     });
+
+    if (result.count === 0) {
+      throw new HttpException(
+        'Ticket was updated by another transaction. Please try again.',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const updated = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+
+    if (!updated) {
+      throw new HttpException(
+        `Ticket ${ticketId} was not found after update`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
 
     await this.invalidateTicketCache(ticketId);
     return updated;

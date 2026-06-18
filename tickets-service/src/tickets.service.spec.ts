@@ -18,6 +18,8 @@ describe('TicketsService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
+      findUnique: jest.Mock;
     };
   };
   let redisCache: {
@@ -79,6 +81,8 @@ describe('TicketsService', () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
+        findUnique: jest.fn(),
       },
     };
 
@@ -251,7 +255,8 @@ describe('TicketsService', () => {
       ],
     });
     prisma.ticket.findFirst.mockResolvedValue(ticket);
-    prisma.ticket.update.mockResolvedValue(updated);
+    prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
+    prisma.ticket.findUnique.mockResolvedValue(updated);
     redisCache.del.mockResolvedValue(1);
     redisCache.patternDel.mockResolvedValue(1);
 
@@ -259,8 +264,8 @@ describe('TicketsService', () => {
       seatLabel: 'A01',
     });
 
-    expect(prisma.ticket.update).toHaveBeenCalledWith({
-      where: { id: 'ticket-1' },
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ticket-1', updatedAt: ticket.updatedAt },
       data: {
         ticketItems: {
           set: [
@@ -305,6 +310,6 @@ describe('TicketsService', () => {
       status: HttpStatus.CONFLICT,
     });
 
-    expect(prisma.ticket.update).not.toHaveBeenCalled();
+    expect(prisma.ticket.updateMany).not.toHaveBeenCalled();
   });
 });
