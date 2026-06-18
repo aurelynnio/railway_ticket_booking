@@ -766,22 +766,20 @@ export class TicketsService extends TicketsBaseService {
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
     const key = `tickets:${JSON.stringify(query)}`;
-    const cached = await this.getCachedValue<PaginatedTicketResponse>(key);
-    if (cached) return cached;
-
-    const result = await super.findAll(query);
-    await this.setCachedValue(key, result, TICKETS_LIST_CACHE_TTL_SECONDS);
-    return result;
+    return this.getCachedOrFetchWithLock(
+      key,
+      () => super.findAll(query),
+      TICKETS_LIST_CACHE_TTL_SECONDS,
+    );
   }
 
   async findOne(ticketId: string): Promise<TicketResponse> {
     const key = `ticket:${ticketId}`;
-    const cached = await this.getCachedValue<TicketResponse>(key);
-    if (cached) return cached;
-
-    const result = await super.findOne(ticketId);
-    await this.setCachedValue(key, result, TICKET_DETAIL_CACHE_TTL_SECONDS);
-    return result;
+    return this.getCachedOrFetchWithLock(
+      key,
+      () => super.findOne(ticketId),
+      TICKET_DETAIL_CACHE_TTL_SECONDS,
+    );
   }
 
   async update(
@@ -801,21 +799,42 @@ export class TicketsService extends TicketsBaseService {
 
   async availability(ticketId: string): Promise<TicketAvailabilityResponse> {
     const key = `ticket:availability:${ticketId}`;
-    const cached = await this.getCachedValue<TicketAvailabilityResponse>(key);
-    if (cached) return cached;
-
-    const result = await super.availability(ticketId);
-    await this.setCachedValue(key, result, TICKET_AVAILABILITY_CACHE_TTL_SECONDS);
-    return result;
+    return this.getCachedOrFetchWithLock(
+      key,
+      () => super.availability(ticketId),
+      TICKET_AVAILABILITY_CACHE_TTL_SECONDS,
+    );
   }
 
   async seatMap(ticketId: string) {
     const key = `ticket:seat-map:${ticketId}`;
-    const cached = await this.getCachedValue<any>(key);
-    if (cached) return cached;
+    return this.getCachedOrFetchWithLock(
+      key,
+      () => super.seatMap(ticketId),
+      TICKET_SEAT_MAP_CACHE_TTL_SECONDS,
+    );
+  }
 
-    const result = await super.seatMap(ticketId);
-    await this.setCachedValue(key, result, TICKET_SEAT_MAP_CACHE_TTL_SECONDS);
+  async reserve(
+    ticketId: string,
+    payload: ReserveTicketRequest,
+  ): Promise<TicketItemResponse> {
+    const result = await this.executeWithReservationLock(ticketId, () =>
+      super.reserve(ticketId, payload),
+    );
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async reserveSeat(
+    ticketId: string,
+    ticketItemId: string,
+    payload: ReserveSeatRequest,
+  ): Promise<TicketItemResponse> {
+    const result = await this.executeWithReservationLock(ticketId, () =>
+      super.reserveSeat(ticketId, ticketItemId, payload),
+    );
+    await this.invalidateTicketCache(ticketId);
     return result;
   }
 
@@ -915,5 +934,77 @@ export class TicketsService extends TicketsBaseService {
       this.redisCaching.del(`ticket:seat-map:${ticketId}`),
       this.invalidateTicketListCache(),
     ]);
+  }
+
+  private async getCachedOrFetchWithLock<T>(
+    cacheKey: string,
+    fetchFn: () => Promise<T>,
+    ttlSeconds: number,
+    lockTtlMs = 5000,
+  ): Promise<T> {
+    const cached = await this.getCachedValue<T>(cacheKey);
+    if (cached) return cached;
+
+    const lockKey = `lock:${cacheKey}`;
+    let lockAcquired = false;
+
+    // Retry loop to acquire lock
+    for (let attempt = 0; attempt < 10; attempt++) {
+      lockAcquired = await this.redisCaching.acquireLock(lockKey, lockTtlMs);
+      if (lockAcquired) {
+        break;
+      }
+      // Wait 50ms before retrying
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // After waiting, check cache again (in case another thread wrote it)
+      const doubleCheck = await this.getCachedValue<T>(cacheKey);
+      if (doubleCheck) return doubleCheck;
+    }
+
+    if (!lockAcquired) {
+      // Fallback: if lock cannot be acquired after retries, fetch directly to degrade gracefully
+      return fetchFn();
+    }
+
+    try {
+      // Fetch fresh data
+      const result = await fetchFn();
+      await this.setCachedValue(cacheKey, result, ttlSeconds);
+      return result;
+    } finally {
+      await this.redisCaching.releaseLock(lockKey);
+    }
+  }
+
+  private async executeWithReservationLock<T>(
+    ticketId: string,
+    actionFn: () => Promise<T>,
+    lockTtlMs = 10000,
+  ): Promise<T> {
+    const lockKey = `lock:ticket:reserve:${ticketId}`;
+    let lockAcquired = false;
+
+    // Retry for up to 5 seconds (100 attempts * 50ms)
+    for (let attempt = 0; attempt < 100; attempt++) {
+      lockAcquired = await this.redisCaching.acquireLock(lockKey, lockTtlMs);
+      if (lockAcquired) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    if (!lockAcquired) {
+      throw new HttpException(
+        'System is busy processing other reservations for this train. Please try again.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    try {
+      return await actionFn();
+    } finally {
+      await this.redisCaching.releaseLock(lockKey);
+    }
   }
 }

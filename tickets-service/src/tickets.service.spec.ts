@@ -27,6 +27,8 @@ describe('TicketsService', () => {
     set: jest.Mock;
     del: jest.Mock;
     patternDel: jest.Mock;
+    acquireLock: jest.Mock;
+    releaseLock: jest.Mock;
   };
 
   const buildTicketItem = (
@@ -91,6 +93,8 @@ describe('TicketsService', () => {
       set: jest.fn(),
       del: jest.fn(),
       patternDel: jest.fn(),
+      acquireLock: jest.fn().mockResolvedValue(true),
+      releaseLock: jest.fn().mockResolvedValue(1),
     };
 
     service = new TicketsService(

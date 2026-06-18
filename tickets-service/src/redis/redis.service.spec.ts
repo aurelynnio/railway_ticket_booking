@@ -80,4 +80,24 @@ describe('RedisCacheService', () => {
     expect(redis.del).not.toHaveBeenCalled();
     expect(deleted).toBe(0);
   });
+
+  it('acquireLock should return true when redis set returns OK', async () => {
+    redis.set.mockResolvedValue('OK');
+    const result = await service.acquireLock('my-lock', 5000);
+    expect(redis.set).toHaveBeenCalledWith('my-lock', 'locked', 'PX', 5000, 'NX');
+    expect(result).toBe(true);
+  });
+
+  it('acquireLock should return false when redis set returns null', async () => {
+    redis.set.mockResolvedValue(null);
+    const result = await service.acquireLock('my-lock', 5000);
+    expect(result).toBe(false);
+  });
+
+  it('releaseLock should call del and return key delete count', async () => {
+    redis.del.mockResolvedValue(1);
+    const result = await service.releaseLock('my-lock');
+    expect(redis.del).toHaveBeenCalledWith('my-lock');
+    expect(result).toBe(1);
+  });
 });

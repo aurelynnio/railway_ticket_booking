@@ -47,4 +47,13 @@ export class RedisCacheService {
 
     return deletedCount;
   }
+
+  async acquireLock(key: string, ttlMs: number): Promise<boolean> {
+    const result = await this.redis.set(key, 'locked', 'PX', ttlMs, 'NX');
+    return result === 'OK';
+  }
+
+  async releaseLock(key: string): Promise<number> {
+    return this.redis.del(key);
+  }
 }
