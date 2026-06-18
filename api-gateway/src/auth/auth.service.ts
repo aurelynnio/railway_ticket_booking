@@ -7,6 +7,10 @@ import {
   RegisterRequest,
   RefreshTokenRequest,
   ResetPasswordRequest,
+  ChangePasswordRequest,
+  VerifyEmailRequest,
+  ResendVerificationRequest,
+  SocialLoginGoogleRequest,
 } from '../common/dto/auth.dto';
 
 @Injectable()
@@ -55,6 +59,56 @@ export class AuthService {
         cmd: 'auth.resetPassword',
       },
       resetPasswordDto,
+    );
+  }
+
+  changePassword(userId: string, data: ChangePasswordRequest) {
+    return this.authClient.send(
+      {
+        cmd: 'auth.changePassword',
+      },
+      {
+        userId,
+        data,
+      },
+    );
+  }
+
+  verifyEmail(data: VerifyEmailRequest) {
+    return this.authClient.send(
+      {
+        cmd: 'auth.verifyEmail',
+      },
+      data,
+    );
+  }
+
+  resendVerification(data: ResendVerificationRequest) {
+    return this.authClient.send(
+      {
+        cmd: 'auth.resendVerification',
+      },
+      data,
+    );
+  }
+
+  socialLoginGoogle(data: SocialLoginGoogleRequest) {
+    return this.authClient.send(
+      {
+        cmd: 'auth.socialLoginGoogle',
+      },
+      data,
+    );
+  }
+
+  revokeAllSessions(userId: string) {
+    return this.authClient.send(
+      {
+        cmd: 'auth.revokeAllSessions',
+      },
+      {
+        userId,
+      },
     );
   }
 }

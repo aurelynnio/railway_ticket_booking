@@ -8,16 +8,20 @@ datasource db {
 }
 
 model AuthAccount {
-  id        String    @id @default(uuid()) @db.Char(36)
-  username  String    @unique @db.VarChar(50)
-  email     String    @unique @db.VarChar(255)
-  password  String    @db.VarChar(255)
-  role      Int       @default(0)
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id            String    @id @default(uuid()) @db.Char(36)
+  username      String    @unique @db.VarChar(50)
+  email         String    @unique @db.VarChar(255)
+  password      String?   @db.VarChar(255)
+  role          Int       @default(0)
+  emailVerified Boolean   @default(false) @map("email_verified")
+  tokenVersion  Int       @default(0) @map("token_version")
+  googleId      String?   @unique @map("google_id") @db.VarChar(255)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
 
-  passwordResetTokens PasswordResetToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@map("auth_accounts")
 }
@@ -34,3 +38,17 @@ model PasswordResetToken {
 
   @@map("password_reset_tokens")
 }
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @unique @map("user_id") @db.Char(36)
+  tokenHash String   @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  authAccount AuthAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+

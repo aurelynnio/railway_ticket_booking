@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -16,6 +17,10 @@ import {
   RefreshTokenRequest,
   RegisterRequest,
   ResetPasswordRequest,
+  ChangePasswordRequest,
+  VerifyEmailRequest,
+  ResendVerificationRequest,
+  SocialLoginGoogleRequest,
 } from '../common/dto/auth.dto';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import {
@@ -118,6 +123,63 @@ export class AuthController {
   resetPassword(@Body() resetPasswordDto: ResetPasswordRequest) {
     return this.authService.resetPassword(resetPasswordDto);
   }
+
+  @Post('changePassword')
+  @UseGuards(JwtAuthGuard)
+  changePassword(
+    @Req() request: { user?: { userId?: string } },
+    @Body() changePasswordDto: ChangePasswordRequest,
+  ) {
+    const userId = request.user?.userId ?? '';
+    return this.authService.changePassword(userId, changePasswordDto);
+  }
+
+  @Post('verifyEmail')
+  verifyEmail(@Body() verifyEmailDto: VerifyEmailRequest) {
+    return this.authService.verifyEmail(verifyEmailDto);
+  }
+
+  @Post('resendVerification')
+  resendVerification(@Body() resendDto: ResendVerificationRequest) {
+    return this.authService.resendVerification(resendDto);
+  }
+
+  @Get('google')
+  googleLogin(@Res() res: Response) {
+    const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=MOCK_CLIENT_ID&redirect_uri=http://localhost:3000/auth/google/callback&response_type=code&scope=email%20profile`;
+    res.redirect(redirectUrl);
+  }
+
+  @Get('google/callback')
+  async googleCallback(
+    @Query('code') code: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    if (!code) {
+      throw new UnauthorizedException('Authorization code missing');
+    }
+    const authResult = (await firstValueFrom(
+      this.authService.socialLoginGoogle({ code }),
+    )) as {
+      accessToken: string;
+      refreshToken: string;
+    };
+
+    this.setAuthCookies(response, authResult);
+
+    return {
+      success: true,
+      message: 'Google login successful',
+    };
+  }
+
+  @Post('revokeAllSessions')
+  @UseGuards(JwtAuthGuard)
+  revokeAllSessions(@Req() request: { user?: { userId?: string } }) {
+    const userId = request.user?.userId ?? '';
+    return this.authService.revokeAllSessions(userId);
+  }
+
 
   private setAuthCookies(
     response: Response,

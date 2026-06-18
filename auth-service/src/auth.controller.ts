@@ -8,6 +8,10 @@ import {
   LogoutRequest,
   ResetPasswordRequest,
   ValidateTokenRequest,
+  ChangePasswordRequest,
+  VerifyEmailRequest,
+  ResendVerificationRequest,
+  SocialLoginGoogleRequest,
 } from './dto/auth.dto';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 
@@ -54,4 +58,32 @@ export class AuthController {
   resetPassword(@Payload() payload: ResetPasswordRequest) {
     return this.authService.resetPassword(payload);
   }
+
+  @MessagePattern({ cmd: 'auth.changePassword' })
+  changePassword(
+    @Payload() payload: { userId: string; data: ChangePasswordRequest },
+  ) {
+    return this.authService.changePassword(payload.userId, payload.data);
+  }
+
+  @MessagePattern({ cmd: 'auth.verifyEmail' })
+  verifyEmail(@Payload() payload: VerifyEmailRequest) {
+    return this.authService.verifyEmail(payload);
+  }
+
+  @MessagePattern({ cmd: 'auth.resendVerification' })
+  resendVerification(@Payload() payload: ResendVerificationRequest) {
+    return this.authService.resendVerification(payload);
+  }
+
+  @MessagePattern({ cmd: 'auth.socialLoginGoogle' })
+  socialLoginGoogle(@Payload() payload: SocialLoginGoogleRequest) {
+    return this.authService.socialLoginGoogle(payload);
+  }
+
+  @MessagePattern({ cmd: 'auth.revokeAllSessions' })
+  revokeAllSessions(@Payload() payload: { userId: string }) {
+    return this.authService.revokeAllSessions(payload.userId);
+  }
 }
+

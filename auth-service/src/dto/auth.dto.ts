@@ -63,3 +63,31 @@ export class ResetPasswordRequest {
   @MinLength(6)
   newPassword: string;
 }
+
+export class ChangePasswordRequest {
+  @IsOptional()
+  @IsString()
+  oldPassword?: string;
+
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
+}
+
+export class VerifyEmailRequest {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+
+export class ResendVerificationRequest {
+  @IsEmail()
+  email: string;
+}
+
+export class SocialLoginGoogleRequest {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+}
+
