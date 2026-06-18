@@ -49,11 +49,14 @@ const TICKET_DETAIL_CACHE_TTL_SECONDS = 300;
 const TICKET_AVAILABILITY_CACHE_TTL_SECONDS = 15;
 const TICKET_SEAT_MAP_CACHE_TTL_SECONDS = 15;
 
+/**
+ * Core business logic and database access layer for tickets.
+ * Fully decoupled from caching to respect SRP (Single Responsibility Principle).
+ */
 @Injectable()
-export class TicketsService {
+export class TicketsBaseService {
   constructor(
-    private readonly prisma: PrismaClient,
-    private readonly redisCaching: RedisCacheService,
+    protected readonly prisma: PrismaClient,
   ) {}
 
   health() {
@@ -64,10 +67,6 @@ export class TicketsService {
     };
   }
 
-  /*
-   * Ticket creation validates journey timing once and stores the root ticket
-   * together with its initial item set so stock starts from a coherent snapshot.
-   */
   async create(payload: CreateTicketRequest): Promise<TicketResponse> {
     ensureJourneyDates(payload.dateStart, payload.dateEnd);
 
@@ -97,29 +96,10 @@ export class TicketsService {
       },
     });
 
-    await this.invalidateTicketListCache();
     return toTicketResponse(created);
   }
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
-    const key = this.getTicketsListCacheKey(query);
-    const cached = await this.getCachedValue<PaginatedTicketResponse>(key);
-    if (cached) {
-      return cached;
-    }
-
-    const result = await this.findAllInternal(query);
-    await this.setCachedValue(key, result, TICKETS_LIST_CACHE_TTL_SECONDS);
-    return result;
-  }
-
-  /*
-   * Cache misses fall back to the real paginated Prisma query, where filters
-   * are normalized before count and page reads are executed in parallel.
-   */
-  private async findAllInternal(
-    query: FindTicketsQuery,
-  ): Promise<PaginatedTicketResponse> {
     const where: Prisma.TicketWhereInput = {
       deletedAt: null,
     };
@@ -180,16 +160,8 @@ export class TicketsService {
   }
 
   async findOne(ticketId: string): Promise<TicketResponse> {
-    const key = this.getTicketCacheKey(ticketId);
-    const cached = await this.getCachedValue<TicketResponse>(key);
-    if (cached) {
-      return cached;
-    }
-
     const ticket = await this.getTicketOrThrow(ticketId);
-    const result = toTicketResponse(ticket);
-    await this.setCachedValue(key, result, TICKET_DETAIL_CACHE_TTL_SECONDS);
-    return result;
+    return toTicketResponse(ticket);
   }
 
   async update(
@@ -216,7 +188,6 @@ export class TicketsService {
       },
     });
 
-    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -231,36 +202,23 @@ export class TicketsService {
       },
     });
 
-    await this.invalidateTicketCache(ticketId);
     return {
       message: `Ticket ${ticketId} has been deleted`,
     };
   }
 
   async availability(ticketId: string): Promise<TicketAvailabilityResponse> {
-    const key = this.getTicketAvailabilityCacheKey(ticketId);
-    const cached = await this.getCachedValue<TicketAvailabilityResponse>(key);
-    if (cached) {
-      return cached;
-    }
-
     const ticket = await this.getTicketOrThrow(ticketId);
     const items = getActiveItems(ticket).map((item) =>
       toTicketItemResponse(item),
     );
 
-    const result = {
+    return {
       ticketId: ticket.id,
       status: ticket.status,
       saleOpen: items.some((item) => item.saleOpen),
       items,
     };
-    await this.setCachedValue(
-      key,
-      result,
-      TICKET_AVAILABILITY_CACHE_TTL_SECONDS,
-    );
-    return result;
   }
 
   async reserve(
@@ -269,10 +227,6 @@ export class TicketsService {
   ): Promise<TicketItemResponse> {
     ensureTicketItemId(payload.ticketItemId);
 
-    /*
-     * Reservations branch early into seat-level locking when a label is given;
-     * otherwise they consume aggregate stock for non-seat-specific inventory.
-     */
     if (payload.seatLabel) {
       return this.reserveSeat(ticketId, payload.ticketItemId, {
         seatLabel: payload.seatLabel,
@@ -329,7 +283,6 @@ export class TicketsService {
       },
     });
 
-    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -393,7 +346,6 @@ export class TicketsService {
       }),
     );
 
-    await this.invalidateTicketCache(ticketId);
     return {
       message: `Ticket item ${ticketItemId} has been deleted`,
     };
@@ -450,7 +402,6 @@ export class TicketsService {
       },
     });
 
-    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -464,7 +415,6 @@ export class TicketsService {
       },
     });
 
-    await this.invalidateTicketCache(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -477,10 +427,6 @@ export class TicketsService {
       ? new Set([payload.ticketItemId])
       : new Set(getActiveItems(ticket).map((item: TicketItem) => item.id));
 
-    /*
-     * Stock preparation rebuilds seat availability from either the request or
-     * the saved layout so later reserve/release calls operate on synced values.
-     */
     const updatedItems = ticket.ticketItems.map((item: TicketItem) => {
       if (!targetIds.has(item.id) || item.deletedAt) {
         return item;
@@ -561,15 +507,9 @@ export class TicketsService {
   }
 
   async seatMap(ticketId: string) {
-    const key = this.getTicketSeatMapCacheKey(ticketId);
-    const cached = await this.getCachedValue(key);
-    if (cached) {
-      return cached;
-    }
-
     const ticket = await this.getTicketOrThrow(ticketId);
 
-    const result = {
+    return {
       ticketId: ticket.id,
       items: getActiveItems(ticket).map((item) => ({
         ticketItemId: item.id,
@@ -583,8 +523,6 @@ export class TicketsService {
         ),
       })),
     };
-    await this.setCachedValue(key, result, TICKET_SEAT_MAP_CACHE_TTL_SECONDS);
-    return result;
   }
 
   async findTicketItem(
@@ -736,7 +674,7 @@ export class TicketsService {
     return toTicketItemResponse(getActiveItemOrThrow(updated, ticketItemId));
   }
 
-  private async getTicketOrThrow(ticketId: string): Promise<Ticket> {
+  protected async getTicketOrThrow(ticketId: string): Promise<Ticket> {
     if (!ticketId.trim()) {
       throw new HttpException('ticketId is required', HttpStatus.BAD_REQUEST);
     }
@@ -758,7 +696,7 @@ export class TicketsService {
     return ticket;
   }
 
-  private async replaceTicketItem(ticket: Ticket, updatedItem: TicketItem) {
+  protected async replaceTicketItem(ticket: Ticket, updatedItem: TicketItem) {
     const items = ticket.ticketItems.map((item: TicketItem) =>
       item.id === updatedItem.id ? updatedItem : item,
     );
@@ -766,14 +704,11 @@ export class TicketsService {
     return this.persistTicketItems(ticket.id, items, ticket.updatedAt);
   }
 
-  private async persistTicketItems(
+  protected async persistTicketItems(
     ticketId: string,
     items: TicketItem[],
     oldUpdatedAt?: Date | null,
   ) {
-    /*
-     * Use updateMany for Optimistic Concurrency Control (OCC) to prevent lost updates.
-     */
     const now = new Date();
     const result = await this.prisma.ticket.updateMany({
       where: {
@@ -806,26 +741,156 @@ export class TicketsService {
       );
     }
 
-    await this.invalidateTicketCache(ticketId);
     return updated;
   }
+}
 
-  private getTicketsListCacheKey(query: FindTicketsQuery) {
-    return `tickets:${JSON.stringify(query)}`;
+/**
+ * Decorator-like extension of TicketsBaseService that handles caching.
+ * Keeps business logic clean of cache concerns (SRP).
+ */
+@Injectable()
+export class TicketsService extends TicketsBaseService {
+  constructor(
+    prisma: PrismaClient,
+    private readonly redisCaching: RedisCacheService,
+  ) {
+    super(prisma);
   }
 
-  private getTicketCacheKey(ticketId: string) {
-    return `ticket:${ticketId}`;
+  async create(payload: CreateTicketRequest): Promise<TicketResponse> {
+    const result = await super.create(payload);
+    await this.invalidateTicketListCache();
+    return result;
   }
 
-  private getTicketAvailabilityCacheKey(ticketId: string) {
-    return `ticket:availability:${ticketId}`;
+  async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
+    const key = `tickets:${JSON.stringify(query)}`;
+    const cached = await this.getCachedValue<PaginatedTicketResponse>(key);
+    if (cached) return cached;
+
+    const result = await super.findAll(query);
+    await this.setCachedValue(key, result, TICKETS_LIST_CACHE_TTL_SECONDS);
+    return result;
   }
 
-  private getTicketSeatMapCacheKey(ticketId: string) {
-    return `ticket:seat-map:${ticketId}`;
+  async findOne(ticketId: string): Promise<TicketResponse> {
+    const key = `ticket:${ticketId}`;
+    const cached = await this.getCachedValue<TicketResponse>(key);
+    if (cached) return cached;
+
+    const result = await super.findOne(ticketId);
+    await this.setCachedValue(key, result, TICKET_DETAIL_CACHE_TTL_SECONDS);
+    return result;
   }
 
+  async update(
+    ticketId: string,
+    payload: UpdateTicketRequest,
+  ): Promise<TicketResponse> {
+    const result = await super.update(ticketId, payload);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async remove(ticketId: string) {
+    const result = await super.remove(ticketId);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async availability(ticketId: string): Promise<TicketAvailabilityResponse> {
+    const key = `ticket:availability:${ticketId}`;
+    const cached = await this.getCachedValue<TicketAvailabilityResponse>(key);
+    if (cached) return cached;
+
+    const result = await super.availability(ticketId);
+    await this.setCachedValue(key, result, TICKET_AVAILABILITY_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  async seatMap(ticketId: string) {
+    const key = `ticket:seat-map:${ticketId}`;
+    const cached = await this.getCachedValue<any>(key);
+    if (cached) return cached;
+
+    const result = await super.seatMap(ticketId);
+    await this.setCachedValue(key, result, TICKET_SEAT_MAP_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  async addTicketItem(
+    ticketId: string,
+    payload: CreateTicketItemRequest,
+  ): Promise<TicketResponse> {
+    const result = await super.addTicketItem(ticketId, payload);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async updateTicketItem(
+    ticketId: string,
+    ticketItemId: string,
+    payload: UpdateTicketItemRequest,
+  ): Promise<TicketItemResponse> {
+    const result = await super.updateTicketItem(ticketId, ticketItemId, payload);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async removeTicketItem(ticketId: string, ticketItemId: string) {
+    const result = await super.removeTicketItem(ticketId, ticketItemId);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async publish(ticketId: string): Promise<TicketResponse> {
+    const result = await super.publish(ticketId);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async unpublish(ticketId: string): Promise<TicketResponse> {
+    const result = await super.unpublish(ticketId);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async prepareStock(
+    ticketId: string,
+    payload: PrepareStockRequest,
+  ): Promise<TicketResponse> {
+    const result = await super.prepareStock(ticketId, payload);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async openSale(
+    ticketId: string,
+    payload: OpenSaleRequest,
+  ): Promise<TicketResponse> {
+    const result = await super.openSale(ticketId, payload);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async closeSale(ticketId: string): Promise<TicketResponse> {
+    const result = await super.closeSale(ticketId);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  protected async persistTicketItems(
+    ticketId: string,
+    items: TicketItem[],
+    oldUpdatedAt?: Date | null,
+  ) {
+    const result = await super.persistTicketItems(ticketId, items, oldUpdatedAt);
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  // Cache helper utilities
   private async getCachedValue<T>(key: string): Promise<T | null> {
     const cached = await this.redisCaching.get(key);
     return cached ? (JSON.parse(cached) as T) : null;
@@ -845,9 +910,9 @@ export class TicketsService {
 
   private async invalidateTicketCache(ticketId: string): Promise<void> {
     await Promise.all([
-      this.redisCaching.del(this.getTicketCacheKey(ticketId)),
-      this.redisCaching.del(this.getTicketAvailabilityCacheKey(ticketId)),
-      this.redisCaching.del(this.getTicketSeatMapCacheKey(ticketId)),
+      this.redisCaching.del(`ticket:${ticketId}`),
+      this.redisCaching.del(`ticket:availability:${ticketId}`),
+      this.redisCaching.del(`ticket:seat-map:${ticketId}`),
       this.invalidateTicketListCache(),
     ]);
   }
