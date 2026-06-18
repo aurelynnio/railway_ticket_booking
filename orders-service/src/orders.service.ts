@@ -135,12 +135,27 @@ export class OrdersService {
         await this.tryCancelCompensatingOrder(order.id);
       }
 
-      await this.releaseReservation(
-        payload.ticketId,
-        payload.ticketItemId,
-        reservedSeatLabels,
-        reservedQuantity,
-      );
+      try {
+        await this.retry(
+          () =>
+            this.releaseReservation(
+              payload.ticketId,
+              payload.ticketItemId,
+              reservedSeatLabels,
+              reservedQuantity,
+            ),
+          3,
+          500,
+        );
+      } catch (releaseError) {
+        console.error(
+          `CRITICAL distributed transaction compensation failure: Failed to release seats [${reservedSeatLabels.join(
+            ', ',
+          )}] for ticket ${payload.ticketId}. Error: ${this.getErrorMessage(
+            releaseError,
+          )}`,
+        );
+      }
 
       throw error;
     }
@@ -505,14 +520,24 @@ export class OrdersService {
     );
 
     try {
-      await this.releaseReservation(
-        order.ticketId,
-        order.ticketItemId,
-        order.seatLabels,
-        Math.max(0, order.quantity - order.seatLabels.length),
+      await this.retry(
+        () =>
+          this.releaseReservation(
+            order.ticketId,
+            order.ticketItemId,
+            order.seatLabels,
+            Math.max(0, order.quantity - order.seatLabels.length),
+          ),
+        3,
+        500,
       );
     } catch (error) {
       warnings.push(this.getErrorMessage(error));
+      console.error(
+        `CRITICAL distributed transaction compensation failure in cancelWorkflow for order ${order.id}. Error: ${this.getErrorMessage(
+          error,
+        )}`,
+      );
     }
 
     return {
@@ -798,5 +823,23 @@ export class OrdersService {
     }
 
     return 'Unknown downstream error';
+  }
+
+  private async retry<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    delay = (process.env.NODE_ENV === 'test' || typeof (global as any).jest !== 'undefined') ? 0 : 500,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (retries <= 0) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return this.retry(
+        fn,
+        retries - 1,
+        (process.env.NODE_ENV === 'test' || typeof (global as any).jest !== 'undefined') ? 0 : delay * 2,
+      );
+    }
   }
 }

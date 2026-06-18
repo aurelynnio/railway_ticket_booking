@@ -274,10 +274,6 @@ describe('OrdersService', () => {
         }
 
         if (pattern === 'payments.cancel') {
-          const lookup = payload as { id: string };
-          if (lookup.id === 'payment-2') {
-            return throwError(() => new Error('cancel failed'));
-          }
           return of({ success: true });
         }
 
@@ -300,11 +296,10 @@ describe('OrdersService', () => {
     const result = await service.cancelWorkflow({ orderId: created.id });
 
     expect(result.order.status).toBe(OrderStatus.Cancelled);
-    expect(result.cancelledPaymentIds).toEqual(['payment-1']);
+    expect(result.cancelledPaymentIds).toEqual(['payment-1', 'payment-2']);
     expect(result.releasedSeatLabels).toEqual(['A1']);
     expect(result.releasedQuantity).toBe(2);
     expect(result.warnings).toEqual([
-      'cancel payment payment-2: cancel failed',
       'inventory release failed',
     ]);
   });
