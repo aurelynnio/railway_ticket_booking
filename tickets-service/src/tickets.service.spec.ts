@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PrismaClient, Ticket, TicketItem } from '@prisma/client';
 import { RedisCacheService } from './redis/redis.service';
 import { TicketStatus } from './ticket.dto';
@@ -12,6 +12,7 @@ jest.mock('@prisma/client', () => ({
 describe('TicketsService', () => {
   let service: TicketsService;
   let prisma: {
+    $transaction: jest.Mock;
     ticket: {
       create: jest.Mock;
       count: jest.Mock;
@@ -80,6 +81,7 @@ describe('TicketsService', () => {
 
   beforeEach(() => {
     prisma = {
+      $transaction: jest.fn().mockImplementation(async (callback) => callback()),
       ticket: {
         create: jest.fn(),
         count: jest.fn(),
@@ -298,7 +300,7 @@ describe('TicketsService', () => {
     expect(redisCache.del).toHaveBeenCalledWith('ticket:ticket-1');
     expect(redisCache.del).toHaveBeenCalledWith('ticket:availability:ticket-1');
     expect(redisCache.del).toHaveBeenCalledWith('ticket:seat-map:ticket-1');
-    expect(redisCache.patternDel).toHaveBeenCalledWith('tickets:*');
+    expect(redisCache.patternDel).not.toHaveBeenCalled();
     expect(result.availableSeatLabels).toEqual(['A02']);
     expect(result.stockAvailable).toBe(1);
   });
@@ -327,5 +329,46 @@ describe('TicketsService', () => {
     });
 
     expect(prisma.ticket.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('should fail-fast (throw 503) if lock acquisition fails during cache miss', async () => {
+    redisCache.get.mockResolvedValue(null);
+    redisCache.acquireLock.mockResolvedValue(null); // Lock acquisition fails
+
+    await expect(service.findOne('ticket-1')).rejects.toThrow(
+      new HttpException(
+        'The system is currently experiencing high load, please try again.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      ),
+    );
+  });
+
+  it('should collapse multiple concurrent queries into a single database fetch', async () => {
+    redisCache.get.mockResolvedValue(null);
+    redisCache.acquireLock.mockResolvedValue({
+      release: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const ticket = buildTicket();
+    prisma.ticket.findFirst.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(ticket), 100)),
+    );
+
+    // Call findOne concurrently multiple times
+    const promises = [
+      service.findOne('ticket-1'),
+      service.findOne('ticket-1'),
+      service.findOne('ticket-1'),
+    ];
+
+    const results = await Promise.all(promises);
+
+    // Ensure they all returned the same result
+    expect(results[0].id).toBe(ticket.id);
+    expect(results[1].id).toBe(ticket.id);
+    expect(results[2].id).toBe(ticket.id);
+
+    // Prisma findFirst should only be called once!
+    expect(prisma.ticket.findFirst).toHaveBeenCalledTimes(1);
   });
 });

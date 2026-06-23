@@ -753,6 +753,8 @@ export class TicketsBaseService {
  */
 @Injectable()
 export class TicketsService extends TicketsBaseService {
+  private readonly pendingFetches = new Map<string, Promise<any>>();
+
   constructor(
     prisma: PrismaClient,
     private readonly redisCaching: RedisCacheService,
@@ -823,7 +825,8 @@ export class TicketsService extends TicketsBaseService {
     ticketId: string,
     payload: ReserveTicketRequest,
   ): Promise<TicketItemResponse> {
-    const result = await this.executeWithReservationLock(ticketId, () =>
+    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+    const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
       super.reserve(ticketId, payload),
     );
     await this.invalidateTicketCache(ticketId);
@@ -835,7 +838,8 @@ export class TicketsService extends TicketsBaseService {
     ticketItemId: string,
     payload: ReserveSeatRequest,
   ): Promise<TicketItemResponse> {
-    const result = await this.executeWithReservationLock(ticketId, () =>
+    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+    const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
       super.reserveSeat(ticketId, ticketItemId, payload),
     );
     await this.invalidateTicketCache(ticketId);
@@ -936,7 +940,6 @@ export class TicketsService extends TicketsBaseService {
       this.redisCaching.del(`ticket:${ticketId}`),
       this.redisCaching.del(`ticket:availability:${ticketId}`),
       this.redisCaching.del(`ticket:seat-map:${ticketId}`),
-      this.invalidateTicketListCache(),
     ]);
     void this.publishTicketUpdate(ticketId);
   }
@@ -974,53 +977,110 @@ export class TicketsService extends TicketsBaseService {
     const cached = await this.getCachedValue<T>(cacheKey);
     if (cached) return cached;
 
-    const lockKey = `lock:${cacheKey}`;
-    // Retry up to 10 times, with 50ms delay (approx 500ms total)
-    const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 10, 50);
-
-    if (!lock) {
-      // Fallback: if lock cannot be acquired after retries, fetch directly to degrade gracefully
-      return fetchFn();
+    // Check if there is an ongoing fetch for this key (Request Collapsing)
+    const pending = this.pendingFetches.get(cacheKey);
+    if (pending) {
+      return await pending;
     }
 
-    try {
-      // Double-check the cache after acquiring the lock
-      const doubleCheck = await this.getCachedValue<T>(cacheKey);
-      if (doubleCheck) return doubleCheck;
+    const fetchPromise = (async () => {
+      const lockKey = `lock:${cacheKey}`;
+      // Retry up to 10 times, with 50ms delay (approx 500ms total)
+      const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 10, 50);
 
-      // Fetch fresh data
-      const result = await fetchFn();
-      await this.setCachedValue(cacheKey, result, ttlSeconds);
-      return result;
+      if (!lock) {
+        // Fail-Fast: throw 503 Service Unavailable under heavy cache stampede load
+        throw new HttpException(
+          'The system is currently experiencing high load, please try again.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+
+      try {
+        // Double-check the cache after acquiring the lock
+        const doubleCheck = await this.getCachedValue<T>(cacheKey);
+        if (doubleCheck) return doubleCheck;
+
+        // Fetch fresh data
+        const result = await fetchFn();
+        await this.setCachedValue(cacheKey, result, ttlSeconds);
+        return result;
+      } finally {
+        await this.redisCaching.releaseLock(lock).catch((err) => {
+          console.error(`Failed to release lock for ${lockKey}:`, err);
+        });
+      }
+    })();
+
+    this.pendingFetches.set(cacheKey, fetchPromise);
+
+    try {
+      return await fetchPromise;
     } finally {
-      await this.redisCaching.releaseLock(lock).catch((err) => {
-        console.error(`Failed to release lock for ${lockKey}:`, err);
-      });
+      this.pendingFetches.delete(cacheKey);
     }
   }
 
   private async executeWithReservationLock<T>(
     ticketId: string,
+    seatLabels: string[],
     actionFn: () => Promise<T>,
     lockTtlMs = 10000,
   ): Promise<T> {
-    const lockKey = `lock:ticket:reserve:${ticketId}`;
-    // Retry up to 100 times, with 50ms delay (approx 5 seconds total)
-    const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 100, 50);
+    if (!seatLabels || seatLabels.length === 0) {
+      const lockKey = `lock:ticket:reserve:${ticketId}`;
+      const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 100, 50);
+      if (!lock) {
+        throw new HttpException(
+          'System is busy processing other reservations for this train. Please try again.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      try {
+        return await this.prisma.$transaction(async () => {
+          return await actionFn();
+        });
+      } finally {
+        await this.redisCaching.releaseLock(lock).catch((err) => {
+          console.error(`Failed to release lock for ${lockKey}:`, err);
+        });
+      }
+    }
 
-    if (!lock) {
+    const locks: Lock[] = [];
+    try {
+      await Promise.all(
+        seatLabels.map(async (seatLabel) => {
+          const lockKey = `lock:ticket:reserve:${ticketId}:seat:${seatLabel}`;
+          const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 100, 50);
+          if (!lock) {
+            throw new Error(`Failed to acquire lock for seat: ${seatLabel}`);
+          }
+          locks.push(lock);
+        }),
+      );
+    } catch (error) {
+      if (locks.length > 0) {
+        await Promise.allSettled(
+          locks.map((lock) => this.redisCaching.releaseLock(lock)),
+        );
+      }
       throw new HttpException(
-        'System is busy processing other reservations for this train. Please try again.',
-        HttpStatus.TOO_MANY_REQUESTS,
+        'One or more selected seats are currently being held by another user. Please choose different seats.',
+        HttpStatus.CONFLICT,
       );
     }
 
     try {
-      return await actionFn();
-    } finally {
-      await this.redisCaching.releaseLock(lock).catch((err) => {
-        console.error(`Failed to release reservation lock for ${lockKey}:`, err);
+      return await this.prisma.$transaction(async () => {
+        return await actionFn();
       });
+    } finally {
+      if (locks.length > 0) {
+        await Promise.allSettled(
+          locks.map((lock) => this.redisCaching.releaseLock(lock)),
+        );
+      }
     }
   }
 }
