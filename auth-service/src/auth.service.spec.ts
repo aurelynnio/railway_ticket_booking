@@ -72,9 +72,14 @@ describe('AuthService', () => {
       generateEmailVerificationToken: jest.fn(),
     };
 
+    const notificationClient = {
+      emit: jest.fn(),
+    };
+
     service = new AuthService(
       prisma as unknown as PrismaClient,
       tokenService as unknown as TokenService,
+      notificationClient as unknown as any,
     );
   });
 

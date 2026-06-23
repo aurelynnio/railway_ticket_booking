@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  Inject,
 } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { createHash } from 'node:crypto';
 import type {
   LoginRequest,
@@ -27,6 +29,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly tokenService: TokenService,
+    @Inject('notification_service')
+    private readonly notificationClient: ClientProxy,
   ) {}
 
   health() {
@@ -77,8 +81,20 @@ export class AuthService {
         newUser.email,
       );
     } catch (error) {
-      // Log error but do not fail registration
       console.error('Failed to generate verification token:', error);
+    }
+
+    try {
+      this.notificationClient.emit('notification.user_registered', {
+        userId: newUser.id,
+        email: newUser.email,
+        fullName: newUser.username,
+      });
+    } catch (error) {
+      console.error(
+        'Failed to emit notification.user_registered event:',
+        error,
+      );
     }
 
     return newUser;
@@ -228,6 +244,16 @@ export class AuthService {
         expiresAt: this.buildPasswordResetExpiry(),
       },
     });
+
+    try {
+      this.notificationClient.emit('notification.password_reset', {
+        userId: user.id,
+        email: user.email,
+        token: resetToken,
+      });
+    } catch (error) {
+      console.error('Failed to emit notification.password_reset event:', error);
+    }
 
     return resetToken;
   }
