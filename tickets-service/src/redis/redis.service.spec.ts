@@ -1,7 +1,6 @@
 import Redis from 'ioredis';
 import { RedisCacheService } from './redis.service';
-import { Lock } from 'redlock';
-
+import type { Lock } from 'redlock';
 
 describe('RedisCacheService', () => {
   let service: RedisCacheService;
@@ -24,7 +23,7 @@ describe('RedisCacheService', () => {
       evalsha: jest.fn().mockRejectedValue(new Error('NOSCRIPT No matching script')),
     };
 
-    service = new RedisCacheService(redis as unknown as Redis);
+    service = new RedisCacheService(redis as unknown as Redis, []);
   });
 
   afterEach(() => {
@@ -87,10 +86,11 @@ describe('RedisCacheService', () => {
     expect(deleted).toBe(0);
   });
 
-  it('acquireLock should return Lock when redis eval returns 1', async () => {
+  it('acquireLock should return a releasable lock when redis eval returns 1', async () => {
     redis.eval.mockResolvedValue(1);
     const result = await service.acquireLock('my-lock', 5000);
-    expect(result).toBeInstanceOf(Lock);
+    expect(result).not.toBeNull();
+    expect(result?.release).toEqual(expect.any(Function));
   });
 
   it('acquireLock should return null when redis eval returns 0', async () => {
