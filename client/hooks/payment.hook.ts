@@ -200,3 +200,29 @@ export function useDeletePayment() {
     },
   });
 }
+
+// ===== VNPay =====
+
+export interface CreateVnpayPaymentRequest {
+  orderId: string;
+  amount: number;
+  orderInfo: string;
+}
+
+export interface CreateVnpayPaymentResponse {
+  paymentUrl: string;
+  paymentId: string;
+  transactionId: string;
+}
+
+export function useCreateVnpayPayment() {
+  return useMutation({
+    mutationFn: async (payload: CreateVnpayPaymentRequest) => {
+      const res = await instance.post<CreateVnpayPaymentResponse>(
+        "/payments/vnpay/create",
+        payload,
+      );
+      return res.data;
+    },
+  });
+}

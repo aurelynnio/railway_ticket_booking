@@ -12,12 +12,19 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'orders_queue',
-          queueOptions: { durable: false },
+          queueOptions: {
+            durable: false,
+            arguments: {
+              'x-dead-letter-exchange': 'orders_dead_letter_exchange',
+              'x-dead-letter-routing-key': 'orders_dead_letter_queue',
+            },
+          },
         },
       },
     ]),
   ],
   providers: [OrderService],
   controllers: [OrderController],
+  exports: [OrderService],
 })
 export class OrderModule {}

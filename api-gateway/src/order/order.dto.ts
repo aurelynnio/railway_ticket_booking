@@ -137,6 +137,7 @@ export interface CancelOrderWorkflowResponse {
 }
 
 export class CreateOrderRequest {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   userId: string;
