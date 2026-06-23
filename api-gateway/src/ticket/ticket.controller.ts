@@ -24,32 +24,39 @@ import {
   UpdateTicketRequest,
 } from '../common/dto/ticket.dto';
 import { TicketService } from './ticket.service';
+import { Public } from '../common/decorator/public.decorator';
+import { Roles, UserRole } from '../common/decorator/roles.decorator';
 
 @Controller('tickets')
 export class TicketController {
   constructor(private readonly ticketService: TicketService) {}
 
   @Get('health')
+  @Public()
   health() {
     return this.ticketService.health();
   }
 
   @Post()
+  @Roles(UserRole.ADMIN)
   create(@Body() payload: CreateTicketRequest) {
     return this.ticketService.create(payload);
   }
 
   @Get()
+  @Public()
   findAll(@Query() query: FindTicketsQuery) {
     return this.ticketService.findAll(query);
   }
 
   @Get(':ticketId')
+  @Public()
   findOne(@Param('ticketId') ticketId: string) {
     return this.ticketService.findOne(ticketId);
   }
 
   @Patch(':ticketId')
+  @Roles(UserRole.ADMIN)
   update(
     @Param('ticketId') ticketId: string,
     @Body() payload: UpdateTicketRequest,
@@ -58,11 +65,13 @@ export class TicketController {
   }
 
   @Delete(':ticketId')
+  @Roles(UserRole.ADMIN)
   remove(@Param('ticketId') ticketId: string) {
     return this.ticketService.remove(ticketId);
   }
 
   @Get(':ticketId/availability')
+  @Public()
   availability(@Param('ticketId') ticketId: string) {
     return this.ticketService.availability(ticketId);
   }
@@ -84,6 +93,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/ticket-items')
+  @Roles(UserRole.ADMIN)
   addTicketItem(
     @Param('ticketId') ticketId: string,
     @Body() payload: CreateTicketItemRequest,
@@ -92,6 +102,7 @@ export class TicketController {
   }
 
   @Patch(':ticketId/ticket-items/:ticketItemId')
+  @Roles(UserRole.ADMIN)
   updateTicketItem(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,
@@ -101,6 +112,7 @@ export class TicketController {
   }
 
   @Delete(':ticketId/ticket-items/:ticketItemId')
+  @Roles(UserRole.ADMIN)
   removeTicketItem(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,
@@ -109,16 +121,19 @@ export class TicketController {
   }
 
   @Post(':ticketId/publish')
+  @Roles(UserRole.ADMIN)
   publish(@Param('ticketId') ticketId: string) {
     return this.ticketService.publish(ticketId);
   }
 
   @Post(':ticketId/unpublish')
+  @Roles(UserRole.ADMIN)
   unpublish(@Param('ticketId') ticketId: string) {
     return this.ticketService.unpublish(ticketId);
   }
 
   @Post(':ticketId/prepare-stock')
+  @Roles(UserRole.ADMIN)
   prepareStock(
     @Param('ticketId') ticketId: string,
     @Body() payload: PrepareStockRequest,
@@ -127,6 +142,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/open-sale')
+  @Roles(UserRole.ADMIN)
   openSale(
     @Param('ticketId') ticketId: string,
     @Body() payload: OpenSaleRequest,
@@ -135,16 +151,19 @@ export class TicketController {
   }
 
   @Post(':ticketId/close-sale')
+  @Roles(UserRole.ADMIN)
   closeSale(@Param('ticketId') ticketId: string) {
     return this.ticketService.closeSale(ticketId);
   }
 
   @Get(':ticketId/seat-map')
+  @Public()
   seatMap(@Param('ticketId') ticketId: string) {
     return this.ticketService.seatMap(ticketId);
   }
 
   @Get(':ticketId/ticket-items/:ticketItemId')
+  @Public()
   findTicketItem(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,
@@ -153,6 +172,7 @@ export class TicketController {
   }
 
   @Get(':ticketId/ticket-items/:ticketItemId/availability')
+  @Public()
   ticketItemAvailability(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,
@@ -179,6 +199,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/ticket-items/:ticketItemId/change-price')
+  @Roles(UserRole.ADMIN)
   changePrice(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,
@@ -188,6 +209,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/ticket-items/:ticketItemId/change-sale-window')
+  @Roles(UserRole.ADMIN)
   changeSaleWindow(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,

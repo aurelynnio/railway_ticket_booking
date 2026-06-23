@@ -7,7 +7,6 @@ import {
   Req,
   Res,
   UnauthorizedException,
-  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
@@ -22,7 +21,7 @@ import {
   ResendVerificationRequest,
   SocialLoginGoogleRequest,
 } from '../common/dto/auth.dto';
-import { JwtAuthGuard } from '../common/guards/jwt.guard';
+import { Public } from '../common/decorator/public.decorator';
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   ACCESS_TOKEN_MAX_AGE_MS,
@@ -37,6 +36,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @Public()
   async login(
     @Body() loginDto: LoginRequest,
     @Res({ passthrough: true }) response: Response,
@@ -56,11 +56,13 @@ export class AuthController {
   }
 
   @Post('register')
+  @Public()
   register(@Body() registerDto: RegisterRequest) {
     return this.authService.register(registerDto);
   }
 
   @Post('refreshToken')
+  @Public()
   async refreshToken(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
@@ -86,6 +88,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @Public()
   async logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
@@ -100,7 +103,6 @@ export class AuthController {
   }
 
   @Get('session')
-  @UseGuards(JwtAuthGuard)
   session(
     @Req()
     request: {
@@ -115,17 +117,18 @@ export class AuthController {
   }
 
   @Post('forgotPassword')
+  @Public()
   forgotPassword(@Body() forgotPasswordDto: ForgotPasswordRequest) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
   @Post('resetPassword')
+  @Public()
   resetPassword(@Body() resetPasswordDto: ResetPasswordRequest) {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
   @Post('changePassword')
-  @UseGuards(JwtAuthGuard)
   changePassword(
     @Req() request: { user?: { userId?: string } },
     @Body() changePasswordDto: ChangePasswordRequest,
@@ -135,22 +138,26 @@ export class AuthController {
   }
 
   @Post('verifyEmail')
+  @Public()
   verifyEmail(@Body() verifyEmailDto: VerifyEmailRequest) {
     return this.authService.verifyEmail(verifyEmailDto);
   }
 
   @Post('resendVerification')
+  @Public()
   resendVerification(@Body() resendDto: ResendVerificationRequest) {
     return this.authService.resendVerification(resendDto);
   }
 
   @Get('google')
+  @Public()
   googleLogin(@Res() res: Response) {
     const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=MOCK_CLIENT_ID&redirect_uri=http://localhost:3000/auth/google/callback&response_type=code&scope=email%20profile`;
     res.redirect(redirectUrl);
   }
 
   @Get('google/callback')
+  @Public()
   async googleCallback(
     @Query('code') code: string,
     @Res({ passthrough: true }) response: Response,
@@ -174,7 +181,6 @@ export class AuthController {
   }
 
   @Post('revokeAllSessions')
-  @UseGuards(JwtAuthGuard)
   revokeAllSessions(@Req() request: { user?: { userId?: string } }) {
     const userId = request.user?.userId ?? '';
     return this.authService.revokeAllSessions(userId);

@@ -81,15 +81,22 @@ export class UsersService {
   }
 
   async create(payload: any) {
-    if (!payload.name || !payload.email) {
-      throw new HttpException('Name and email are required', 400);
+    if (!payload.username || !payload.email || !payload.password) {
+      throw new HttpException('Username, email and password are required', 400);
     }
 
     /*
-     * Create enforces a minimal identity payload before persistence so callers
-     * cannot insert incomplete user records through this service.
+     * Create accepts only fields backed by the users schema, keeping admin
+     * inserts from passing profile-only display fields through to Prisma.
      */
-    return this.prisma.user.create({ data: payload });
+    return this.prisma.user.create({
+      data: {
+        username: payload.username,
+        email: payload.email,
+        password: payload.password,
+        role: payload.role ?? 0,
+      },
+    });
   }
 
   async findByEmail(email: string): Promise<any> {

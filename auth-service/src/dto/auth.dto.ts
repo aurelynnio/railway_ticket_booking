@@ -11,6 +11,7 @@ export class RegisterRequest {
   email: string;
 
   @IsString()
+  @IsNotEmpty()
   @MinLength(6)
   password: string;
 
@@ -90,4 +91,3 @@ export class SocialLoginGoogleRequest {
   @IsNotEmpty()
   code: string;
 }
-
