@@ -19,8 +19,4 @@ export class SearchService {
   suggestStations(query: string) {
     return this.searchClient.send({ cmd: 'search.suggest_stations' }, { query });
   }
-
-  sync() {
-    return this.searchClient.send({ cmd: 'search.sync' }, {});
-  }
 }

@@ -13,16 +13,12 @@ import {
   toIsoString,
   uniqueValues,
 } from './utils/search.utils';
-import { ElasticsearchIndexService } from './elasticsearch';
 
 @Injectable()
 export class SearchService {
   private readonly logger = new Logger(SearchService.name);
 
-  constructor(
-    private readonly prisma: PrismaClient,
-    private readonly esService: ElasticsearchIndexService,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   health() {
     return {
@@ -33,31 +29,105 @@ export class SearchService {
   }
 
   async trips(query: SearchTripsQuery): Promise<PaginatedSearchTripResponse> {
-    try {
-      return await this.esService.searchTrips(query);
-    } catch (error) {
-      this.logger.warn(
-        'Elasticsearch query failed, falling back to MongoDB',
-        error instanceof Error ? error.message : error,
-      );
-      return this.tripsFallback(query);
+    const where: Prisma.TicketWhereInput = {
+      deletedAt: null,
+      status: 1,
+    };
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    if (query.date) {
+      const start = startOfUtcDay(query.date);
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 1);
+      where.dateStart = {
+        gte: start,
+        lt: end,
+      };
     }
+
+    const tickets = await this.prisma.ticket.findMany({
+      where,
+      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    const matchedTrips = tickets
+      .filter((ticket) => this.matchesRoute(ticket, query))
+      .map((ticket) => this.toSearchTrip(ticket));
+    const total = matchedTrips.length;
+    const startIndex = (page - 1) * limit;
+
+    return {
+      data: matchedTrips.slice(startIndex, startIndex + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
   }
 
-  async suggestStations(query: string) {
+  async suggestStations(query: string): Promise<{ code: string; name: string }[]> {
+    const trimmed = (query || '').trim();
+    if (!trimmed) {
+      return [];
+    }
+
     try {
-      return await this.esService.suggestStations(query);
+      const upper = trimmed.toUpperCase();
+      // Tìm các ticket còn hoạt động có station code/name khớp với query
+      const tickets = await this.prisma.ticket.findMany({
+        where: {
+          deletedAt: null,
+          status: 1,
+          OR: [
+            { departureStationCode: { contains: upper } },
+            { departureStationName: { contains: trimmed } },
+            { arrivalStationCode: { contains: upper } },
+            { arrivalStationName: { contains: trimmed } },
+          ],
+        },
+        select: {
+          departureStationCode: true,
+          departureStationName: true,
+          arrivalStationCode: true,
+          arrivalStationName: true,
+        },
+        take: 100,
+      });
+
+      const stationsMap = new Map<string, string>();
+      for (const ticket of tickets) {
+        if (ticket.departureStationCode && ticket.departureStationName) {
+          stationsMap.set(
+            ticket.departureStationCode.toUpperCase(),
+            ticket.departureStationName,
+          );
+        }
+        if (ticket.arrivalStationCode && ticket.arrivalStationName) {
+          stationsMap.set(
+            ticket.arrivalStationCode.toUpperCase(),
+            ticket.arrivalStationName,
+          );
+        }
+      }
+
+      return Array.from(stationsMap.entries()).map(([code, name]) => ({
+        code,
+        name,
+      }));
     } catch (error) {
-      this.logger.warn(
-        'Elasticsearch suggest failed',
-        error instanceof Error ? error.message : error,
+      this.logger.error(
+        `Error suggesting stations for query "${query}":`,
+        error instanceof Error ? error.stack : error,
       );
       return [];
     }
   }
 
   async upsertTicket(data: any) {
-    // Write to MongoDB (source of truth)
+    // Ghi vào MongoDB (source of truth)
     await this.prisma.ticket.upsert({
       where: { id: data.id },
       create: {
@@ -133,87 +203,14 @@ export class SearchService {
         })) : [],
       }
     });
-
-    // Also index into Elasticsearch
-    try {
-      await this.esService.indexTicket(data);
-    } catch (error) {
-      this.logger.error(
-        `Failed to index ticket ${data.id} to Elasticsearch`,
-        error instanceof Error ? error.stack : error,
-      );
-    }
   }
 
   async deleteTicket(ticketId: string) {
-    // Soft-delete in MongoDB
+    // Soft-delete trong MongoDB
     await this.prisma.ticket.updateMany({
       where: { id: ticketId },
       data: { deletedAt: new Date() },
     });
-
-    // Also soft-delete in Elasticsearch
-    try {
-      await this.esService.deleteTicket(ticketId);
-    } catch (error) {
-      this.logger.error(
-        `Failed to delete ticket ${ticketId} from Elasticsearch`,
-        error instanceof Error ? error.stack : error,
-      );
-    }
-  }
-
-  async syncAllToElasticsearch() {
-    this.logger.log('Starting full sync from MongoDB to Elasticsearch...');
-    const tickets = await this.prisma.ticket.findMany({
-      where: { deletedAt: null, status: 1 },
-    });
-    const result = await this.esService.bulkIndex(tickets);
-    this.logger.log(
-      `Sync complete: ${result.indexed} indexed, ${result.errors} errors`,
-    );
-    return result;
-  }
-
-  // Fallback: exact copy of the original Prisma-based search logic
-  private async tripsFallback(query: SearchTripsQuery): Promise<PaginatedSearchTripResponse> {
-    const where: Prisma.TicketWhereInput = {
-      deletedAt: null,
-      status: 1,
-    };
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
-
-    if (query.date) {
-      const start = startOfUtcDay(query.date);
-      const end = new Date(start);
-      end.setUTCDate(end.getUTCDate() + 1);
-      where.dateStart = {
-        gte: start,
-        lt: end,
-      };
-    }
-
-    const tickets = await this.prisma.ticket.findMany({
-      where,
-      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
-    });
-
-    const matchedTrips = tickets
-      .filter((ticket) => this.matchesRoute(ticket, query))
-      .map((ticket) => this.toSearchTrip(ticket));
-    const total = matchedTrips.length;
-    const startIndex = (page - 1) * limit;
-
-    return {
-      data: matchedTrips.slice(startIndex, startIndex + limit),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
-      },
-    };
   }
 
   private matchesRoute(ticket: Ticket, query: SearchTripsQuery) {
