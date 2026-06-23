@@ -44,6 +44,7 @@ import {
   uniqueLabels,
 } from './utils/ticket.utils';
 import { RedisCacheService } from './redis/redis.service';
+import { Lock } from 'redlock';
 
 const TICKETS_LIST_CACHE_TTL_SECONDS = 300;
 const TICKET_DETAIL_CACHE_TTL_SECONDS = 300;
@@ -974,34 +975,27 @@ export class TicketsService extends TicketsBaseService {
     if (cached) return cached;
 
     const lockKey = `lock:${cacheKey}`;
-    let lockAcquired = false;
+    // Retry up to 10 times, with 50ms delay (approx 500ms total)
+    const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 10, 50);
 
-    // Retry loop to acquire lock
-    for (let attempt = 0; attempt < 10; attempt++) {
-      lockAcquired = await this.redisCaching.acquireLock(lockKey, lockTtlMs);
-      if (lockAcquired) {
-        break;
-      }
-      // Wait 50ms before retrying
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // After waiting, check cache again (in case another thread wrote it)
-      const doubleCheck = await this.getCachedValue<T>(cacheKey);
-      if (doubleCheck) return doubleCheck;
-    }
-
-    if (!lockAcquired) {
+    if (!lock) {
       // Fallback: if lock cannot be acquired after retries, fetch directly to degrade gracefully
       return fetchFn();
     }
 
     try {
+      // Double-check the cache after acquiring the lock
+      const doubleCheck = await this.getCachedValue<T>(cacheKey);
+      if (doubleCheck) return doubleCheck;
+
       // Fetch fresh data
       const result = await fetchFn();
       await this.setCachedValue(cacheKey, result, ttlSeconds);
       return result;
     } finally {
-      await this.redisCaching.releaseLock(lockKey);
+      await this.redisCaching.releaseLock(lock).catch((err) => {
+        console.error(`Failed to release lock for ${lockKey}:`, err);
+      });
     }
   }
 
@@ -1011,18 +1005,10 @@ export class TicketsService extends TicketsBaseService {
     lockTtlMs = 10000,
   ): Promise<T> {
     const lockKey = `lock:ticket:reserve:${ticketId}`;
-    let lockAcquired = false;
+    // Retry up to 100 times, with 50ms delay (approx 5 seconds total)
+    const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 100, 50);
 
-    // Retry for up to 5 seconds (100 attempts * 50ms)
-    for (let attempt = 0; attempt < 100; attempt++) {
-      lockAcquired = await this.redisCaching.acquireLock(lockKey, lockTtlMs);
-      if (lockAcquired) {
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-
-    if (!lockAcquired) {
+    if (!lock) {
       throw new HttpException(
         'System is busy processing other reservations for this train. Please try again.',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -1032,7 +1018,9 @@ export class TicketsService extends TicketsBaseService {
     try {
       return await actionFn();
     } finally {
-      await this.redisCaching.releaseLock(lockKey);
+      await this.redisCaching.releaseLock(lock).catch((err) => {
+        console.error(`Failed to release reservation lock for ${lockKey}:`, err);
+      });
     }
   }
 }

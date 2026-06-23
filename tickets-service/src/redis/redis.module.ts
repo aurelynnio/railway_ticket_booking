@@ -19,4 +19,4 @@ export const Redis_Client = 'Redis_Client';
   ],
   exports: [Redis_Client],
 })
-export class CachingModule {}
+export class RedisModule {}

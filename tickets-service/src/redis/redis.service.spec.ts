@@ -1,5 +1,7 @@
 import Redis from 'ioredis';
 import { RedisCacheService } from './redis.service';
+import { Lock } from 'redlock';
+
 
 describe('RedisCacheService', () => {
   let service: RedisCacheService;
@@ -8,6 +10,8 @@ describe('RedisCacheService', () => {
     set: jest.Mock;
     del: jest.Mock;
     scan: jest.Mock;
+    eval: jest.Mock;
+    evalsha: jest.Mock;
   };
 
   beforeEach(() => {
@@ -16,6 +20,8 @@ describe('RedisCacheService', () => {
       set: jest.fn(),
       del: jest.fn(),
       scan: jest.fn(),
+      eval: jest.fn(),
+      evalsha: jest.fn().mockRejectedValue(new Error('NOSCRIPT No matching script')),
     };
 
     service = new RedisCacheService(redis as unknown as Redis);
@@ -81,23 +87,23 @@ describe('RedisCacheService', () => {
     expect(deleted).toBe(0);
   });
 
-  it('acquireLock should return true when redis set returns OK', async () => {
-    redis.set.mockResolvedValue('OK');
+  it('acquireLock should return Lock when redis eval returns 1', async () => {
+    redis.eval.mockResolvedValue(1);
     const result = await service.acquireLock('my-lock', 5000);
-    expect(redis.set).toHaveBeenCalledWith('my-lock', 'locked', 'PX', 5000, 'NX');
-    expect(result).toBe(true);
+    expect(result).toBeInstanceOf(Lock);
   });
 
-  it('acquireLock should return false when redis set returns null', async () => {
-    redis.set.mockResolvedValue(null);
+  it('acquireLock should return null when redis eval returns 0', async () => {
+    redis.eval.mockResolvedValue(0);
     const result = await service.acquireLock('my-lock', 5000);
-    expect(result).toBe(false);
+    expect(result).toBeNull();
   });
 
-  it('releaseLock should call del and return key delete count', async () => {
-    redis.del.mockResolvedValue(1);
-    const result = await service.releaseLock('my-lock');
-    expect(redis.del).toHaveBeenCalledWith('my-lock');
-    expect(result).toBe(1);
+  it('releaseLock should call lock.release', async () => {
+    const mockLock = {
+      release: jest.fn().mockResolvedValue(undefined),
+    } as unknown as Lock;
+    await service.releaseLock(mockLock);
+    expect(mockLock.release).toHaveBeenCalled();
   });
 });

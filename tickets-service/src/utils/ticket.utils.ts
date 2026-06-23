@@ -107,16 +107,16 @@ export function mergeTicketItem(
   };
 }
 
+export function normalizeTicketItemStock(item: TicketItem): TicketItem;
 export function normalizeTicketItemStock(
   item: Prisma.TicketItemCreateInput,
 ): Prisma.TicketItemCreateInput;
-export function normalizeTicketItemStock(item: TicketItem): TicketItem;
 export function normalizeTicketItemStock(
   item: Prisma.TicketItemCreateInput | TicketItem,
 ) {
-  const seatLabels = uniqueLabels(item.seatLabels ?? []);
+  const seatLabels = uniqueLabels((item.seatLabels as string[]) ?? []);
   const availableSeatLabels = sortSeatLabels(
-    uniqueLabels(item.availableSeatLabels ?? []),
+    uniqueLabels((item.availableSeatLabels as string[]) ?? []),
     seatLabels,
   );
   const stockInitial =

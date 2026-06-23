@@ -91,13 +91,17 @@ describe('TicketsService', () => {
       },
     };
 
+    const mockLock = {
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+
     redisCache = {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
       patternDel: jest.fn(),
-      acquireLock: jest.fn().mockResolvedValue(true),
-      releaseLock: jest.fn().mockResolvedValue(1),
+      acquireLock: jest.fn().mockResolvedValue(mockLock),
+      releaseLock: jest.fn().mockResolvedValue(undefined),
     };
 
     searchClient = {

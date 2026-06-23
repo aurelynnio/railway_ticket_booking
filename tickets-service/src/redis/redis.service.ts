@@ -1,10 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Redis_Client } from './redis.module';
 import Redis from 'ioredis';
+import Redlock, { Lock } from 'redlock';
 
 @Injectable()
 export class RedisCacheService {
-  constructor(@Inject(Redis_Client) private readonly redis: Redis) {}
+  public readonly redlock: Redlock;
+
+  constructor(@Inject(Redis_Client) private readonly redis: Redis) {
+    this.redlock = new Redlock([this.redis], {
+      driftFactor: 0.01,
+      retryCount: 0,
+      retryDelay: 200,
+      retryJitter: 200,
+    });
+  }
 
   async get(key: string): Promise<string | null> {
     return this.redis.get(key);
@@ -48,12 +58,25 @@ export class RedisCacheService {
     return deletedCount;
   }
 
-  async acquireLock(key: string, ttlMs: number): Promise<boolean> {
-    const result = await this.redis.set(key, 'locked', 'PX', ttlMs, 'NX');
-    return result === 'OK';
+  async acquireLock(
+    key: string,
+    ttlMs: number,
+    retryCount = 0,
+    retryDelay = 50,
+  ): Promise<Lock | null> {
+    try {
+      return await this.redlock.acquire([key], ttlMs, {
+        retryCount,
+        retryDelay,
+        retryJitter: 0,
+      });
+    } catch (err) {
+      return null;
+    }
   }
 
-  async releaseLock(key: string): Promise<number> {
-    return this.redis.del(key);
+  async releaseLock(lock: Lock): Promise<void> {
+    await lock.release();
   }
 }
+
