@@ -3,10 +3,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  ChangePriceRequest,
+  ChangeSaleWindowRequest,
+  OpenSaleRequest,
   PaginatedResponse,
+  PrepareStockRequest,
   SeatMapResponse,
   TicketAvailabilityResponse,
   TicketResponse,
+  UpdateTicketItemRequest,
+  UpdateTicketRequest,
 } from "@/lib/api-types";
 import instance from "@/lib/http";
 
@@ -125,6 +131,258 @@ export function useCreateTicket() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    },
+  });
+}
+
+export function useUpdateTicket(ticketId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: UpdateTicketRequest) => {
+      const res = await instance.patch<TicketResponse>(
+        `/tickets/${ticketId}`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ticket", ticketId] });
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    },
+  });
+}
+
+export function useRemoveTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ ticketId }: { ticketId: string }) => {
+      const res = await instance.delete(`/tickets/${ticketId}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    },
+  });
+}
+
+function useTicketAction(pathBuilder: (ticketId: string) => string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ ticketId }: { ticketId: string }) => {
+      const res = await instance.post<TicketResponse>(pathBuilder(ticketId));
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+    },
+  });
+}
+
+export function usePublishTicket() {
+  return useTicketAction((ticketId) => `/tickets/${ticketId}/publish`);
+}
+
+export function useUnpublishTicket() {
+  return useTicketAction((ticketId) => `/tickets/${ticketId}/unpublish`);
+}
+
+export function useCloseSale() {
+  return useTicketAction((ticketId) => `/tickets/${ticketId}/close-sale`);
+}
+
+export function usePrepareStock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      payload,
+    }: {
+      ticketId: string;
+      payload: PrepareStockRequest;
+    }) => {
+      const res = await instance.post<TicketResponse>(
+        `/tickets/${ticketId}/prepare-stock`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+    },
+  });
+}
+
+export function useOpenSale() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      payload,
+    }: {
+      ticketId: string;
+      payload: OpenSaleRequest;
+    }) => {
+      const res = await instance.post<TicketResponse>(
+        `/tickets/${ticketId}/open-sale`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+    },
+  });
+}
+
+export function useUpdateTicketItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      ticketItemId,
+      payload,
+    }: {
+      ticketId: string;
+      ticketItemId: string;
+      payload: UpdateTicketItemRequest;
+    }) => {
+      const res = await instance.patch(
+        `/tickets/${ticketId}/ticket-items/${ticketItemId}`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "ticket-item",
+          variables.ticketId,
+          variables.ticketItemId,
+        ],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+    },
+  });
+}
+
+export function useRemoveTicketItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      ticketItemId,
+    }: {
+      ticketId: string;
+      ticketItemId: string;
+    }) => {
+      const res = await instance.delete(
+        `/tickets/${ticketId}/ticket-items/${ticketItemId}`,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+    },
+  });
+}
+
+export function useChangePrice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      ticketItemId,
+      payload,
+    }: {
+      ticketId: string;
+      ticketItemId: string;
+      payload: ChangePriceRequest;
+    }) => {
+      const res = await instance.post(
+        `/tickets/${ticketId}/ticket-items/${ticketItemId}/change-price`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "ticket-item",
+          variables.ticketId,
+          variables.ticketItemId,
+        ],
+      });
+    },
+  });
+}
+
+export function useChangeSaleWindow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      ticketItemId,
+      payload,
+    }: {
+      ticketId: string;
+      ticketItemId: string;
+      payload: ChangeSaleWindowRequest;
+    }) => {
+      const res = await instance.post(
+        `/tickets/${ticketId}/ticket-items/${ticketItemId}/change-sale-window`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "ticket-item",
+          variables.ticketId,
+          variables.ticketItemId,
+        ],
+      });
     },
   });
 }

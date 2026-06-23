@@ -30,6 +30,19 @@ export interface ValidateTokenRequest {
   token: string;
 }
 
+export interface ChangePasswordRequest {
+  oldPassword?: string;
+  newPassword: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
+}
+
 export interface AuthSessionResponse {
   userId: string;
   email: string;

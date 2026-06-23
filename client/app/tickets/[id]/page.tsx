@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useCreateOrder } from "@/hooks/order.hook";
-import { useSeatMap, useTicket, useTicketAvailability } from "@/hooks/ticket.hook";
+import { useSeatMap, useTicket, useTicketAvailability, usePublishTicket, useUnpublishTicket, useCloseSale, usePrepareStock, useOpenSale, useRemoveTicket } from "@/hooks/ticket.hook";
 import {
   formatCurrency,
   formatDateTime,
@@ -36,6 +36,12 @@ export default function TicketDetailPage() {
   const createOrder = useCreateOrder();
   const sessionQuery = useAuthSession();
   const sessionUserId = sessionQuery.data?.userId;
+  const publishTicket = usePublishTicket();
+  const unpublishTicket = useUnpublishTicket();
+  const closeSale = useCloseSale();
+  const prepareStock = usePrepareStock();
+  const openSale = useOpenSale();
+  const removeTicket = useRemoveTicket();
 
   const [selectedTicketItemId, setSelectedTicketItemId] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -152,7 +158,7 @@ export default function TicketDetailPage() {
                         key={item.id}
                         type="button"
                         onClick={() => setSelectedTicketItemId(item.id)}
-                        className={`rounded-[1.7rem] px-4 py-4 text-left transition ${
+                        className={`rounded-lg px-4 py-4 text-left transition ${
                           isSelected
                             ? "bg-muted/55 ring-1 ring-foreground/18"
                             : "bg-background ring-1 ring-border hover:bg-muted/25"
@@ -165,7 +171,7 @@ export default function TicketDetailPage() {
                                 {item.name ?? item.coachCode ?? "Hạng vé"}
                               </p>
                               {isSelected ? (
-                                <span className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-semibold uppercase tracking-normal text-background">
+                                <span className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-semibold uppercase tracking-tight text-background">
                                   Đang chọn
                                 </span>
                               ) : null}
@@ -218,7 +224,7 @@ export default function TicketDetailPage() {
                 {availabilityQuery.data.items.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-[1.45rem] bg-white/64 px-4 py-4 ring-1 ring-black/6"
+                    className="rounded-lg bg-background px-4 py-4 border border-border"
                   >
                     <p className="font-medium text-foreground">
                       {item.name ?? item.coachCode ?? item.id}
@@ -303,6 +309,64 @@ export default function TicketDetailPage() {
             </Panel>
           ) : null}
 
+          {isAdminView ? (
+            <Panel
+              title="Điều phối vé"
+              description="Các action quản trị ở cấp ticket: publish, unpublish, chuẩn bị tồn, mở bán, đóng bán hoặc xoá."
+            >
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticket}
+                  onClick={() => publishTicket.mutate({ ticketId })}
+                >
+                  Publish
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticket}
+                  onClick={() => unpublishTicket.mutate({ ticketId })}
+                >
+                  Unpublish
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticket}
+                  onClick={() => prepareStock.mutate({ ticketId, payload: { ticketItemId: selectedItem?.id } })}
+                >
+                  Prepare stock
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticket}
+                  onClick={() => openSale.mutate({ ticketId, payload: { ticketItemId: selectedItem?.id } })}
+                >
+                  Open sale
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticket}
+                  onClick={() => closeSale.mutate({ ticketId })}
+                >
+                  Close sale
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={!ticket}
+                  onClick={() => removeTicket.mutate({ ticketId })}
+                >
+                  Delete ticket
+                </Button>
+              </div>
+            </Panel>
+          ) : null}
+
           <Panel
             title="Sơ đồ ghế"
             description="Snapshot từ `/seat-map` để nhìn nhanh trạng thái ghế."
@@ -311,7 +375,7 @@ export default function TicketDetailPage() {
               {seatMapQuery.data?.items.map((item) => (
                 <div
                   key={item.ticketItemId}
-                  className="rounded-[1.45rem] bg-white/64 px-4 py-4 ring-1 ring-black/6"
+                  className="rounded-lg bg-background px-4 py-4 border border-border"
                 >
                   <p className="font-medium text-foreground">
                     {item.coachCode ?? "Toa"} • {item.seatClass ?? "Chưa rõ"}
@@ -334,8 +398,8 @@ export default function TicketDetailPage() {
 
 function ItemMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.15rem] bg-muted/35 px-3 py-3 ring-1 ring-border">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+    <div className="rounded-lg bg-muted/35 px-3 py-3 ring-1 ring-border">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-sm font-medium text-foreground">{value}</p>

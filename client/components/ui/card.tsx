@@ -38,7 +38,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-heading text-lg leading-snug font-semibold tracking-normal group-data-[size=sm]/card:text-base",
+        "font-heading text-lg leading-snug font-semibold tracking-tight group-data-[size=sm]/card:text-base",
         className
       )}
       {...props}
@@ -84,7 +84,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-[2rem] bg-muted/45 p-(--card-spacing)",
+        "flex items-center rounded-b-md border-t border-border bg-muted/50 p-(--card-spacing)",
         className
       )}
       {...props}

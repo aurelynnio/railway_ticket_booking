@@ -36,50 +36,50 @@
 }
 
 :root {
-  --background: #f7f5ef;
-  --foreground: #17211f;
-  --card: rgb(255 252 245 / 78%);
-  --card-foreground: #17211f;
-  --popover: rgb(255 252 245 / 94%);
-  --popover-foreground: #17211f;
-  --primary: #155e63;
-  --primary-foreground: #fbf8ef;
-  --secondary: #efe4cc;
-  --secondary-foreground: #2d2416;
-  --muted: #eee8dc;
-  --muted-foreground: #6a6257;
-  --accent: #d9efe6;
-  --accent-foreground: #153a34;
-  --destructive: #a63d2d;
-  --border: rgb(23 33 31 / 10%);
-  --input: rgb(255 252 245 / 92%);
-  --ring: rgb(21 94 99 / 18%);
-  --radius: 0.65rem;
-  --shadow-soft: 0 12px 34px -18px rgb(40 35 24 / 20%), 0 1px 3px rgb(40 35 24 / 5%);
-  --shadow-float: 0 24px 58px -28px rgb(21 94 99 / 32%), 0 6px 18px -10px rgb(40 35 24 / 16%);
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
+  --destructive: #dc2626;
+  --border: #e4e4e7;
+  --input: #ffffff;
+  --ring: rgb(37 99 235 / 20%);
+  --radius: 0.5rem;
+  --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 5%);
+  --shadow-float: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
 }
 
 .dark {
-  --background: #111614;
-  --foreground: #f6f1e7;
-  --card: rgb(28 34 31 / 76%);
-  --card-foreground: #f6f1e7;
-  --popover: rgb(28 34 31 / 94%);
-  --popover-foreground: #f6f1e7;
-  --primary: #82d1c3;
-  --primary-foreground: #0f2523;
-  --secondary: #312b20;
-  --secondary-foreground: #f4ead6;
-  --muted: #252923;
-  --muted-foreground: #b7ad9d;
-  --accent: #203b34;
-  --accent-foreground: #dff7ed;
-  --destructive: #e76f51;
-  --border: rgb(246 241 231 / 12%);
-  --input: rgb(28 34 31 / 92%);
-  --ring: rgb(130 209 195 / 20%);
-  --shadow-soft: 0 12px 34px -18px rgb(0 0 0 / 55%), 0 1px 3px rgb(0 0 0 / 28%);
-  --shadow-float: 0 24px 58px -28px rgb(0 0 0 / 68%), 0 6px 18px -10px rgb(0 0 0 / 38%);
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #1e293b;
+  --accent-foreground: #93c5fd;
+  --destructive: #ef4444;
+  --border: #27272a;
+  --input: #18181b;
+  --ring: rgb(59 130 246 / 30%);
+  --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 30%);
+  --shadow-float: 0 4px 6px -1px rgb(0 0 0 / 40%), 0 2px 4px -2px rgb(0 0 0 / 30%);
 }
 
 @layer base {
@@ -93,47 +93,32 @@
   }
 
   body {
-    @apply min-h-screen bg-background text-foreground transition-colors duration-300;
-    background-image:
-      linear-gradient(115deg, rgb(217 239 230 / 58%), transparent 32%),
-      linear-gradient(to bottom, var(--background), #eee8dc);
-    background-attachment: fixed;
-  }
-
-  .dark body {
-    background-image:
-      linear-gradient(115deg, rgb(32 59 52 / 52%), transparent 32%),
-      linear-gradient(to bottom, var(--background), #0b100e);
+    @apply min-h-screen bg-background text-foreground;
   }
 
   ::selection {
-    background: color-mix(in oklch, var(--foreground) 12%, white);
+    background: color-mix(in oklch, var(--primary) 20%, white);
     color: var(--foreground);
   }
 }
 
 @layer components {
   .surface-panel {
-    @apply rounded-lg bg-card text-card-foreground ring-1 ring-border backdrop-blur-md transition-all duration-300;
+    @apply rounded-lg border border-border bg-card text-card-foreground transition-colors;
     box-shadow: var(--shadow-soft);
-  }
-  
-  .surface-panel:hover {
-    box-shadow: var(--shadow-float);
-    transform: translateY(-1px);
   }
 
   .surface-panel-strong {
-    @apply rounded-lg bg-card text-card-foreground ring-1 ring-border backdrop-blur-lg transition-all duration-300;
+    @apply rounded-lg border border-border bg-card text-card-foreground;
     box-shadow: var(--shadow-float);
   }
 
   .rail-dot {
-    @apply size-2 rounded-full bg-foreground/60 animate-pulse;
+    @apply size-1.5 rounded-full bg-foreground/40;
   }
 
   .soft-divider {
-    @apply h-px w-full bg-border/80;
+    @apply h-px w-full bg-border;
   }
 
   .text-balance {
@@ -141,6 +126,6 @@
   }
 
   .route-pill {
-    @apply inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-1 text-[11px] font-semibold uppercase tracking-normal text-accent-foreground ring-1 ring-border backdrop-blur-sm;
+    @apply inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground;
   }
 }

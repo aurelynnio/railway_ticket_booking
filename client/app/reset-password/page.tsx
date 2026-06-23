@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { AuthShell } from "@/components/auth-shell";
@@ -15,6 +15,20 @@ export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [isDone, setIsDone] = useState(false);
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!token || !newPassword) return;
+
+    resetPassword.mutate(
+      { token, newPassword },
+      {
+        onSuccess: () => {
+          setIsDone(true);
+        },
+      },
+    );
+  };
 
   return (
     <AuthShell
@@ -30,38 +44,36 @@ export default function ResetPasswordPage() {
         </div>
       }
     >
-      <div className="grid gap-4">
+      <form onSubmit={handleSubmit} className="grid gap-4">
         <div className="grid gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Token
           </p>
           <Input
             placeholder="Dán token reset vào đây"
             value={token}
             onChange={(event) => setToken(event.target.value)}
+            required
           />
         </div>
 
         <div className="grid gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
-              Mật khẩu mới
-            </p>
-            <Input
-              type="password"
-              placeholder="Nhập mật khẩu mới"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
+          <p className="text-xs font-medium text-muted-foreground">
+            Mật khẩu mới
+          </p>
+          <Input
+            type="password"
+            placeholder="Nhập mật khẩu mới"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            required
+          />
         </div>
 
         <Button
-          type="button"
+          type="submit"
           size="lg"
           disabled={resetPassword.isPending}
-          onClick={async () => {
-            await resetPassword.mutateAsync({ token, newPassword });
-            setIsDone(true);
-          }}
         >
           {resetPassword.isPending ? "Đang cập nhật..." : "Đặt lại mật khẩu"}
           <ArrowRight />
@@ -73,7 +85,7 @@ export default function ResetPasswordPage() {
         </div>
 
         {isDone ? (
-          <div className="rounded-[1.2rem] bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
             Đặt lại mật khẩu thành công. Bạn có thể quay lại{" "}
             <Link href="/login" className="font-semibold text-primary">
               đăng nhập
@@ -83,11 +95,11 @@ export default function ResetPasswordPage() {
         ) : null}
 
         {resetPassword.isError ? (
-          <div className="rounded-[1.2rem] bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
             Đặt lại mật khẩu thất bại. Kiểm tra token hoặc `auth-service`.
           </div>
         ) : null}
-      </div>
+      </form>
     </AuthShell>
   );
 }

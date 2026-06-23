@@ -14,10 +14,13 @@ import { Button } from "@/components/ui/button";
 import {
   useCancelOrder,
   useConfirmOrder,
+  useExpireOrder,
   useIssueTicket,
   useMarkOrderPaid,
   useOrder,
   useOrderSummary,
+  useRefundOrder,
+  useRemoveOrder,
 } from "@/hooks/order.hook";
 import {
   formatCurrency,
@@ -39,12 +42,18 @@ export default function OrderDetailPage() {
   const confirm = useConfirmOrder();
   const issueTicket = useIssueTicket();
   const cancelOrder = useCancelOrder();
+  const expireOrder = useExpireOrder();
+  const refundOrder = useRefundOrder();
+  const removeOrder = useRemoveOrder();
 
   const isMutating =
     markPaid.isPending ||
     confirm.isPending ||
     issueTicket.isPending ||
-    cancelOrder.isPending;
+    cancelOrder.isPending ||
+    expireOrder.isPending ||
+    refundOrder.isPending ||
+    removeOrder.isPending;
 
   const order = orderQuery.data;
   const summary = summaryQuery.data;
@@ -69,7 +78,7 @@ export default function OrderDetailPage() {
                 disabled={!orderId || isMutating}
                 onClick={() => markPaid.mutate({ orderId })}
               >
-                Mark paid
+                Đánh dấu đã thanh toán
               </Button>
               <Button
                 type="button"
@@ -77,7 +86,7 @@ export default function OrderDetailPage() {
                 disabled={!orderId || isMutating}
                 onClick={() => confirm.mutate({ orderId })}
               >
-                Confirm
+                Xác nhận
               </Button>
               <Button
                 type="button"
@@ -85,7 +94,31 @@ export default function OrderDetailPage() {
                 disabled={!orderId || isMutating}
                 onClick={() => issueTicket.mutate({ orderId })}
               >
-                Issue ticket
+                Phát hành vé
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!orderId || isMutating}
+                onClick={() => expireOrder.mutate({ orderId })}
+              >
+                Hết hạn
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!orderId || isMutating}
+                onClick={() => refundOrder.mutate({ orderId })}
+              >
+                Hoàn tiền
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={!orderId || isMutating}
+                onClick={() => removeOrder.mutate({ orderId })}
+              >
+                Xoá
               </Button>
             </>
           ) : null}
@@ -97,7 +130,7 @@ export default function OrderDetailPage() {
               cancelOrder.mutate({ orderId, payload: { reason: "Cancelled from UI" } })
             }
           >
-            Cancel
+            Huỷ đơn
           </Button>
         </div>
       }
@@ -138,8 +171,8 @@ export default function OrderDetailPage() {
                   ]}
                 />
 
-                <div className="rounded-[1.7rem] bg-white/62 px-5 py-5 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                <div className="rounded-lg bg-background px-5 py-5 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Seat allocation
                   </p>
                   <div className="mt-3">
@@ -147,8 +180,8 @@ export default function OrderDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[1.7rem] bg-white/62 px-5 py-5 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                <div className="rounded-lg bg-background px-5 py-5 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Passenger manifest
                   </p>
                   <div className="mt-4 grid gap-3">
@@ -160,7 +193,7 @@ export default function OrderDetailPage() {
                       order.passengers.map((passenger, index) => (
                         <div
                           key={`${passenger.fullName}-${index}`}
-                          className="rounded-[1.4rem] bg-white/72 px-4 py-4 ring-1 ring-black/6"
+                          className="rounded-lg bg-background px-4 py-4 border border-border"
                         >
                           <p className="font-medium text-foreground">
                             {passenger.fullName}

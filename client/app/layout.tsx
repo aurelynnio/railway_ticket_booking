@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { IBM_Plex_Mono, Manrope, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const bodyFont = Manrope({
+const bodyFont = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -15,7 +15,7 @@ const monoFont = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
-const headingFont = Space_Grotesk({
+const headingFont = Inter({
   variable: "--font-heading",
   subsets: ["latin"],
 });

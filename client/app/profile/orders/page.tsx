@@ -82,12 +82,12 @@ export default function ProfileOrdersPage() {
             {orders.map((order) => (
               <article
                 key={order.id}
-                className="surface-panel grid gap-4 rounded-[1.85rem] px-5 py-5 lg:grid-cols-[1.15fr_0.85fr]"
+                className="surface-panel grid gap-4 rounded-lg px-5 py-5 lg:grid-cols-[1.15fr_0.85fr]"
               >
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
+                      <p className="font-heading text-2xl font-semibold tracking-tight text-foreground">
                         {order.ticketTitle}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -108,11 +108,11 @@ export default function ProfileOrdersPage() {
                   </p>
                 </div>
 
-                <div className="rounded-[1.6rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                <div className="rounded-lg bg-background px-4 py-4 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Tổng tiền
                   </p>
-                  <p className="mt-2 font-heading text-3xl font-semibold tracking-normal">
+                  <p className="mt-2 font-heading text-3xl font-semibold tracking-tight">
                     {formatCurrency(order.totalPrice)}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">

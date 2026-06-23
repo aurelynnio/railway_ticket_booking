@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { AuthShell } from "@/components/auth-shell";
@@ -18,6 +18,20 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!username || !email || !password) return;
+
+    register.mutate(
+      { username, email, password },
+      {
+        onSuccess: () => {
+          router.push("/login");
+        },
+      },
+    );
+  };
+
   return (
     <AuthShell
       eyebrow="Tạo tài khoản"
@@ -32,18 +46,21 @@ export default function RegisterPage() {
         </div>
       }
     >
-      <div className="grid gap-4">
+      <form onSubmit={handleSubmit} className="grid gap-4">
         <Field
           label="Username"
           value={username}
           placeholder="nguyen-van-a"
           onChange={setUsername}
+          required
         />
         <Field
           label="Email"
           value={email}
           placeholder="ban@railway.test"
           onChange={setEmail}
+          type="email"
+          required
         />
         <Field
           label="Mật khẩu"
@@ -51,16 +68,13 @@ export default function RegisterPage() {
           placeholder="Tạo mật khẩu mới"
           onChange={setPassword}
           type="password"
+          required
         />
 
         <Button
-          type="button"
+          type="submit"
           size="lg"
           disabled={register.isPending}
-          onClick={async () => {
-            await register.mutateAsync({ username, email, password });
-            router.push("/login");
-          }}
         >
           {register.isPending ? "Đang tạo..." : "Tạo tài khoản"}
           <ArrowRight />
@@ -72,11 +86,11 @@ export default function RegisterPage() {
         </div>
 
         {register.isError ? (
-          <div className="rounded-[1.2rem] bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
             Tạo tài khoản thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau.
           </div>
         ) : null}
-      </div>
+      </form>
     </AuthShell>
   );
 }
@@ -87,16 +101,18 @@ function Field({
   placeholder,
   onChange,
   type = "text",
+  required = false,
 }: {
   label: string;
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
-  type?: "text" | "password";
+  type?: "text" | "password" | "email";
+  required?: boolean;
 }) {
   return (
     <div className="grid gap-2">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
       <Input
@@ -104,6 +120,7 @@ function Field({
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        required={required}
       />
     </div>
   );

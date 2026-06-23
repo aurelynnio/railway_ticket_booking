@@ -59,3 +59,55 @@ export interface SeatMapResponse {
     occupiedSeatLabels: string[];
   }>;
 }
+
+export interface UpdateTicketRequest {
+  title?: string;
+  trainNumber?: string;
+  departureStationCode?: string;
+  departureStationName?: string;
+  arrivalStationCode?: string;
+  arrivalStationName?: string;
+  journeyNote?: string;
+  dateStart?: string;
+  dateEnd?: string;
+  status?: number;
+}
+
+export interface UpdateTicketItemRequest {
+  name?: string;
+  description?: string;
+  coachCode?: string;
+  seatClass?: string;
+  seatType?: string;
+  seatLabels?: string[];
+  availableSeatLabels?: string[];
+  stockInitial?: number;
+  stockAvailable?: number;
+  stockPrepared?: boolean;
+  priceOriginal?: number | string;
+  priceFlash?: number | string;
+  saleStartTime?: string;
+  saleEndTime?: string;
+}
+
+export interface PrepareStockRequest {
+  ticketItemId?: string;
+  stockInitial?: number;
+  availableSeatLabels?: string[];
+}
+
+export interface OpenSaleRequest {
+  ticketItemId?: string;
+  saleStartTime?: string;
+  saleEndTime?: string;
+}
+
+export interface ChangePriceRequest {
+  priceOriginal?: number | string;
+  priceFlash?: number | string;
+}
+
+export interface ChangeSaleWindowRequest {
+  saleStartTime?: string;
+  saleEndTime?: string;
+}

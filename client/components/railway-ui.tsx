@@ -12,10 +12,10 @@ export type Tone = "brand" | "positive" | "warning" | "danger" | "muted";
 
 const toneClasses: Record<Tone, string> = {
   brand: "bg-primary text-primary-foreground",
-  positive: "bg-accent text-accent-foreground ring-1 ring-border",
-  warning: "bg-secondary text-secondary-foreground ring-1 ring-border",
-  danger: "bg-destructive text-primary-foreground",
-  muted: "bg-muted text-muted-foreground ring-1 ring-border",
+  positive: "bg-accent text-accent-foreground border border-border",
+  warning: "bg-secondary text-secondary-foreground border border-border",
+  danger: "bg-destructive text-white",
+  muted: "bg-muted text-muted-foreground border border-border",
 };
 
 export function StatusBadge({
@@ -42,20 +42,20 @@ export function SectionHeading({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-      <div className="space-y-2">
+    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="space-y-1.5">
         {eyebrow ? (
           <div className="route-pill">
-            <Sparkles className="size-3.5 text-primary" />
+            <Sparkles className="size-3 text-primary" />
             {eyebrow}
           </div>
         ) : null}
         <div className="space-y-1">
-          <h2 className="font-heading text-2xl font-semibold tracking-normal text-balance text-foreground sm:text-3xl">
+          <h2 className="font-heading text-xl font-semibold tracking-tight text-balance text-foreground sm:text-2xl">
             {title}
           </h2>
           {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
               {description}
             </p>
           ) : null}
@@ -76,15 +76,15 @@ export function StatCard({
   helper?: string;
 }) {
   return (
-    <div className="surface-panel rounded-[1.8rem] px-5 py-5">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+    <div className="surface-panel px-5 py-4">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
-      <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
+      <p className="mt-2 font-heading text-2xl font-semibold tracking-tight text-foreground">
         {value}
       </p>
       {helper ? (
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{helper}</p>
+        <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{helper}</p>
       ) : null}
     </div>
   );
@@ -102,12 +102,12 @@ export function EmptyState({
   cta?: string;
 }) {
   return (
-    <div className="surface-panel flex flex-col items-start gap-4 rounded-[1.8rem] px-6 py-7">
-      <div className="inline-flex size-11 items-center justify-center rounded-full bg-muted text-foreground">
-        <Sparkles className="size-5" />
+    <div className="surface-panel flex flex-col items-start gap-3 px-5 py-6">
+      <div className="inline-flex size-9 items-center justify-center rounded-md bg-muted text-foreground">
+        <Sparkles className="size-4" />
       </div>
       <div className="space-y-1">
-        <h3 className="font-heading text-lg font-semibold tracking-normal">
+        <h3 className="font-heading text-base font-semibold tracking-tight">
           {title}
         </h3>
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -143,12 +143,12 @@ export function MetaGrid({
       {items.map((item) => (
         <div
           key={item.label}
-          className="rounded-[1.35rem] bg-muted/60 px-4 py-4 ring-1 ring-border"
+          className="rounded-md border border-border bg-muted/50 px-3.5 py-3"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             {item.label}
           </p>
-          <div className="mt-2 text-sm leading-6 text-foreground">{item.value}</div>
+          <div className="mt-1.5 text-sm leading-6 text-foreground">{item.value}</div>
         </div>
       ))}
     </div>
@@ -161,7 +161,7 @@ export function FilterBar({
   children: ReactNode;
 }) {
   return (
-    <div className="surface-panel rounded-[1.8rem] px-4 py-4">
+    <div className="surface-panel px-4 py-3">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{children}</div>
     </div>
   );
@@ -181,7 +181,7 @@ export function PaginationBar({
   onNext: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[1.5rem] bg-muted/60 px-4 py-4 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">
         Trang {page}/{Math.max(1, totalPages)}. Tổng {total} bản ghi.
       </p>
@@ -204,7 +204,7 @@ export function PaginationBar({
 
 export function InlineCode({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-full bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground ring-1 ring-border">
+    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground border border-border">
       {children}
     </span>
   );
@@ -222,19 +222,19 @@ export function SurfaceLink({
   return (
     <Link
       href={href}
-      className="surface-panel block rounded-[1.8rem] px-5 py-5 transition-colors hover:bg-muted/30"
+      className="surface-panel block px-5 py-4 transition-colors hover:bg-muted/50"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-heading text-lg font-semibold tracking-normal text-foreground">
+          <p className="font-heading text-base font-semibold tracking-tight text-foreground">
             {title}
           </p>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
             {description}
           </p>
         </div>
-        <div className="mt-1 inline-flex size-10 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
-          <ArrowRight className="size-4" />
+        <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md bg-muted text-foreground border border-border">
+          <ArrowRight className="size-3.5" />
         </div>
       </div>
     </Link>
@@ -247,11 +247,11 @@ export function SeatCloud({ labels }: { labels: string[] }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {labels.map((label) => (
         <span
           key={label}
-          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground ring-1 ring-border"
+          className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground"
         >
           {label}
         </span>

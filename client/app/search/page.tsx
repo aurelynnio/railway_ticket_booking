@@ -122,7 +122,7 @@ export default function SearchPage() {
       >
         <div className="space-y-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_19rem]">
-            <div className="rounded-[1.95rem] bg-muted/35 px-5 py-5 ring-1 ring-border">
+            <div className="rounded-lg bg-muted/35 px-5 py-5 ring-1 ring-border">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
                   <span className="route-pill">Hành trình thực</span>
@@ -132,7 +132,7 @@ export default function SearchPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="font-heading text-3xl font-semibold tracking-normal text-balance text-foreground sm:text-[3.4rem] sm:leading-[0.94]">
+                  <h2 className="font-heading text-3xl font-semibold tracking-tight text-balance text-foreground sm:text-[3.4rem] sm:leading-[0.94]">
                     Tìm vé theo điểm đi, điểm đến và ngày khởi hành.
                   </h2>
                   <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
@@ -143,14 +143,14 @@ export default function SearchPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 overflow-hidden rounded-[1.95rem] bg-background ring-1 ring-border xl:grid-cols-1">
+            <div className="grid grid-cols-3 overflow-hidden rounded-lg bg-background ring-1 ring-border xl:grid-cols-1">
               <SearchStat label="Chuyến" value={String(trips.length)} />
               <SearchStat label="Chỗ trống" value={String(availableSeats)} />
               <SearchStat label="Giá từ" value={formatCurrency(cheapest)} />
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-[1.95rem] bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 rounded-lg bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-2 xl:grid-cols-4">
             <Field label="Ga đi">
               <Select
                 value={from}
@@ -261,7 +261,7 @@ export default function SearchPage() {
               {Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-52 animate-pulse rounded-[2rem] bg-muted/60"
+                  className="h-52 animate-pulse rounded-lg bg-muted/60"
                 />
               ))}
             </div>
@@ -285,7 +285,7 @@ export default function SearchPage() {
             {trips.map((trip) => (
               <article
                 key={trip.ticketId}
-                className="surface-panel rounded-[2rem] px-5 py-5"
+                className="surface-panel rounded-lg px-5 py-5"
               >
                 <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
                   <div className="space-y-4">
@@ -301,7 +301,7 @@ export default function SearchPage() {
                             tone={trip.availableSeats > 0 ? "positive" : "danger"}
                           />
                         </div>
-                        <h3 className="mt-4 font-heading text-2xl font-semibold tracking-normal text-foreground">
+                        <h3 className="mt-4 font-heading text-2xl font-semibold tracking-tight text-foreground">
                           {(trip.from.name ?? trip.from.code ?? "?") +
                             " -> " +
                             (trip.to.name ?? trip.to.code ?? "?")}
@@ -310,11 +310,11 @@ export default function SearchPage() {
                           {trip.title ?? "Tuyến chưa đặt tên"}
                         </p>
                       </div>
-                      <div className="rounded-[1.5rem] bg-muted/30 px-4 py-4 ring-1 ring-border xl:min-w-44">
-                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                      <div className="rounded-lg bg-muted/30 px-4 py-4 ring-1 ring-border xl:min-w-44">
+                        <p className="text-xs font-medium text-muted-foreground">
                           Giá từ
                         </p>
-                        <p className="mt-2 font-heading text-3xl font-semibold tracking-normal text-foreground">
+                        <p className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground">
                           {formatCurrency(trip.minPrice)}
                         </p>
                         <p className="mt-2 text-sm text-muted-foreground">
@@ -361,10 +361,10 @@ export default function SearchPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[1.9rem] bg-muted/25 px-5 py-5 ring-1 ring-border">
+                  <div className="rounded-lg bg-muted/25 px-5 py-5 ring-1 ring-border">
                     <div className="space-y-4">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                        <p className="text-xs font-medium text-muted-foreground">
                           Tóm tắt hành trình
                         </p>
                         <p className="mt-2 text-sm leading-6 text-foreground">
@@ -373,8 +373,8 @@ export default function SearchPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-[1.45rem] bg-background px-4 py-4 ring-1 ring-border">
-                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                      <div className="rounded-lg bg-background px-4 py-4 ring-1 ring-border">
+                        <p className="text-xs font-medium text-muted-foreground">
                           Bản tóm tắt
                         </p>
                         <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
@@ -462,7 +462,7 @@ export default function SearchPage() {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
       {children}
@@ -473,10 +473,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function SearchStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-b border-border px-4 py-4 last:border-b-0 xl:border-b xl:last:border-b-0">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 font-heading text-3xl font-semibold tracking-normal text-foreground">
+      <p className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground">
         {value}
       </p>
     </div>
@@ -493,10 +493,10 @@ function InfoTile({
   value: string;
 }) {
   return (
-    <div className="rounded-[1.45rem] bg-muted/25 px-4 py-4 ring-1 ring-border">
+    <div className="rounded-lg bg-muted/25 px-4 py-4 ring-1 ring-border">
       <div className="flex items-center gap-2">
         {icon}
-        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+        <p className="text-xs font-medium text-muted-foreground">
           {label}
         </p>
       </div>
@@ -519,12 +519,12 @@ function SupportCard({
   return (
     <Link
       href={href}
-      className="surface-panel block rounded-[1.95rem] px-5 py-5 transition-colors hover:bg-muted/30"
+      className="surface-panel block rounded-lg px-5 py-5 transition-colors hover:bg-muted/30"
     >
-      <div className="flex size-11 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
+      <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
         {icon}
       </div>
-      <h3 className="mt-5 font-heading text-xl font-semibold tracking-normal text-foreground">
+      <h3 className="mt-5 font-heading text-xl font-semibold tracking-tight text-foreground">
         {title}
       </h3>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>

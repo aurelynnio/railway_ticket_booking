@@ -37,7 +37,17 @@ http.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 401 && typeof window !== "undefined") {
+    const isAuthRoute =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/register") ||
+      requestUrl.includes("/auth/refreshToken");
+
+    if (
+      error.response?.status === 401 &&
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/login" &&
+      !isAuthRoute
+    ) {
       window.location.href = "/login";
     }
 

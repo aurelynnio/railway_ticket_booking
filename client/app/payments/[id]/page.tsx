@@ -7,6 +7,7 @@ import { MetaGrid, SectionHeading, StatusBadge, compactId } from "@/components/r
 import { Button } from "@/components/ui/button";
 import {
   useCancelPayment,
+  useDeletePayment,
   useExpirePayment,
   useMarkPaymentFailed,
   useMarkPaymentPaid,
@@ -32,6 +33,7 @@ export default function PaymentDetailPage() {
   const markFailed = useMarkPaymentFailed();
   const cancelPayment = useCancelPayment();
   const expirePayment = useExpirePayment();
+  const deletePayment = useDeletePayment();
 
   const payment = paymentQuery.data;
 
@@ -47,7 +49,7 @@ export default function PaymentDetailPage() {
             disabled={!payment}
             onClick={() => markProcessing.mutate({ id: paymentId })}
           >
-            Mark processing
+            Đang xử lý
           </Button>
           <Button
             type="button"
@@ -55,7 +57,7 @@ export default function PaymentDetailPage() {
             disabled={!payment}
             onClick={() => markPaid.mutate({ id: paymentId })}
           >
-            Mark paid + issue
+            Thanh toán + phát hành
           </Button>
           <Button
             type="button"
@@ -63,7 +65,7 @@ export default function PaymentDetailPage() {
             disabled={!payment}
             onClick={() => markFailed.mutate({ id: paymentId })}
           >
-            Mark failed
+            Thất bại
           </Button>
           <Button
             type="button"
@@ -71,7 +73,7 @@ export default function PaymentDetailPage() {
             disabled={!payment}
             onClick={() => cancelPayment.mutate({ id: paymentId })}
           >
-            Cancel
+            Huỷ
           </Button>
           <Button
             type="button"
@@ -79,7 +81,15 @@ export default function PaymentDetailPage() {
             disabled={!payment}
             onClick={() => expirePayment.mutate({ id: paymentId })}
           >
-            Expire
+            Hết hạn
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={!payment}
+            onClick={() => deletePayment.mutate({ id: paymentId })}
+          >
+            Xoá
           </Button>
         </div>
       }
@@ -156,6 +166,10 @@ export default function PaymentDetailPage() {
               {
                 label: "Expire",
                 value: expirePayment.isPending ? "Dang cap nhat..." : "San sang",
+              },
+              {
+                label: "Delete",
+                value: deletePayment.isPending ? "Dang cap nhat..." : "San sang",
               },
               {
                 label: "Deleted at",

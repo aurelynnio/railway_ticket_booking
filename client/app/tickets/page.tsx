@@ -174,7 +174,7 @@ export default function TicketsPage() {
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div
                       key={index}
-                      className="h-44 animate-pulse rounded-[1.75rem] bg-white/55"
+                      className="h-44 animate-pulse rounded-lg bg-background"
                     />
                   ))}
                 </div>
@@ -198,12 +198,12 @@ export default function TicketsPage() {
                 {tickets.map((ticket) => (
                   <article
                     key={ticket.id}
-                    className="surface-panel grid gap-5 rounded-[1.95rem] px-5 py-5 xl:grid-cols-[1.2fr_0.8fr]"
+                    className="surface-panel grid gap-5 rounded-lg px-5 py-5 xl:grid-cols-[1.2fr_0.8fr]"
                   >
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
+                          <p className="font-heading text-2xl font-semibold tracking-tight text-foreground">
                             {ticket.title ?? "Vé chưa đặt tên"}
                           </p>
                           <p className="mt-1 text-sm text-muted-foreground">
@@ -231,7 +231,7 @@ export default function TicketsPage() {
                         {ticket.ticketItems.slice(0, 4).map((item) => (
                           <span
                             key={item.id}
-                            className="rounded-full bg-white/72 px-3 py-1 text-xs font-medium text-foreground ring-1 ring-black/6"
+                            className="rounded-full bg-background px-3 py-1 text-xs font-medium text-foreground border border-border"
                           >
                             {item.coachCode ?? item.name ?? "Toa"} • {item.seatClass ?? "N/A"}
                           </span>
@@ -239,9 +239,9 @@ export default function TicketsPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col justify-between gap-4 rounded-[1.7rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
+                    <div className="flex flex-col justify-between gap-4 rounded-lg bg-background px-4 py-4 border border-border">
                       <div className="space-y-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                        <p className="text-xs font-medium text-muted-foreground">
                           Ghi chú hành trình
                         </p>
                         <p className="text-sm leading-6 text-muted-foreground">
@@ -277,58 +277,58 @@ export default function TicketsPage() {
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-3">
-            <section className="surface-panel rounded-[2rem] px-5 py-5">
+            <section className="surface-panel rounded-lg px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Tuyến hiển thị
                   </p>
-                  <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
+                  <p className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground">
                     {tickets.length}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     Số vé đang hiển thị trong grid danh mục.
                   </p>
                 </div>
-                <div className="flex size-11 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
                   <TrainFront className="size-5" />
                 </div>
               </div>
             </section>
 
-            <section className="surface-panel rounded-[2rem] px-5 py-5">
+            <section className="surface-panel rounded-lg px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Khoang ghế
                   </p>
-                  <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
+                  <p className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground">
                     {ticketItems}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     Tổng số block ghế mà user có thể đi sâu vào chi tiết.
                   </p>
                 </div>
-                <div className="flex size-11 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
                   <Layers3 className="size-5" />
                 </div>
               </div>
             </section>
 
-            <section className="surface-panel rounded-[2rem] px-5 py-5">
+            <section className="surface-panel rounded-lg px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Ga xuất hiện
                   </p>
-                  <p className="mt-3 font-heading text-3xl font-semibold tracking-normal text-foreground">
+                  <p className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground">
                     {stations}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     Số mã ga xuất hiện trong kết quả để user quét nhanh mạng lưới.
                   </p>
                 </div>
-                <div className="flex size-11 items-center justify-center rounded-[1rem] bg-muted text-foreground ring-1 ring-border">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
                   <Sparkles className="size-5" />
                 </div>
               </div>
@@ -359,7 +359,7 @@ export default function TicketsPage() {
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div
                       key={index}
-                      className="h-44 animate-pulse rounded-[1.75rem] bg-white/55"
+                      className="h-44 animate-pulse rounded-lg bg-background"
                     />
                   ))}
                 </div>
@@ -383,12 +383,12 @@ export default function TicketsPage() {
                 {tickets.map((ticket) => (
                   <article
                     key={ticket.id}
-                    className="surface-panel grid gap-5 rounded-[2rem] px-5 py-5 xl:grid-cols-[1.1fr_0.9fr]"
+                    className="surface-panel grid gap-5 rounded-lg px-5 py-5 xl:grid-cols-[1.1fr_0.9fr]"
                   >
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-heading text-2xl font-semibold tracking-normal text-foreground">
+                          <p className="font-heading text-2xl font-semibold tracking-tight text-foreground">
                             {ticket.title ?? "Vé chưa đặt tên"}
                           </p>
                           <p className="mt-1 text-sm text-muted-foreground">
@@ -414,7 +414,7 @@ export default function TicketsPage() {
                       <div className="grid gap-3 md:grid-cols-[0.95fr_0.1fr_0.95fr]">
                         <TicketFact label="Khởi hành" value={formatDateTime(ticket.dateStart)} />
                         <div className="hidden items-center justify-center md:flex">
-                          <div className="flex size-11 items-center justify-center rounded-full bg-white/70 ring-1 ring-black/6">
+                          <div className="flex size-11 items-center justify-center rounded-full bg-background border border-border">
                             <ArrowRight className="size-4 text-primary" />
                           </div>
                         </div>
@@ -425,7 +425,7 @@ export default function TicketsPage() {
                         {ticket.ticketItems.slice(0, 4).map((item) => (
                           <span
                             key={item.id}
-                            className="rounded-full bg-white/72 px-3 py-1 text-xs font-medium text-foreground ring-1 ring-black/6"
+                            className="rounded-full bg-background px-3 py-1 text-xs font-medium text-foreground border border-border"
                           >
                             {item.coachCode ?? item.name ?? "Toa"} • {item.seatClass ?? "N/A"}
                           </span>
@@ -433,17 +433,17 @@ export default function TicketsPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col justify-between gap-4 rounded-[1.9rem] bg-muted/25 px-5 py-5 ring-1 ring-border">
+                    <div className="flex flex-col justify-between gap-4 rounded-lg bg-muted/25 px-5 py-5 ring-1 ring-border">
                       <div className="space-y-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                        <p className="text-xs font-medium text-muted-foreground">
                           Vì sao nên mở vé này
                         </p>
                         <p className="text-sm leading-6 text-muted-foreground">
                           {ticket.journeyNote ??
                             "Tuyến, thời gian và các hạng ghế được gom lại để bạn chọn hành trình phù hợp nhanh hơn."}
                         </p>
-                        <div className="rounded-[1.4rem] bg-white/72 px-4 py-4 ring-1 ring-black/6">
-                          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                        <div className="rounded-lg bg-background px-4 py-4 border border-border">
+                          <p className="text-xs font-medium text-muted-foreground">
                             Độ sâu chọn ghế
                           </p>
                           <p className="mt-2 text-sm leading-6 text-foreground">
@@ -488,8 +488,8 @@ export default function TicketsPage() {
 
 function TicketFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.4rem] bg-white/62 px-4 py-4 ring-1 ring-black/6">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+    <div className="rounded-lg bg-background px-4 py-4 border border-border">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-sm leading-6 text-foreground">{value}</p>

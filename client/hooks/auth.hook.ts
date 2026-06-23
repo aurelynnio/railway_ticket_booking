@@ -2,10 +2,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   AuthSessionResponse,
+  ChangePasswordRequest,
   ForgotPasswordRequest,
   LoginRequest,
   RegisterRequest,
+  ResendVerificationRequest,
   ResetPasswordRequest,
+  VerifyEmailRequest,
 } from "@/lib/api-types";
 import instance from "@/lib/http";
 
@@ -69,6 +72,42 @@ export const useLogout = () => {
   return useMutation({
     mutationFn: async () => {
       const res = await instance.post("/auth/logout");
+      return res.data;
+    },
+  });
+};
+
+export const useChangePassword = () => {
+  return useMutation({
+    mutationFn: async (data: ChangePasswordRequest) => {
+      const res = await instance.post("/auth/changePassword", data);
+      return res.data;
+    },
+  });
+};
+
+export const useVerifyEmail = () => {
+  return useMutation({
+    mutationFn: async (data: VerifyEmailRequest) => {
+      const res = await instance.post("/auth/verifyEmail", data);
+      return res.data;
+    },
+  });
+};
+
+export const useResendVerification = () => {
+  return useMutation({
+    mutationFn: async (data: ResendVerificationRequest) => {
+      const res = await instance.post("/auth/resendVerification", data);
+      return res.data;
+    },
+  });
+};
+
+export const useRevokeAllSessions = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await instance.post("/auth/revokeAllSessions");
       return res.data;
     },
   });

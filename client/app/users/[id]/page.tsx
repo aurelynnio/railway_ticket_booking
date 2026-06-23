@@ -1,11 +1,14 @@
 "use client";
+import { useState } from "react";
 import { usePathname, useParams } from "next/navigation";
 
 import { AppShell, Panel } from "@/components/app-shell";
 import { MetaGrid, SectionHeading, SurfaceLink, compactId } from "@/components/railway-ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useOrders } from "@/hooks/order.hook";
 import { usePaymentsByUserId } from "@/hooks/payment.hook";
-import { useUser } from "@/hooks/user.hook";
+import { useUpdateUser, useUser } from "@/hooks/user.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 
 export default function UserDetailPage() {
@@ -13,6 +16,7 @@ export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
   const userId = typeof params.id === "string" ? params.id : "";
   const isAdminView = pathname.startsWith("/admin");
+  const detailPrefix = isAdminView ? "/admin" : "";
 
   const userQuery = useUser(userId);
   const ordersQuery = useOrders({ page: 1, limit: 6, userId }, Boolean(userId));
@@ -20,6 +24,11 @@ export default function UserDetailPage() {
     { userId, page: 1, limit: 6 },
     Boolean(userId),
   );
+  const updateUser = useUpdateUser(userId);
+
+  const [draftUsername, setDraftUsername] = useState("");
+  const [draftEmail, setDraftEmail] = useState("");
+  const [draftName, setDraftName] = useState("");
 
   const user = userQuery.data;
   const orders = ordersQuery.data?.data ?? [];
@@ -31,42 +40,91 @@ export default function UserDetailPage() {
       description="Xem hồ sơ tài khoản cùng đơn hàng và thanh toán gần đây để hỗ trợ đối soát."
     >
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <Panel
-          title={user?.name ?? user?.username ?? "User profile"}
-          description="Thông tin cơ bản của tài khoản và các mốc cập nhật gần nhất."
-        >
-          <div className="space-y-5">
-            <SectionHeading
-              eyebrow="Identity"
-              title={user?.email ?? "Đang tải người dùng"}
-              description="Dùng thông tin này để đối chiếu với đơn hàng và thanh toán liên quan."
-            />
-
-            {user ? (
-              <MetaGrid
-                items={[
-                  { label: "User ID", value: compactId(user.id) },
-                  { label: "Username", value: user.username ?? "N/A" },
-                  { label: "Name", value: user.name ?? "N/A" },
-                  { label: "Email", value: user.email ?? "N/A" },
-                  {
-                    label: "Created",
-                    value: formatDateTime(
-                      typeof user.createdAt === "string" ? user.createdAt : null,
-                    ),
-                  },
-                  {
-                    label: "Updated",
-                    value: formatDateTime(
-                      typeof user.updatedAt === "string" ? user.updatedAt : null,
-                    ),
-                  },
-                ]}
-                columns={3}
+        <div className="grid gap-6">
+          <Panel
+            title={user?.name ?? user?.username ?? "User profile"}
+            description="Thông tin cơ bản của tài khoản và các mốc cập nhật gần nhất."
+          >
+            <div className="space-y-5">
+              <SectionHeading
+                eyebrow="Identity"
+                title={user?.email ?? "Đang tải người dùng"}
+                description="Dùng thông tin này để đối chiếu với đơn hàng và thanh toán liên quan."
               />
-            ) : null}
-          </div>
-        </Panel>
+
+              {user ? (
+                <MetaGrid
+                  items={[
+                    { label: "User ID", value: compactId(user.id) },
+                    { label: "Username", value: user.username ?? "N/A" },
+                    { label: "Name", value: user.name ?? "N/A" },
+                    { label: "Email", value: user.email ?? "N/A" },
+                    {
+                      label: "Created",
+                      value: formatDateTime(
+                        typeof user.createdAt === "string" ? user.createdAt : null,
+                      ),
+                    },
+                    {
+                      label: "Updated",
+                      value: formatDateTime(
+                        typeof user.updatedAt === "string" ? user.updatedAt : null,
+                      ),
+                    },
+                  ]}
+                  columns={3}
+                />
+              ) : null}
+            </div>
+          </Panel>
+
+          {isAdminView ? (
+            <Panel
+              title="Cập nhật người dùng"
+              description="Chỉnh sửa thông tin cơ bản của tài khoản."
+            >
+              <div className="grid gap-3">
+                <Input
+                  placeholder="Username"
+                  value={draftUsername}
+                  onChange={(event) => setDraftUsername(event.target.value)}
+                />
+                <Input
+                  placeholder="Email"
+                  value={draftEmail}
+                  onChange={(event) => setDraftEmail(event.target.value)}
+                />
+                <Input
+                  placeholder="Tên hiển thị"
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!userId || updateUser.isPending}
+                  onClick={() =>
+                    updateUser.mutate({
+                      username: draftUsername || undefined,
+                      email: draftEmail || undefined,
+                      name: draftName || undefined,
+                    })
+                  }
+                >
+                  {updateUser.isPending ? "Đang cập nhật..." : "Cập nhật"}
+                </Button>
+                {updateUser.isSuccess ? (
+                  <p className="text-sm text-emerald-700">Cập nhật thành công.</p>
+                ) : null}
+                {updateUser.isError ? (
+                  <p className="text-sm text-rose-700">
+                    Cập nhật thất bại. Vui lòng thử lại.
+                  </p>
+                ) : null}
+              </div>
+            </Panel>
+          ) : null}
+        </div>
 
         <div className="grid gap-6">
           <Panel
@@ -77,7 +135,7 @@ export default function UserDetailPage() {
               {orders.map((order) => (
                 <SurfaceLink
                   key={order.id}
-                  href={`/orders/${order.id}`}
+                  href={`${detailPrefix}/orders/${order.id}`}
                   title={order.ticketTitle}
                   description={`${compactId(order.id)} • ${formatCurrency(order.totalPrice)} • ${formatDateTime(order.updatedAt)}`}
                 />
@@ -98,7 +156,7 @@ export default function UserDetailPage() {
               {payments.map((payment) => (
                 <SurfaceLink
                   key={payment.id}
-                  href={`/payments/${payment.id}`}
+                  href={`${detailPrefix}/payments/${payment.id}`}
                   title={compactId(payment.transactionId)}
                   description={`${formatCurrency(Number(payment.amount))} • Order ${compactId(payment.orderId)} • ${formatDateTime(payment.updatedAt)}`}
                 />
@@ -117,7 +175,7 @@ export default function UserDetailPage() {
           >
             <div className="grid gap-3 md:grid-cols-2">
               <SurfaceLink
-                href="/users"
+                href={isAdminView ? "/admin/users" : "/users"}
                 title="Về danh sách người dùng"
                 description="Quay lại danh sách người dùng tổng."
               />

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { AuthShell } from "@/components/auth-shell";
@@ -14,6 +14,22 @@ export default function ForgotPasswordPage() {
   const forgotPassword = useForgotPassword();
   const [email, setEmail] = useState("");
   const [tokenPreview, setTokenPreview] = useState<string | null>(null);
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!email) return;
+
+    forgotPassword.mutate(
+      { email },
+      {
+        onSuccess: (result: Record<string, unknown>) => {
+          setTokenPreview(
+            typeof result?.token === "string" ? result.token : null,
+          );
+        },
+      },
+    );
+  };
 
   return (
     <AuthShell
@@ -29,26 +45,24 @@ export default function ForgotPasswordPage() {
         </div>
       }
     >
-      <div className="grid gap-4">
+      <form onSubmit={handleSubmit} className="grid gap-4">
         <div className="grid gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Email
           </p>
           <Input
+            type="email"
             placeholder="ban@railway.test"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            required
           />
         </div>
 
         <Button
-          type="button"
+          type="submit"
           size="lg"
           disabled={forgotPassword.isPending}
-          onClick={async () => {
-            const result = await forgotPassword.mutateAsync({ email });
-            setTokenPreview(typeof result?.token === "string" ? result.token : null);
-          }}
         >
           {forgotPassword.isPending ? "Đang gửi..." : "Gửi yêu cầu"}
           <ArrowRight />
@@ -60,8 +74,8 @@ export default function ForgotPasswordPage() {
         </div>
 
         {tokenPreview ? (
-          <div className="rounded-[1.2rem] bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
-            <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+          <div className="rounded-lg bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
+            <p className="text-xs font-medium text-muted-foreground">
               Token preview
             </p>
             <p className="mt-2 break-all font-mono text-xs text-foreground">{tokenPreview}</p>
@@ -70,7 +84,13 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         ) : null}
-      </div>
+
+        {forgotPassword.isError ? (
+          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
+            Gửi yêu cầu thất bại. Vui lòng kiểm tra email và thử lại.
+          </div>
+        ) : null}
+      </form>
     </AuthShell>
   );
 }

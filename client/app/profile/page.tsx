@@ -2,21 +2,33 @@
 
 import { useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { AppShell, Panel } from "@/components/app-shell";
 import { MetaGrid, SectionHeading, SurfaceLink } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/hooks/auth.hook";
+import { useAuthSession, useChangePassword, useLogout, useRevokeAllSessions, useVerifyEmail, useResendVerification } from "@/hooks/auth.hook";
 import { useMe, useUpdateProfile } from "@/hooks/user.hook";
 import { formatDateTime } from "@/lib/formatters";
 
 export default function ProfilePage() {
+  const router = useRouter();
   const sessionQuery = useAuthSession();
   const profileQuery = useMe(Boolean(sessionQuery.data));
   const updateProfile = useUpdateProfile();
+  const changePassword = useChangePassword();
+  const logout = useLogout();
+  const revokeAllSessions = useRevokeAllSessions();
+  const verifyEmail = useVerifyEmail();
+  const resendVerification = useResendVerification();
 
   const [draftUsername, setDraftUsername] = useState<string | null>(null);
   const [draftEmail, setDraftEmail] = useState<string | null>(null);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [verifyToken, setVerifyToken] = useState("");
+  const [verifyEmailAddr, setVerifyEmailAddr] = useState("");
 
   const username =
     draftUsername ??
@@ -41,11 +53,28 @@ export default function ProfilePage() {
             title="Vé đã phát hành"
             description="Các vé đã được phát hành từ đơn hàng hoàn tất."
           />
-          <SurfaceLink
-            href="/login"
-            title="Đăng nhập lại"
-            description="Chuyển sang đăng nhập khi cần làm mới phiên."
-          />
+          <button
+            type="button"
+            className="surface-panel block rounded-lg px-5 py-5 text-left transition-colors hover:bg-muted/30"
+            disabled={logout.isPending}
+            onClick={() =>
+              logout.mutate(undefined, {
+                onSuccess: () => {
+                  router.push("/login");
+                },
+              })
+            }
+          >
+            <p className="text-xs font-medium text-muted-foreground">
+              Phiên
+            </p>
+            <p className="mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
+              {logout.isPending ? "Đang đăng xuất..." : "Đăng xuất"}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Xoá cookie phiên hiện tại và quay về đăng nhập.
+            </p>
+          </button>
         </div>
       }
     >
@@ -141,6 +170,124 @@ export default function ProfilePage() {
               </p>
             ) : null}
           </div>
+        </Panel>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <Panel
+          title="Đổi mật khẩu"
+          description="Đổi mật khẩu cho tài khoản đang đăng nhập."
+        >
+          <div className="grid gap-3">
+            <Input
+              type="password"
+              placeholder="Mật khẩu cũ"
+              value={oldPassword}
+              onChange={(event) => setOldPassword(event.target.value)}
+            />
+            <Input
+              type="password"
+              placeholder="Mật khẩu mới (tối thiểu 6 ký tự)"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+            <Button
+              type="button"
+              disabled={!newPassword || changePassword.isPending}
+              onClick={() =>
+                changePassword.mutate({
+                  oldPassword: oldPassword || undefined,
+                  newPassword,
+                })
+              }
+            >
+              {changePassword.isPending ? "Đang đổi..." : "Đổi mật khẩu"}
+            </Button>
+            {changePassword.isSuccess ? (
+              <p className="text-sm text-emerald-700">Đổi mật khẩu thành công.</p>
+            ) : null}
+            {changePassword.isError ? (
+              <p className="text-sm text-rose-700">
+                Đổi mật khẩu thất bại. Kiểm tra mật khẩu cũ và thử lại.
+              </p>
+            ) : null}
+          </div>
+        </Panel>
+
+        <Panel
+          title="Email verification"
+          description="Xác minh email hoặc gửi lại email xác minh."
+        >
+          <div className="grid gap-3">
+            <Input
+              placeholder="Token xác minh"
+              value={verifyToken}
+              onChange={(event) => setVerifyToken(event.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!verifyToken || verifyEmail.isPending}
+              onClick={() => verifyEmail.mutate({ token: verifyToken })}
+            >
+              {verifyEmail.isPending ? "Đang xác minh..." : "Xác minh email"}
+            </Button>
+            {verifyEmail.isSuccess ? (
+              <p className="text-sm text-emerald-700">Xác minh email thành công.</p>
+            ) : null}
+            {verifyEmail.isError ? (
+              <p className="text-sm text-rose-700">Xác minh thất bại. Token có thể đã hết hạn.</p>
+            ) : null}
+
+            <div className="mt-2 border-t border-border pt-3">
+              <p className="mb-2 text-sm text-muted-foreground">
+                Gửi lại email xác minh nếu chưa nhận được.
+              </p>
+              <Input
+                placeholder="Email nhận xác minh"
+                value={verifyEmailAddr}
+                onChange={(event) => setVerifyEmailAddr(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2"
+                disabled={!verifyEmailAddr || resendVerification.isPending}
+                onClick={() => resendVerification.mutate({ email: verifyEmailAddr })}
+              >
+                {resendVerification.isPending ? "Đang gửi..." : "Gửi lại xác minh"}
+              </Button>
+              {resendVerification.isSuccess ? (
+                <p className="mt-1 text-sm text-emerald-700">Đã gửi email xác minh.</p>
+              ) : null}
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="mt-6">
+        <Panel
+          title="Quản lý phiên"
+          description="Đăng xuất tất cả thiết bị đang sử dụng tài khoản này."
+        >
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={revokeAllSessions.isPending}
+            onClick={() => revokeAllSessions.mutate()}
+          >
+            {revokeAllSessions.isPending ? "Đang thu hồi..." : "Đăng xuất tất cả thiết bị"}
+          </Button>
+          {revokeAllSessions.isSuccess ? (
+            <p className="mt-2 text-sm text-emerald-700">
+              Đã đăng xuất tất cả thiết bị. Bạn cần đăng nhập lại.
+            </p>
+          ) : null}
+          {revokeAllSessions.isError ? (
+            <p className="mt-2 text-sm text-rose-700">
+              Thu hồi phiên thất bại. Vui lòng thử lại.
+            </p>
+          ) : null}
         </Panel>
       </div>
     </AppShell>

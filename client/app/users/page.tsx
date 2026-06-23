@@ -12,6 +12,7 @@ import {
   compactId,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -20,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useListUsers } from "@/hooks/user.hook";
+import { useCreateUser, useListUsers } from "@/hooks/user.hook";
 import { formatDateTime } from "@/lib/formatters";
 
 export default function UsersPage() {
@@ -28,8 +29,12 @@ export default function UsersPage() {
   const isAdminView = pathname.startsWith("/admin");
   const [page, setPage] = useState(1);
   const query = useListUsers(page, 10);
+  const createUser = useCreateUser();
   const users = query.data?.data ?? [];
   const pagination = query.data?.pagination;
+
+  const [newUsername, setNewUsername] = useState("");
+  const [newEmail, setNewEmail] = useState("");
 
   return (
     <AppShell
@@ -64,6 +69,35 @@ export default function UsersPage() {
             title="Danh sach user"
             description="List view giu thong tin gon, uu tien link sang detail hon la dua het moi field len bang."
           />
+
+          {isAdminView ? (
+            <div className="grid gap-3 rounded-lg bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-[1fr_1fr_auto]">
+              <Input
+                placeholder="Username"
+                value={newUsername}
+                onChange={(event) => setNewUsername(event.target.value)}
+              />
+              <Input
+                placeholder="Email"
+                value={newEmail}
+                onChange={(event) => setNewEmail(event.target.value)}
+              />
+              <Button
+                type="button"
+                disabled={!newUsername || !newEmail || createUser.isPending}
+                onClick={() => {
+                  createUser.mutate({
+                    username: newUsername,
+                    email: newEmail,
+                  });
+                  setNewUsername("");
+                  setNewEmail("");
+                }}
+              >
+                {createUser.isPending ? "Đang tạo..." : "Tạo user"}
+              </Button>
+            </div>
+          ) : null}
 
           <Table>
             <TableHeader>

@@ -152,3 +152,26 @@ export function useCancelOrder() {
     (orderId) => `/orders/${orderId}/cancel`,
   );
 }
+
+export function useExpireOrder() {
+  return useOrderAction((orderId) => `/orders/${orderId}/expire`);
+}
+
+export function useRefundOrder() {
+  return useOrderAction((orderId) => `/orders/${orderId}/refund`);
+}
+
+export function useRemoveOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ orderId }: { orderId: string }) => {
+      const res = await instance.delete(`/orders/${orderId}`);
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["order", variables.orderId] });
+    },
+  });
+}
