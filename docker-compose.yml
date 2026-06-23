@@ -1,9 +1,6 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # =========================================================================
-  # INFRASTRUCTURE & DATABASES
-  # =========================================================================
   mysql:
     image: mysql:8.4
     container_name: railway-ticket-mysql
@@ -21,6 +18,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./infra/docker/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -proot"]
       interval: 10s
@@ -87,6 +85,29 @@ services:
     networks:
       - railway-ticket-network
 
+  elasticsearch:
+    image: elasticsearch:8.17.0
+    container_name: railway-ticket-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - railway-ticket-network
+
   # =========================================================================
   # BACKEND MICROSERVICES
   # =========================================================================
@@ -97,7 +118,7 @@ services:
     container_name: railway-ticket-auth-service
     restart: unless-stopped
     environment:
-      DATABASE_URL: mysql://app:app@mysql:3306/railway_ticket_booking
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_auth
       JWT_SECRET: change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
@@ -115,7 +136,7 @@ services:
     container_name: railway-ticket-users-service
     restart: unless-stopped
     environment:
-      DATABASE_URL: mysql://app:app@mysql:3306/railway_ticket_booking
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_users
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       mysql:
@@ -134,10 +155,13 @@ services:
     environment:
       DATABASE_URL: mongodb://mongodb:27017/railway_ticket_search
       RABBITMQ_URL: amqp://rabbitmq:5672
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     depends_on:
       mongodb:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     networks:
       - railway-ticket-network
@@ -170,7 +194,7 @@ services:
     container_name: railway-ticket-orders-service
     restart: unless-stopped
     environment:
-      DATABASE_URL: mysql://app:app@mysql:3306/railway_ticket_booking
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_orders
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       mysql:
@@ -187,7 +211,7 @@ services:
     container_name: railway-ticket-payments-service
     restart: unless-stopped
     environment:
-      DATABASE_URL: mysql://app:app@mysql:3306/railway_ticket_booking
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_payments
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       mysql:
@@ -197,9 +221,24 @@ services:
     networks:
       - railway-ticket-network
 
-  # =========================================================================
-  # API GATEWAY
-  # =========================================================================
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-notification-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_notifications
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -218,9 +257,6 @@ services:
     networks:
       - railway-ticket-network
 
-  # =========================================================================
-  # CLIENT FRONTEND
-  # =========================================================================
   client:
     build:
       context: ./client
@@ -241,6 +277,7 @@ volumes:
   redis_data:
   rabbitmq_data:
   mongodb_data:
+  elasticsearch_data:
 
 networks:
   railway-ticket-network:

@@ -4,7 +4,7 @@ Repo nay la mot he thong dat ve tau tach thanh nhieu ung dung doc lap:
 
 - `client`: Next.js 16 frontend cho nguoi dung va admin
 - `api-gateway`: NestJS HTTP gateway cho browser/client
-- `auth-service`, `users-service`, `search-service`, `tickets-service`, `orders-service`, `payments-service`: NestJS microservices giao tiep qua RabbitMQ
+- `auth-service`, `users-service`, `search-service`, `tickets-service`, `orders-service`, `payments-service`, `notification-service`: NestJS microservices giao tiep qua RabbitMQ
 
 `api-gateway` la diem vao HTTP. Cac service phia sau chu yeu nhan message qua RMQ (`ClientProxy.send(...)`, `@MessagePattern(...)`). Hien tai co them luong event chon loc `payment.paid` tu `payments-service` sang `orders-service`.
 
@@ -49,25 +49,29 @@ client (Next.js, http://localhost:3000)
 | `users-service` | danh sach user, profile, update user | Nest RMQ microservice | `users_queue` |
 | `search-service` | tim hanh trinh/ve tau | Nest RMQ microservice | `search_queue` |
 | `tickets-service` | CRUD ticket, stock, seat map, reserve/release | Nest RMQ microservice | `tickets_queue` |
-| `orders-service` | checkout, order workflow, issue ticket, cancel/refund | Nest RMQ microservice | `orders_queue` |
+| `orders-service` | checkout, order workflow, issue ticket, cancel/refund | Nest RMQ microservice | `orders_queue`, `orders_expired_process_queue` |
 | `payments-service` | tao payment, doi trang thai thanh toan | Nest RMQ microservice | `payments_queue` |
+| `notification-service` | gui email thong bao | Nest RMQ microservice | `notifications_queue` |
 
 ## Luu tru du lieu hien tai
 
-| App | Luu tru |
-| --- | --- |
-| `auth-service` | Prisma + MySQL |
-| `users-service` | Prisma + MySQL |
-| `payments-service` | Prisma + MySQL |
-| `orders-service` | Prisma + MySQL |
-| `search-service` | Prisma + MongoDB |
-| `tickets-service` | Prisma + MongoDB + Redis cache |
+Moi service MySQL co database rieng biet de dam bao data isolation:
+
+| App | Luu tru | Database |
+| --- | --- | --- |
+| `auth-service` | Prisma + MySQL | `railway_auth` |
+| `users-service` | Prisma + MySQL | `railway_users` |
+| `orders-service` | Prisma + MySQL | `railway_orders` |
+| `payments-service` | Prisma + MySQL | `railway_payments` |
+| `notification-service` | Prisma + MySQL | `railway_notifications` |
+| `search-service` | Prisma + MongoDB + Elasticsearch | `railway_ticket_search` |
+| `tickets-service` | Prisma + MongoDB + Redis cache | `railway_ticket_tickets` |
 
 Luu y quan trong:
 
-- `infra/docker/docker-compose.yml` hien chi dung MySQL, Redis, RabbitMQ.
-- Neu muon chay `search-service` va `tickets-service`, ban can tu cap them MongoDB va `DATABASE_URL` phu hop.
-- `orders-service` da luu order bang Prisma + MySQL; can chay `npx prisma generate` sau khi cai dependency hoac sua schema.
+- File `infra/docker/init-databases.sql` se tu dong tao cac database rieng khi MySQL container khoi dong lan dau.
+- `search-service` su dung Elasticsearch de tim kiem nhanh. Neu chua co ES, search se fallback ve MongoDB.
+- Sau khi cai dependency hoac sua schema, can chay `npx prisma generate` trong tung service.
 
 ## Yeu cau moi truong
 
@@ -75,6 +79,7 @@ Luu y quan trong:
 - npm
 - Docker Desktop (de chay MySQL, Redis, RabbitMQ)
 - MongoDB local/container neu can `search-service` va `tickets-service`
+- Elasticsearch 8.x (tu dong chay qua Docker Compose)
 
 ## Bien moi truong toi thieu
 
@@ -94,32 +99,39 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 ### `auth-service`
 
 ```env
-DATABASE_URL=mysql://app:app@localhost:3306/railway_ticket_booking
+DATABASE_URL=mysql://app:app@localhost:3306/railway_auth
 JWT_SECRET=change-me
 ```
 
 ### `users-service`
 
 ```env
-DATABASE_URL=mysql://app:app@localhost:3306/railway_ticket_booking
-```
-
-### `payments-service`
-
-```env
-DATABASE_URL=mysql://app:app@localhost:3306/railway_ticket_booking
+DATABASE_URL=mysql://app:app@localhost:3306/railway_users
 ```
 
 ### `orders-service`
 
 ```env
-DATABASE_URL=mysql://app:app@localhost:3306/railway_ticket_booking
+DATABASE_URL=mysql://app:app@localhost:3306/railway_orders
+```
+
+### `payments-service`
+
+```env
+DATABASE_URL=mysql://app:app@localhost:3306/railway_payments
+```
+
+### `notification-service`
+
+```env
+DATABASE_URL=mysql://app:app@localhost:3306/railway_notifications
 ```
 
 ### `search-service`
 
 ```env
 DATABASE_URL=mongodb://localhost:27017/railway_ticket_search
+ELASTICSEARCH_URL=http://localhost:9200
 ```
 
 ### `tickets-service`
@@ -135,7 +147,7 @@ REDIS_PORT=6379
 Tu root repo:
 
 ```powershell
-docker compose -f infra/docker/docker-compose.yml up -d
+docker compose up -d
 ```
 
 Stack nay se dung:
@@ -144,6 +156,7 @@ Stack nay se dung:
 - Redis: `localhost:6379`
 - RabbitMQ: `localhost:5672`
 - RabbitMQ management: `http://localhost:15672`
+- Elasticsearch: `http://localhost:9200`
 
 ## Cai dat dependencies
 
@@ -165,10 +178,11 @@ Neu Prisma client chua duoc tao dung, chay them trong tung service dung Prisma:
 ```powershell
 cd auth-service; npx prisma generate
 cd ..\users-service; npx prisma generate
+cd ..\orders-service; npx prisma generate
 cd ..\payments-service; npx prisma generate
+cd ..\notification-service; npx prisma generate
 cd ..\search-service; npx prisma generate
 cd ..\tickets-service; npx prisma generate
-cd ..\orders-service; npx prisma generate
 ```
 
 ## Thu tu chay local de dev
@@ -180,10 +194,11 @@ cd ..\orders-service; npx prisma generate
 ```powershell
 cd auth-service; npm run start:dev
 cd ..\users-service; npm run start:dev
-cd ..\search-service; npm run start:dev
-cd ..\tickets-service; npm run start:dev
 cd ..\orders-service; npm run start:dev
 cd ..\payments-service; npm run start:dev
+cd ..\notification-service; npm run start:dev
+cd ..\search-service; npm run start:dev
+cd ..\tickets-service; npm run start:dev
 ```
 
 4. Start gateway:
@@ -245,9 +260,11 @@ npm run lint
 ## Tinh trang hien tai can biet
 
 - Repo da tach thanh sibling services, khong phai Nest monorepo chung.
+- Moi service MySQL co database rieng (`railway_auth`, `railway_users`, `railway_orders`, `railway_payments`, `railway_notifications`).
 - `api-gateway` nen giu mong, business flow dai hoi nen nam o domain service.
-- `orders-service` luu order bang Prisma + MySQL, gom order, seat labels va passengers.
+- `orders-service` luu order bang Prisma + MySQL, gom order, seat labels va passengers. Service nay lang nghe 2 RMQ queue: `orders_queue` va `orders_expired_process_queue`.
 - `payments-service -> orders-service` da co event `payment.paid`, nhung phan lon flow van la command/query dong bo qua RabbitMQ.
+- `notification-service` chi nhan event tu cac service khac (auth, orders), khong co HTTP endpoint.
 - `client/README.md` hien van la README mac dinh cua Next.js, khong phan anh toan bo repo nay.
 
 ## Goi y verify sau khi sua code
