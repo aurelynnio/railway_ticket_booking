@@ -99,4 +99,9 @@ export class PaymentsController {
   remove(@Payload() payload: SoftDeletePaymentRequest) {
     return this.paymentsService.softDeletePayment(payload);
   }
+
+  @MessagePattern('payments.webhook.stripe')
+  handleStripeWebhook(@Payload() payload: any) {
+    return this.paymentsService.handleStripeWebhook(payload);
+  }
 }

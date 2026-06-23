@@ -62,11 +62,20 @@ describe('OrdersService', () => {
     };
     prisma = createMockPrisma();
 
+    const notificationClient = {
+      emit: jest.fn(),
+    };
+    const usersClient = {
+      send: jest.fn(),
+    };
+
     service = new OrdersService(
       prisma as unknown as PrismaClient,
       paymentClient as unknown as any,
       ticketClient as unknown as any,
       expirationClient as unknown as any,
+      notificationClient as unknown as any,
+      usersClient as unknown as any,
     );
   });
 

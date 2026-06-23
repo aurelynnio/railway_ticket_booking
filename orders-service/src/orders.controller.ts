@@ -7,6 +7,7 @@ import {
   CheckoutOrderRequest,
   CreateOrderRequest,
   ListOrdersQuery,
+  OrderResponse,
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
 } from './orders.dto';
@@ -110,12 +111,12 @@ export class OrdersController {
   }
 
   @MessagePattern('orders.expire')
-  expire(@Payload() data: { orderId: string }) {
+  expire(@Payload() data: { orderId: string }): Promise<OrderResponse> {
     return this.ordersService.expire(data.orderId);
   }
 
   @MessagePattern('orders.refund')
-  refund(@Payload() data: { orderId: string }) {
+  refund(@Payload() data: { orderId: string }): Promise<OrderResponse> {
     return this.ordersService.refund(data.orderId);
   }
 

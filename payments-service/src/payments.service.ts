@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Prisma, PrismaClient, type Payment } from '@prisma/client';
 import { lastValueFrom } from 'rxjs';
@@ -28,6 +28,8 @@ import {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     @Inject('order_service') private readonly orderClient: ClientProxy,
@@ -325,5 +327,42 @@ export class PaymentsService {
         complete: () => resolve(),
       });
     });
+  }
+
+  async handleStripeWebhook(payload: any) {
+    this.logger.log(`Received Stripe Webhook. Type: ${payload?.type}`);
+    if (payload?.type === 'charge.succeeded' || payload?.type === 'payment_intent.succeeded') {
+      const charge = payload.data?.object;
+      const transactionId = charge?.metadata?.transactionId || charge?.id;
+      const orderId = charge?.metadata?.orderId;
+
+      this.logger.log(`Processing successful Stripe payment: transactionId=${transactionId}, orderId=${orderId}`);
+
+      let paymentRecord;
+      if (transactionId) {
+        paymentRecord = await this.prisma.payment.findFirst({
+          where: { transactionId, deletedAt: null },
+        });
+      }
+      if (!paymentRecord && orderId) {
+        paymentRecord = await this.prisma.payment.findFirst({
+          where: { orderId, deletedAt: null, status: PaymentStatus.Pending },
+        });
+      }
+
+      if (!paymentRecord) {
+        this.logger.error(`Could not locate pending payment for transactionId: ${transactionId}, orderId: ${orderId}`);
+        throw new HttpException('Payment record not found', HttpStatus.NOT_FOUND);
+      }
+
+      this.logger.log(`Marking payment ${paymentRecord.id} as Paid via Stripe Webhook`);
+      return this.markPaidWorkflow({
+        id: paymentRecord.id,
+        paidAt: new Date(),
+      });
+    }
+
+    this.logger.log(`Stripe webhook type "${payload?.type}" unhandled.`);
+    return { received: true };
   }
 }

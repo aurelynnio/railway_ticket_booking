@@ -12,7 +12,7 @@ async function bootstrap() {
       urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
       queue: 'orders_queue',
       noAck: true,
-      prefectchCount: 1,
+      prefetchCount: 1,
       queueOptions: {
         durable: false,
         arguments: {
@@ -43,6 +43,7 @@ async function bootstrap() {
   );
 
   await app.startAllMicroservices();
-  await app.listen(process.env.PORT || 3004);
+  await app.init();
+  console.log('OrdersService microservices started');
 }
 void bootstrap();

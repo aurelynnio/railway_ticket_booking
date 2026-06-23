@@ -93,4 +93,9 @@ export class PaymentController {
   softDeletePayment(@Param('id') id: string) {
     return this.paymentService.softDeletePayment({ id });
   }
+
+  @Post('webhook/stripe')
+  handleStripeWebhook(@Body() payload: any) {
+    return this.paymentService.handleStripeWebhook(payload);
+  }
 }

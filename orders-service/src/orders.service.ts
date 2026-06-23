@@ -1,7 +1,8 @@
-import { HttpException, HttpStatus, Injectable, Inject } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Inject, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
+import { Cron } from '@nestjs/schedule';
 import type {
   PaymentPaidEventPayload,
   PaymentDto,
@@ -46,11 +47,15 @@ const orderInclude = {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
-    private readonly prisma: PrismaClient,
-    @Inject('payment_service') private readonly paymentClient: ClientProxy,
-    @Inject('ticket_service') private readonly ticketClient: ClientProxy,
-    @Inject('orders_expiration_service') private readonly expirationClient: ClientProxy,
+	private readonly prisma: PrismaClient,
+	@Inject('payment_service') private readonly paymentClient: ClientProxy,
+	@Inject('ticket_service') private readonly ticketClient: ClientProxy,
+	@Inject('orders_expiration_service') private readonly expirationClient: ClientProxy,
+	@Inject('notification_service') private readonly notificationClient: ClientProxy,
+	@Inject('users_service') private readonly usersClient: ClientProxy,
   ) {}
 
   health() {
@@ -127,6 +132,33 @@ export class OrdersService {
         this.expirationClient.emit('orders.expire_check', { orderId: order.id });
       } catch (err) {
         console.error('Failed to emit orders.expire_check event:', err);
+      }
+
+      // Fetch user email for notification
+      let email = `user-${order.userId}@example.com`;
+      try {
+        const observable = this.usersClient.send({ cmd: 'users.get_by_id' }, { userId: order.userId });
+        if (observable) {
+          const userObj = await lastValueFrom(observable);
+          if (userObj && userObj.email) {
+            email = userObj.email;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to fetch user profile for userId ${order.userId} during checkout email notification:`, err);
+      }
+
+      try {
+        this.notificationClient.emit('notification.order_created', {
+          userId: order.userId,
+          email,
+          orderId: order.id,
+          totalPrice: Number(order.totalPrice),
+          trainNumber: order.trainNumber || '',
+          seatLabels: normalizedSeatLabels,
+        });
+      } catch (err) {
+        console.error('Failed to emit notification.order_created event:', err);
       }
 
       return {
@@ -438,6 +470,32 @@ export class OrdersService {
     if (currentOrder.status === OrderStatus.Confirmed) {
       currentOrder = await this.issueTicket(currentOrder.id);
       advancedOrderStatuses.push(currentOrder.status);
+
+      // Fetch user email for confirmation notification
+      let email = `user-${currentOrder.userId}@example.com`;
+      try {
+        const observable = this.usersClient.send({ cmd: 'users.get_by_id' }, { userId: currentOrder.userId });
+        if (observable) {
+          const userObj = await lastValueFrom(observable);
+          if (userObj && userObj.email) {
+            email = userObj.email;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification:`, err);
+      }
+
+      try {
+        this.notificationClient.emit('notification.payment_paid', {
+          userId: currentOrder.userId,
+          email,
+          orderId: currentOrder.id,
+          amount: Number(currentOrder.totalPrice),
+          ticketCode: currentOrder.ticketCode || '',
+        });
+      } catch (err) {
+        console.error('Failed to emit notification.payment_paid event:', err);
+      }
     }
 
     return {
@@ -868,6 +926,36 @@ export class OrdersService {
       }
     } catch (error) {
       console.error(`Error processing order expire check for order ${data.orderId}:`, error);
+    }
+  }
+
+  @Cron('0 * * * * *')
+  async handleExpiredOrdersCron() {
+    this.logger.log('Running expired orders cron check...');
+    const ttlMs = parseInt(process.env.ORDER_EXPIRATION_TTL_MS || '600000', 10);
+    const expirationThreshold = new Date(Date.now() - ttlMs);
+
+    const expiredOrders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PendingPayment,
+        createdAt: {
+          lt: expirationThreshold,
+        },
+      },
+    });
+
+    if (expiredOrders.length > 0) {
+      this.logger.log(`Found ${expiredOrders.length} expired unpaid orders. Expiring them...`);
+      for (const order of expiredOrders) {
+        try {
+          await this.cancelWorkflow({
+            orderId: order.id,
+            payload: { reason: 'Order expired due to payment timeout (cron fallback)' },
+          });
+        } catch (error) {
+          this.logger.error(`Failed to cancel expired order ${order.id} in cron:`, error);
+        }
+      }
     }
   }
 }

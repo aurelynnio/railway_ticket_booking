@@ -74,4 +74,8 @@ export class PaymentService {
   softDeletePayment(payload: SoftDeletePaymentRequest) {
     return this.paymentClient.send('payments.remove', payload);
   }
+
+  handleStripeWebhook(payload: any) {
+    return this.paymentClient.send('payments.webhook.stripe', payload);
+  }
 }
