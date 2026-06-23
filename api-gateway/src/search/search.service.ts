@@ -15,4 +15,12 @@ export class SearchService {
   trips(query: SearchTripsQuery) {
     return this.searchClient.send({ cmd: 'search.trips' }, query);
   }
+
+  suggestStations(query: string) {
+    return this.searchClient.send({ cmd: 'search.suggest_stations' }, { query });
+  }
+
+  sync() {
+    return this.searchClient.send({ cmd: 'search.sync' }, {});
+  }
 }

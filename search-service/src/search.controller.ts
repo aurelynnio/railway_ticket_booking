@@ -17,6 +17,16 @@ export class SearchController {
     return this.searchService.trips(query);
   }
 
+  @MessagePattern({ cmd: 'search.suggest_stations' })
+  suggestStations(@Payload() data: { query: string }) {
+    return this.searchService.suggestStations(data.query || '');
+  }
+
+  @MessagePattern({ cmd: 'search.sync' })
+  sync() {
+    return this.searchService.syncAllToElasticsearch();
+  }
+
   @EventPattern('ticket.created')
   async handleTicketCreated(@Payload() data: any) {
     await this.searchService.upsertTicket(data);

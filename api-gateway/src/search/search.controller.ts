@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { SearchService } from './search.service';
 import { SearchTripsQuery } from './search.dto';
 
@@ -14,5 +14,15 @@ export class SearchController {
   @Get('trips')
   trips(@Query() query: SearchTripsQuery) {
     return this.searchService.trips(query);
+  }
+
+  @Get('suggest-stations')
+  suggestStations(@Query('q') query: string) {
+    return this.searchService.suggestStations(query || '');
+  }
+
+  @Post('sync')
+  sync() {
+    return this.searchService.sync();
   }
 }
