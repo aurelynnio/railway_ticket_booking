@@ -11,7 +11,6 @@ export interface RouteScaffoldLink {
 export function RouteScaffold({
   title,
   description,
-  routePath,
   links = [],
   notes = [],
 }: {
@@ -26,32 +25,28 @@ export function RouteScaffold({
       title={title}
       description={description}
       actions={
-        <div className="flex flex-wrap gap-2 text-sm text-zinc-700">
-          <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 font-mono text-xs text-zinc-500">
-            {routePath}
-          </span>
+        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
           <Link
             href="/route-map"
-            className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 hover:bg-zinc-100"
+            className="rounded-md border border-border bg-background px-3 py-1.5 hover:bg-muted"
           >
-            Route map
+            Sơ đồ trang
           </Link>
         </div>
       }
     >
       <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
         <Panel
-          title="Route Scaffold"
-          description="Trang nay da duoc tao san trong App Router. Anh co the them form, table, hook, query va business logic vao day."
+          title="Trang đang hoàn thiện"
+          description="Nội dung chi tiết sẽ được bổ sung khi tính năng sẵn sàng."
         >
-          <div className="grid gap-3 text-sm leading-6 text-zinc-700">
+          <div className="grid gap-3 text-sm leading-6 text-muted-foreground">
             <p>
-              Day la page scaffold da ton tai trong route tree, de anh noi tiep
-              vao data backend khi can.
+              Bạn vẫn có thể điều hướng sang các khu vực liên quan bên dưới.
             </p>
             {notes.length > 0 ? (
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                <p className="font-medium text-zinc-900">Ghi chu</p>
+              <div className="quiet-panel p-4">
+                <p className="font-medium text-foreground">Ghi chú</p>
                 <ul className="mt-2 grid gap-2">
                   {notes.map((note) => (
                     <li key={note}>- {note}</li>
@@ -62,26 +57,26 @@ export function RouteScaffold({
           </div>
         </Panel>
         <Panel
-          title="Lien quan"
-          description="Cac trang dong cap hoặc can ke de dieu huong nhanh khi tiep tuc phat trien."
+          title="Liên quan"
+          description="Các khu vực có thể mở tiếp."
         >
           <div className="grid gap-3">
             {links.length === 0 ? (
-              <p className="text-sm text-zinc-600">
-                Chua khai bao link lien quan cho scaffold nay.
+              <p className="text-sm text-muted-foreground">
+                Chưa có liên kết liên quan.
               </p>
             ) : (
               links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition hover:border-zinc-300 hover:bg-zinc-50"
+                  className="quiet-panel px-4 py-3 transition-colors hover:bg-muted"
                 >
-                  <p className="text-sm font-medium text-zinc-900">
+                  <p className="text-sm font-medium text-foreground">
                     {link.label}
                   </p>
                   {link.description ? (
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {link.description}
                     </p>
                   ) : null}

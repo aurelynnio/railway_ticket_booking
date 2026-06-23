@@ -15,7 +15,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useCreateOrder } from "@/hooks/order.hook";
-import { useSeatMap, useTicket, useTicketAvailability, usePublishTicket, useUnpublishTicket, useCloseSale, usePrepareStock, useOpenSale, useRemoveTicket } from "@/hooks/ticket.hook";
+import {
+  useAddTicketItem,
+  useCloseSale,
+  useOpenSale,
+  usePrepareStock,
+  usePublishTicket,
+  useReleaseTicket,
+  useRemoveTicket,
+  useReserveTicket,
+  useSeatMap,
+  useTicket,
+  useTicketAvailability,
+  useUnpublishTicket,
+  useUpdateTicket,
+} from "@/hooks/ticket.hook";
 import {
   formatCurrency,
   formatDateTime,
@@ -42,11 +56,24 @@ export default function TicketDetailPage() {
   const prepareStock = usePrepareStock();
   const openSale = useOpenSale();
   const removeTicket = useRemoveTicket();
+  const reserveTicket = useReserveTicket();
+  const releaseTicket = useReleaseTicket();
+  const addTicketItem = useAddTicketItem();
+  const updateTicket = useUpdateTicket(ticketId);
 
   const [selectedTicketItemId, setSelectedTicketItemId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [seatLabels, setSeatLabels] = useState("");
   const [passengerName, setPassengerName] = useState("");
+  const [reservationSeatLabel, setReservationSeatLabel] = useState("");
+  const [reservationQuantity, setReservationQuantity] = useState("1");
+  const [newItemCoach, setNewItemCoach] = useState("");
+  const [newItemSeatClass, setNewItemSeatClass] = useState("");
+  const [newItemSeats, setNewItemSeats] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editTrainNumber, setEditTrainNumber] = useState("");
+  const [editJourneyNote, setEditJourneyNote] = useState("");
 
   const ticket = ticketQuery.data;
   const resolvedSelectedTicketItemId =
@@ -100,7 +127,7 @@ export default function TicketDetailPage() {
   return (
     <AppShell
       title={isAdminView ? "Chi tiết điều phối vé" : "Chi tiết vé"}
-      description="Xem ticket core, availability, seat map và lựa chọn ticket item trên cùng một nhịp. Admin mode ưu tiên tồn vé, còn passenger mode ưu tiên đặt chỗ."
+      description="Xem hành trình, hạng ghế, tình trạng chỗ và thao tác đặt vé trong cùng một màn hình."
       actions={
         <div className="flex flex-wrap items-center gap-3">
           <Button asChild variant="ghost">
@@ -117,10 +144,10 @@ export default function TicketDetailPage() {
         </div>
       }
     >
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
         <Panel
           title={ticket?.title ?? "Đang tải vé"}
-          description="Hành trình, lịch chạy và danh sách ticket item bên trong vé."
+          description="Hành trình, lịch chạy và các hạng ghế đang mở."
         >
           <div className="space-y-5">
             <SectionHeading
@@ -161,7 +188,7 @@ export default function TicketDetailPage() {
                         className={`rounded-lg px-4 py-4 text-left transition ${
                           isSelected
                             ? "bg-muted/55 ring-1 ring-foreground/18"
-                            : "bg-background ring-1 ring-border hover:bg-muted/25"
+                            : "bg-background border border-border hover:bg-muted/25"
                         }`}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -210,10 +237,10 @@ export default function TicketDetailPage() {
           </div>
         </Panel>
 
-        <div className="grid gap-6">
+        <div className="grid gap-8">
           <Panel
-            title="Ảnh chụp khả dụng"
-            description="Lấy từ `/availability` để đọc tồn chỗ và trạng thái mở bán hiện tại."
+          title="Tình trạng chỗ"
+          description="Số ghế còn lại và trạng thái mở bán theo từng hạng."
           >
             {availabilityQuery.data ? (
               <div className="space-y-4">
@@ -240,11 +267,11 @@ export default function TicketDetailPage() {
 
           {selectedItem ? (
             <Panel
-              title={isAdminView ? "Khối tồn vé đang chọn" : "Khung đặt chỗ"}
+              title={isAdminView ? "Hạng ghế đang chọn" : "Đặt chỗ"}
               description={
                 isAdminView
-                  ? "Thông tin chi tiết của ticket item đang chọn, kèm lượng ghế và khoảng giá."
-                  : "Nhập payload đặt vé nhanh trên ticket item đang chọn."
+                  ? "Thông tin ghế, giá và lượng chỗ còn lại."
+                  : "Điền thông tin hành khách và số ghế mong muốn."
               }
             >
               <div className="space-y-4">
@@ -271,11 +298,60 @@ export default function TicketDetailPage() {
                 <SeatCloud labels={selectedItem.availableSeatLabels} />
 
                 {isAdminView ? (
-                  <Button asChild variant="outline">
-                    <Link href={`/admin/tickets/${ticketId}/items/${selectedItem.id}`}>
-                      Mở ticket item
-                    </Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                      <Link href={`/admin/tickets/${ticketId}/items/${selectedItem.id}`}>
+                        Mở hạng ghế
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!ticketId || reserveTicket.isPending}
+                      onClick={() =>
+                        reserveTicket.mutate({
+                          ticketId,
+                          payload: {
+                            ticketItemId: selectedItem.id,
+                            seatLabel: reservationSeatLabel || undefined,
+                            quantity: Number(reservationQuantity) || 1,
+                          },
+                        })
+                      }
+                    >
+                      Giữ chỗ
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!ticketId || releaseTicket.isPending}
+                      onClick={() =>
+                        releaseTicket.mutate({
+                          ticketId,
+                          payload: {
+                            ticketItemId: selectedItem.id,
+                            seatLabel: reservationSeatLabel || undefined,
+                            quantity: Number(reservationQuantity) || 1,
+                          },
+                        })
+                      }
+                    >
+                      Hoàn chỗ
+                    </Button>
+                    <Input
+                      className="min-w-36 flex-1"
+                      placeholder="Seat label"
+                      value={reservationSeatLabel}
+                      onChange={(event) => setReservationSeatLabel(event.target.value)}
+                    />
+                    <Input
+                      className="w-24"
+                      type="number"
+                      min="1"
+                      value={reservationQuantity}
+                      onChange={(event) => setReservationQuantity(event.target.value)}
+                    />
+                  </div>
                 ) : (
                   <div className="grid gap-3">
                     <Input
@@ -310,61 +386,170 @@ export default function TicketDetailPage() {
           ) : null}
 
           {isAdminView ? (
-            <Panel
-              title="Điều phối vé"
-              description="Các action quản trị ở cấp ticket: publish, unpublish, chuẩn bị tồn, mở bán, đóng bán hoặc xoá."
-            >
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!ticket}
-                  onClick={() => publishTicket.mutate({ ticketId })}
-                >
-                  Publish
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!ticket}
-                  onClick={() => unpublishTicket.mutate({ ticketId })}
-                >
-                  Unpublish
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!ticket}
-                  onClick={() => prepareStock.mutate({ ticketId, payload: { ticketItemId: selectedItem?.id } })}
-                >
-                  Prepare stock
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!ticket}
-                  onClick={() => openSale.mutate({ ticketId, payload: { ticketItemId: selectedItem?.id } })}
-                >
-                  Open sale
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!ticket}
-                  onClick={() => closeSale.mutate({ ticketId })}
-                >
-                  Close sale
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={!ticket}
-                  onClick={() => removeTicket.mutate({ ticketId })}
-                >
-                  Delete ticket
-                </Button>
-              </div>
-            </Panel>
+            <>
+              <Panel
+                title="Điều phối vé"
+                description="Điều chỉnh trạng thái bán và tồn chỗ của hành trình."
+              >
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticket}
+                    onClick={() => publishTicket.mutate({ ticketId })}
+                  >
+                    Publish
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticket}
+                    onClick={() => unpublishTicket.mutate({ ticketId })}
+                  >
+                    Unpublish
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticket}
+                    onClick={() =>
+                      prepareStock.mutate({
+                        ticketId,
+                        payload: { ticketItemId: selectedItem?.id },
+                      })
+                    }
+                  >
+                    Chuẩn bị chỗ
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticket}
+                    onClick={() =>
+                      openSale.mutate({
+                        ticketId,
+                        payload: { ticketItemId: selectedItem?.id },
+                      })
+                    }
+                  >
+                    Mở bán
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticket}
+                    onClick={() => closeSale.mutate({ ticketId })}
+                  >
+                    Đóng bán
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={!ticket}
+                    onClick={() => removeTicket.mutate({ ticketId })}
+                  >
+                    Xoá vé
+                  </Button>
+                </div>
+              </Panel>
+
+              <Panel
+                title="Chỉnh sửa vé"
+                description="Cập nhật tiêu đề, số tàu và ghi chú hành trình."
+              >
+                <div className="grid gap-3">
+                  <Input
+                    placeholder={ticket?.title ?? "Tiêu đề vé"}
+                    value={editTitle}
+                    onChange={(event) => setEditTitle(event.target.value)}
+                  />
+                  <Input
+                    placeholder={ticket?.trainNumber ?? "Số tàu"}
+                    value={editTrainNumber}
+                    onChange={(event) => setEditTrainNumber(event.target.value)}
+                  />
+                  <Input
+                    placeholder={ticket?.journeyNote ?? "Ghi chú hành trình"}
+                    value={editJourneyNote}
+                    onChange={(event) => setEditJourneyNote(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticketId || updateTicket.isPending}
+                    onClick={() =>
+                      updateTicket.mutate({
+                        title: editTitle || undefined,
+                        trainNumber: editTrainNumber || undefined,
+                        journeyNote: editJourneyNote || undefined,
+                      })
+                    }
+                  >
+                    {updateTicket.isPending ? "Đang cập nhật..." : "Cập nhật vé"}
+                  </Button>
+                  {updateTicket.isSuccess ? (
+                    <p className="text-sm text-emerald-700">Cập nhật thành công.</p>
+                  ) : null}
+                  {updateTicket.isError ? (
+                    <p className="text-sm text-rose-700">Cập nhật thất bại.</p>
+                  ) : null}
+                </div>
+              </Panel>
+
+              <Panel
+                title="Thêm hạng ghế"
+                description="Bổ sung toa hoặc hạng ghế mới cho hành trình."
+              >
+                <div className="grid gap-3">
+                  <Input
+                    placeholder="Coach code"
+                    value={newItemCoach}
+                    onChange={(event) => setNewItemCoach(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Seat class"
+                    value={newItemSeatClass}
+                    onChange={(event) => setNewItemSeatClass(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Seat labels CSV"
+                    value={newItemSeats}
+                    onChange={(event) => setNewItemSeats(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Original price"
+                    value={newItemPrice}
+                    onChange={(event) => setNewItemPrice(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ticketId || addTicketItem.isPending}
+                    onClick={() => {
+                      const parsedSeats = newItemSeats
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean);
+
+                      addTicketItem.mutate({
+                        ticketId,
+                        payload: {
+                          coachCode: newItemCoach || undefined,
+                          seatClass: newItemSeatClass || undefined,
+                          seatLabels: parsedSeats,
+                          availableSeatLabels: parsedSeats,
+                          stockInitial: parsedSeats.length || undefined,
+                          stockAvailable: parsedSeats.length || undefined,
+                          priceOriginal: newItemPrice || undefined,
+                        },
+                      });
+                    }}
+                  >
+                    {addTicketItem.isPending ? "Đang thêm..." : "Thêm hạng ghế"}
+                  </Button>
+                </div>
+              </Panel>
+            </>
           ) : null}
 
           <Panel
@@ -398,7 +583,7 @@ export default function TicketDetailPage() {
 
 function ItemMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-muted/35 px-3 py-3 ring-1 ring-border">
+    <div className="rounded-lg bg-muted/35 px-3 py-3 border border-border">
       <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>

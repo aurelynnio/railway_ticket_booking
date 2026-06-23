@@ -47,6 +47,15 @@ export interface TicketAvailabilityResponse {
   items: TicketItemResponse[];
 }
 
+export interface TicketItemAvailabilityResponse {
+  ticketId: string;
+  ticketItemId: string;
+  availableSeatLabels: string[];
+  occupiedSeatLabels: string[];
+  stockAvailable: number;
+  saleOpen: boolean;
+}
+
 export interface SeatMapResponse {
   ticketId: string;
   items: Array<{
@@ -111,3 +120,19 @@ export interface ChangeSaleWindowRequest {
   saleStartTime?: string;
   saleEndTime?: string;
 }
+
+export interface ReserveTicketRequest {
+  ticketItemId: string;
+  seatLabel?: string;
+  quantity?: number;
+  passengerId?: string;
+}
+
+export type ReleaseTicketRequest = ReserveTicketRequest;
+
+export interface ReserveSeatRequest {
+  seatLabel: string;
+  passengerId?: string;
+}
+
+export type ReleaseSeatRequest = ReserveSeatRequest;

@@ -39,71 +39,73 @@ export default function PaymentDetailPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "Payment operations" : "Payment detail"}
-      description="Ban ghi chi tiet tu `payments-service`, dung de soat transaction, tinh trang thanh toan va cac action can thiep tay khi can."
+      title={isAdminView ? "Quản lý thanh toán" : "Chi tiết thanh toán"}
+      description="Theo dõi số tiền, phương thức, mã giao dịch và trạng thái xử lý."
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!payment}
-            onClick={() => markProcessing.mutate({ id: paymentId })}
-          >
-            Đang xử lý
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!payment}
-            onClick={() => markPaid.mutate({ id: paymentId })}
-          >
-            Thanh toán + phát hành
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!payment}
-            onClick={() => markFailed.mutate({ id: paymentId })}
-          >
-            Thất bại
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!payment}
-            onClick={() => cancelPayment.mutate({ id: paymentId })}
-          >
-            Huỷ
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={!payment}
-            onClick={() => expirePayment.mutate({ id: paymentId })}
-          >
-            Hết hạn
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={!payment}
-            onClick={() => deletePayment.mutate({ id: paymentId })}
-          >
-            Xoá
-          </Button>
-        </div>
+        isAdminView ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!payment}
+              onClick={() => markProcessing.mutate({ id: paymentId })}
+            >
+              Đang xử lý
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!payment}
+              onClick={() => markPaid.mutate({ id: paymentId })}
+            >
+              Thanh toán + phát hành
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!payment}
+              onClick={() => markFailed.mutate({ id: paymentId })}
+            >
+              Thất bại
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!payment}
+              onClick={() => cancelPayment.mutate({ id: paymentId })}
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!payment}
+              onClick={() => expirePayment.mutate({ id: paymentId })}
+            >
+              Hết hạn
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!payment}
+              onClick={() => deletePayment.mutate({ id: paymentId })}
+            >
+              Xoá
+            </Button>
+          </div>
+        ) : null
       }
     >
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel
-          title={payment ? compactId(payment.id) : "Payment detail"}
-          description="Trung tam thong tin giao dich, noi ket noi order, user va transaction id."
+          title={payment ? compactId(payment.id) : "Chi tiết thanh toán"}
+          description="Thông tin giao dịch và liên kết với đơn hàng."
         >
           <div className="space-y-5">
             <SectionHeading
-              eyebrow="Transaction"
-              title={payment ? formatCurrency(Number(payment.amount)) : "Dang tai payment"}
-              description="Amount duoc luu duoi dang BigInt chuoi hoa trong API type, can format ve VND de doc nhanh."
+              eyebrow="Giao dịch"
+              title={payment ? formatCurrency(Number(payment.amount)) : "Đang tải thanh toán"}
+              description="Số tiền và trạng thái mới nhất của giao dịch."
               action={
                 payment ? (
                   <StatusBadge
@@ -117,63 +119,63 @@ export default function PaymentDetailPage() {
             {payment ? (
               <MetaGrid
                 items={[
-                  { label: "Payment ID", value: compactId(payment.id) },
-                  { label: "Transaction", value: compactId(payment.transactionId) },
-                  { label: "Order ID", value: compactId(payment.orderId) },
-                  { label: "User ID", value: compactId(payment.userId) },
-                  { label: "Method", value: payment.paymentMethod },
-                  { label: "Created", value: formatDateTime(payment.createdAt) },
-                  { label: "Updated", value: formatDateTime(payment.updatedAt) },
-                  { label: "Paid at", value: formatDateTime(payment.paidAt) },
+                  { label: "Mã thanh toán", value: compactId(payment.id) },
+                  { label: "Mã giao dịch", value: compactId(payment.transactionId) },
+                  { label: "Mã đơn", value: compactId(payment.orderId) },
+                  { label: "Người dùng", value: compactId(payment.userId) },
+                  { label: "Phương thức", value: payment.paymentMethod },
+                  { label: "Ngày tạo", value: formatDateTime(payment.createdAt) },
+                  { label: "Cập nhật", value: formatDateTime(payment.updatedAt) },
+                  { label: "Thanh toán lúc", value: formatDateTime(payment.paidAt) },
                 ]}
                 columns={3}
               />
             ) : null}
 
             {paymentQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Dang tai payment...</p>
+              <p className="text-sm text-muted-foreground">Đang tải thanh toán...</p>
             ) : null}
             {paymentQuery.isError ? (
               <p className="text-sm text-rose-700">
-                Khong tai duoc payment. Kiem tra ID hoac trang thai service.
+                Không tải được thanh toán. Vui lòng thử lại sau.
               </p>
             ) : null}
           </div>
         </Panel>
 
         <Panel
-          title="State machine"
-          description="Action paid gio phat event `payment.paid` tu payments-service, sau do orders-service tu dong advance order lifecycle o background."
+          title="Trạng thái xử lý"
+          description="Theo dõi thao tác đang chạy và trạng thái lưu trữ."
         >
           <MetaGrid
             items={[
               {
-                label: "Processing",
-                value: markProcessing.isPending ? "Dang cap nhat..." : "San sang",
+                label: "Đang xử lý",
+                value: markProcessing.isPending ? "Đang cập nhật..." : "Sẵn sàng",
               },
               {
-                label: "Mark paid",
-                value: markPaid.isPending ? "Dang cap nhat..." : "San sang",
+                label: "Đánh dấu đã trả",
+                value: markPaid.isPending ? "Đang cập nhật..." : "Sẵn sàng",
               },
               {
-                label: "Mark failed",
-                value: markFailed.isPending ? "Dang cap nhat..." : "San sang",
+                label: "Đánh dấu lỗi",
+                value: markFailed.isPending ? "Đang cập nhật..." : "Sẵn sàng",
               },
               {
-                label: "Cancel",
-                value: cancelPayment.isPending ? "Dang cap nhat..." : "San sang",
+                label: "Huỷ",
+                value: cancelPayment.isPending ? "Đang cập nhật..." : "Sẵn sàng",
               },
               {
-                label: "Expire",
-                value: expirePayment.isPending ? "Dang cap nhat..." : "San sang",
+                label: "Hết hạn",
+                value: expirePayment.isPending ? "Đang cập nhật..." : "Sẵn sàng",
               },
               {
-                label: "Delete",
-                value: deletePayment.isPending ? "Dang cap nhat..." : "San sang",
+                label: "Xoá",
+                value: deletePayment.isPending ? "Đang cập nhật..." : "Sẵn sàng",
               },
               {
-                label: "Deleted at",
-                value: payment?.deletedAt ? formatDateTime(payment.deletedAt) : "Active",
+                label: "Trạng thái lưu trữ",
+                value: payment?.deletedAt ? formatDateTime(payment.deletedAt) : "Đang hoạt động",
               },
             ]}
             columns={3}

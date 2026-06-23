@@ -78,3 +78,11 @@ export interface CancelOrderWorkflowResponse {
   cancelledPaymentIds: string[];
   warnings: string[];
 }
+
+export interface UpdateOrderPassengersRequest {
+  passengers: OrderPassenger[];
+}
+
+export interface UpdateOrderSeatLabelsRequest {
+  seatLabels: string[];
+}

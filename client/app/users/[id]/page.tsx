@@ -18,11 +18,11 @@ export default function UserDetailPage() {
   const isAdminView = pathname.startsWith("/admin");
   const detailPrefix = isAdminView ? "/admin" : "";
 
-  const userQuery = useUser(userId);
-  const ordersQuery = useOrders({ page: 1, limit: 6, userId }, Boolean(userId));
+  const userQuery = useUser(userId, isAdminView);
+  const ordersQuery = useOrders({ page: 1, limit: 6, userId }, isAdminView && Boolean(userId));
   const paymentsQuery = usePaymentsByUserId(
     { userId, page: 1, limit: 6 },
-    Boolean(userId),
+    isAdminView && Boolean(userId),
   );
   const updateUser = useUpdateUser(userId);
 

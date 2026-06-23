@@ -37,8 +37,8 @@ export default function LoginPage() {
   return (
     <AuthShell
       eyebrow="Đăng nhập"
-      title="Đăng nhập để tiếp tục flow đặt vé"
-      description="Session được bảo vệ bằng HttpOnly cookie qua gateway, giúp bạn đặt vé, xem đơn hàng và quay lại thanh toán mà không cần lưu token trong trình duyệt."
+      title="Tiếp tục hành trình của bạn"
+      description="Đăng nhập để giữ chỗ, thanh toán và theo dõi vé đã đặt trên mọi thiết bị."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>Chưa có tài khoản?</span>
@@ -92,13 +92,19 @@ export default function LoginPage() {
           <ArrowRight />
         </Button>
 
+        <Button asChild type="button" size="lg" variant="outline">
+          <a href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/auth/google`}>
+            Đăng nhập Google
+          </a>
+        </Button>
+
         <div className="flex flex-wrap gap-2">
-          <StatusBadge label="Cookie session" tone="brand" />
-          <StatusBadge label="Gateway auth" tone="positive" />
+          <StatusBadge label="Bảo mật phiên" tone="brand" />
+          <StatusBadge label="Theo dõi đơn hàng" tone="positive" />
         </div>
 
         {login.isError ? (
-          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
             Đăng nhập thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại
             sau.
           </div>

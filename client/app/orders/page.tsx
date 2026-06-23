@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { OrderStatus } from "@/lib/api-types";
-import { useOrders } from "@/hooks/order.hook";
+import { useCreateOrderRecord, useOrders } from "@/hooks/order.hook";
 import {
   formatCurrency,
   formatDateTime,
@@ -40,6 +40,13 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState("");
+  const [draftUserId, setDraftUserId] = useState("");
+  const [draftTicketId, setDraftTicketId] = useState("");
+  const [draftTicketItemId, setDraftTicketItemId] = useState("");
+  const [draftTicketTitle, setDraftTicketTitle] = useState("");
+  const [draftQuantity, setDraftQuantity] = useState("1");
+  const [draftUnitPrice, setDraftUnitPrice] = useState("0");
+  const createOrderRecord = useCreateOrderRecord();
 
   const query = useOrders({
     page,
@@ -212,6 +219,73 @@ export default function OrdersPage() {
           ) : null}
         </div>
       </Panel>
+
+      {isAdminView ? (
+        <Panel
+          title="Tạo order thủ công"
+          description="Payload tối thiểu cho `POST /orders`, tách biệt với checkout flow có reservation/payment."
+        >
+          <div className="grid gap-3 lg:grid-cols-3">
+            <Input
+              placeholder="User ID"
+              value={draftUserId}
+              onChange={(event) => setDraftUserId(event.target.value)}
+            />
+            <Input
+              placeholder="Ticket ID"
+              value={draftTicketId}
+              onChange={(event) => setDraftTicketId(event.target.value)}
+            />
+            <Input
+              placeholder="Ticket item ID"
+              value={draftTicketItemId}
+              onChange={(event) => setDraftTicketItemId(event.target.value)}
+            />
+            <Input
+              placeholder="Ticket title"
+              value={draftTicketTitle}
+              onChange={(event) => setDraftTicketTitle(event.target.value)}
+            />
+            <Input
+              type="number"
+              min="1"
+              placeholder="Quantity"
+              value={draftQuantity}
+              onChange={(event) => setDraftQuantity(event.target.value)}
+            />
+            <Input
+              type="number"
+              min="0"
+              placeholder="Unit price"
+              value={draftUnitPrice}
+              onChange={(event) => setDraftUnitPrice(event.target.value)}
+            />
+            <Button
+              type="button"
+              className="lg:col-span-3"
+              disabled={
+                !draftUserId ||
+                !draftTicketId ||
+                !draftTicketItemId ||
+                !draftTicketTitle ||
+                createOrderRecord.isPending
+              }
+              onClick={() =>
+                createOrderRecord.mutate({
+                  userId: draftUserId,
+                  ticketId: draftTicketId,
+                  ticketItemId: draftTicketItemId,
+                  ticketTitle: draftTicketTitle,
+                  quantity: Number(draftQuantity) || 1,
+                  unitPrice: Number(draftUnitPrice) || 0,
+                })
+              }
+            >
+              {createOrderRecord.isPending ? "Đang tạo..." : "Tạo order"}
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
     </AppShell>
   );
 }

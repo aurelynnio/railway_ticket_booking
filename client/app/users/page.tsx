@@ -21,92 +21,133 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCreateUser, useListUsers } from "@/hooks/user.hook";
+import { useCreateUser, useListUsers, useUserByEmail } from "@/hooks/user.hook";
 import { formatDateTime } from "@/lib/formatters";
 
 export default function UsersPage() {
   const pathname = usePathname();
   const isAdminView = pathname.startsWith("/admin");
   const [page, setPage] = useState(1);
-  const query = useListUsers(page, 10);
+  const query = useListUsers(page, 10, isAdminView);
   const createUser = useCreateUser();
   const users = query.data?.data ?? [];
   const pagination = query.data?.pagination;
 
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [lookupEmail, setLookupEmail] = useState("");
+  const [submittedLookupEmail, setSubmittedLookupEmail] = useState("");
+  const lookupQuery = useUserByEmail(submittedLookupEmail, Boolean(submittedLookupEmail) && isAdminView);
 
   return (
     <AppShell
-      title={isAdminView ? "User operations" : "Users directory"}
-      description="Danh ba user tu `users-service`, bo tri de support truy vet account, phan tich traffic va noi nhanh sang order/payment cua mot user."
+      title={isAdminView ? "Quản lý người dùng" : "Danh bạ người dùng"}
+      description="Theo dõi tài khoản, thông tin liên hệ và các hoạt động liên quan."
     >
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
-          label="Visible users"
+          label="Người dùng"
           value={String(users.length)}
-          helper="So account tren page hien tai."
+          helper="Số tài khoản trong trang hiện tại."
         />
         <StatCard
-          label="Newest update"
+          label="Cập nhật mới nhất"
           value={users[0]?.updatedAt ? formatDateTime(users[0].updatedAt) : "N/A"}
-          helper="Moc thoi gian cap nhat gan nhat trong viewport."
+          helper="Mốc thay đổi gần nhất."
         />
         <StatCard
-          label="Scope"
-          value={isAdminView ? "Operations" : "Shared"}
-          helper="View nay duoc dung chung cho public registry va admin namespace."
+          label="Chế độ"
+          value={isAdminView ? "Quản trị" : "Công khai"}
+          helper="Không gian xem hiện tại."
         />
       </div>
 
       <Panel
-        title="Users table"
-        description="Moi dong giu nhieu thong tin co ban, sau do detail page se noi them order va payment lien quan."
+        title="Danh sách người dùng"
+        description="Mở từng tài khoản để xem chi tiết và dữ liệu liên quan."
       >
         <div className="space-y-5">
           <SectionHeading
-            eyebrow={isAdminView ? "Identity" : "Directory"}
-            title="Danh sach user"
-            description="List view giu thong tin gon, uu tien link sang detail hon la dua het moi field len bang."
+            eyebrow={isAdminView ? "Tài khoản" : "Danh bạ"}
+            title="Tài khoản hiện có"
+            description="Thông tin được giữ gọn để dễ quét và mở chi tiết khi cần."
           />
 
           {isAdminView ? (
-            <div className="grid gap-3 rounded-lg bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-[1fr_1fr_auto]">
-              <Input
-                placeholder="Username"
-                value={newUsername}
-                onChange={(event) => setNewUsername(event.target.value)}
-              />
-              <Input
-                placeholder="Email"
-                value={newEmail}
-                onChange={(event) => setNewEmail(event.target.value)}
-              />
-              <Button
-                type="button"
-                disabled={!newUsername || !newEmail || createUser.isPending}
-                onClick={() => {
-                  createUser.mutate({
-                    username: newUsername,
-                    email: newEmail,
-                  });
-                  setNewUsername("");
-                  setNewEmail("");
-                }}
-              >
-                {createUser.isPending ? "Đang tạo..." : "Tạo user"}
-              </Button>
+            <div className="grid gap-3 rounded-lg border border-border bg-muted/50 p-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
+                <Input
+                  placeholder="Username"
+                  value={newUsername}
+                  onChange={(event) => setNewUsername(event.target.value)}
+                />
+                <Input
+                  placeholder="Email"
+                  value={newEmail}
+                  onChange={(event) => setNewEmail(event.target.value)}
+                />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
+                <Button
+                  type="button"
+                  disabled={
+                    !newUsername ||
+                    !newEmail ||
+                    !newPassword ||
+                    createUser.isPending
+                  }
+                  onClick={() => {
+                    createUser.mutate({
+                      username: newUsername,
+                      email: newEmail,
+                      password: newPassword,
+                    });
+                    setNewUsername("");
+                    setNewEmail("");
+                    setNewPassword("");
+                  }}
+                >
+                  {createUser.isPending ? "Đang tạo..." : "Tạo người dùng"}
+                </Button>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                <Input
+                  placeholder="Tìm theo email"
+                  value={lookupEmail}
+                  onChange={(event) => setLookupEmail(event.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!lookupEmail}
+                  onClick={() => setSubmittedLookupEmail(lookupEmail)}
+                >
+                  Tìm email
+                </Button>
+              </div>
+              {lookupQuery.data ? (
+                <Button asChild variant="ghost" className="justify-self-start">
+                  <Link href={`/admin/users/${lookupQuery.data.id}`}>
+                    Mở {lookupQuery.data.email ?? compactId(lookupQuery.data.id)}
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           ) : null}
 
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User ID</TableHead>
-                <TableHead>Name</TableHead>
+                <TableHead>Mã người dùng</TableHead>
+                <TableHead>Tên</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead>Cập nhật</TableHead>
+                <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -123,7 +164,7 @@ export default function UsersPage() {
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`${isAdminView ? "/admin/users" : "/users"}/${user.id}`}>
-                        Chi tiet
+                        Chi tiết
                       </Link>
                     </Button>
                   </TableCell>

@@ -17,3 +17,8 @@ export interface SearchTripResponse {
   seatClasses: string[];
   seatTypes: string[];
 }
+
+export interface StationSuggestionResponse {
+  code: string | null;
+  name: string | null;
+}

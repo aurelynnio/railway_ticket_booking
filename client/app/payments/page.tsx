@@ -25,7 +25,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePayments } from "@/hooks/payment.hook";
+import { useAuthSession } from "@/hooks/auth.hook";
+import {
+  usePayments,
+  usePaymentsByUserId,
+} from "@/hooks/payment.hook";
 import { PaymentStatus } from "@/lib/api-types";
 import {
   formatCurrency,
@@ -42,13 +46,30 @@ export default function PaymentsPage() {
   const [orderId, setOrderId] = useState("");
   const [transactionId, setTransactionId] = useState("");
 
-  const query = usePayments({
-    page,
-    limit: 10,
-    status: status || undefined,
-    orderId: orderId || undefined,
-    transactionId: transactionId || undefined,
-  });
+  const session = useAuthSession();
+
+  // Admin: xem tất cả payments. Non-admin: chỉ xem payment của mình
+  const adminQuery = usePayments(
+    {
+      page,
+      limit: 10,
+      status: status || undefined,
+      orderId: orderId || undefined,
+      transactionId: transactionId || undefined,
+    },
+    isAdminView,
+  );
+
+  const userQuery = usePaymentsByUserId(
+    {
+      userId: session.data?.userId ?? "",
+      page,
+      limit: 10,
+    },
+    !isAdminView && Boolean(session.data?.userId),
+  );
+
+  const query = isAdminView ? adminQuery : userQuery;
 
   const payments = query.data?.data ?? [];
   const pagination = query.data?.pagination;

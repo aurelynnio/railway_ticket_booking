@@ -55,7 +55,7 @@ export default function ProfilePage() {
           />
           <button
             type="button"
-            className="surface-panel block rounded-lg px-5 py-5 text-left transition-colors hover:bg-muted/30"
+            className="surface-panel block rounded-lg px-5 py-5 text-left transition-colors hover:bg-muted/50"
             disabled={logout.isPending}
             onClick={() =>
               logout.mutate(undefined, {

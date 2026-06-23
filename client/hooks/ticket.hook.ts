@@ -8,7 +8,12 @@ import {
   OpenSaleRequest,
   PaginatedResponse,
   PrepareStockRequest,
+  ReleaseSeatRequest,
+  ReleaseTicketRequest,
+  ReserveSeatRequest,
+  ReserveTicketRequest,
   SeatMapResponse,
+  TicketItemAvailabilityResponse,
   TicketAvailabilityResponse,
   TicketResponse,
   UpdateTicketItemRequest,
@@ -121,6 +126,22 @@ export function useTicketItem(ticketId?: string, ticketItemId?: string) {
   });
 }
 
+export function useTicketItemAvailability(
+  ticketId?: string,
+  ticketItemId?: string,
+) {
+  return useQuery({
+    queryKey: ["ticket-item-availability", ticketId, ticketItemId],
+    enabled: Boolean(ticketId && ticketItemId),
+    queryFn: async () => {
+      const res = await instance.get<TicketItemAvailabilityResponse>(
+        `/tickets/${ticketId}/ticket-items/${ticketItemId}/availability`,
+      );
+      return res.data;
+    },
+  });
+}
+
 export function useCreateTicket() {
   const queryClient = useQueryClient();
 
@@ -149,6 +170,34 @@ export function useUpdateTicket(ticketId?: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ticket", ticketId] });
       void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    },
+  });
+}
+
+export function useAddTicketItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      payload,
+    }: {
+      ticketId: string;
+      payload: CreateTicketItemPayload;
+    }) => {
+      const res = await instance.post<TicketResponse>(
+        `/tickets/${ticketId}/ticket-items`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["ticket", variables.ticketId] });
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["seat-map", variables.ticketId] });
     },
   });
 }
@@ -253,6 +302,109 @@ export function useOpenSale() {
       });
     },
   });
+}
+
+function useTicketReservationAction<TPayload extends ReserveTicketRequest | ReleaseTicketRequest>(
+  pathBuilder: (ticketId: string) => string,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      payload,
+    }: {
+      ticketId: string;
+      payload: TPayload;
+    }) => {
+      const res = await instance.post<TicketAvailabilityResponse>(
+        pathBuilder(ticketId),
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["ticket", variables.ticketId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["seat-map", variables.ticketId] });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "ticket-item-availability",
+          variables.ticketId,
+          variables.payload.ticketItemId,
+        ],
+      });
+    },
+  });
+}
+
+export function useReserveTicket() {
+  return useTicketReservationAction<ReserveTicketRequest>(
+    (ticketId) => `/tickets/${ticketId}/reserve`,
+  );
+}
+
+export function useReleaseTicket() {
+  return useTicketReservationAction<ReleaseTicketRequest>(
+    (ticketId) => `/tickets/${ticketId}/release`,
+  );
+}
+
+function useSeatReservationAction<TPayload extends ReserveSeatRequest | ReleaseSeatRequest>(
+  pathBuilder: (ticketId: string, ticketItemId: string) => string,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      ticketItemId,
+      payload,
+    }: {
+      ticketId: string;
+      ticketItemId: string;
+      payload: TPayload;
+    }) => {
+      const res = await instance.post<TicketItemAvailabilityResponse>(
+        pathBuilder(ticketId, ticketItemId),
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["ticket", variables.ticketId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-availability", variables.ticketId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["seat-map", variables.ticketId] });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "ticket-item-availability",
+          variables.ticketId,
+          variables.ticketItemId,
+        ],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ticket-item", variables.ticketId, variables.ticketItemId],
+      });
+    },
+  });
+}
+
+export function useReserveSeat() {
+  return useSeatReservationAction<ReserveSeatRequest>(
+    (ticketId, ticketItemId) =>
+      `/tickets/${ticketId}/ticket-items/${ticketItemId}/reserve-seat`,
+  );
+}
+
+export function useReleaseSeat() {
+  return useSeatReservationAction<ReleaseSeatRequest>(
+    (ticketId, ticketItemId) =>
+      `/tickets/${ticketId}/ticket-items/${ticketItemId}/release-seat`,
+  );
 }
 
 export function useUpdateTicketItem() {

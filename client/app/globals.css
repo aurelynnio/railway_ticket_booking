@@ -26,70 +26,119 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.56);
-  --radius-md: calc(var(--radius) * 0.82);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.28);
-  --radius-2xl: calc(var(--radius) * 1.7);
-  --shadow-soft: var(--shadow-soft);
-  --shadow-float: var(--shadow-float);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
 }
 
+/* =========================================================================
+   DESIGN TOKENS — Clean & Minimal (Stripe / Linear inspired)
+   - Nền trắng tinh, không gradient ồn
+   - Border nhất quán dùng stone scale
+   - Teal accent giữ identity nhưng sáng hơn
+   - Typography hierarchy rõ qua tracking & weight
+   ========================================================================= */
 :root {
   --background: #ffffff;
-  --foreground: #0a0a0a;
+  --foreground: #0c0a09;
+
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #0c0a09;
+
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
-  --primary: #2563eb;
+  --popover-foreground: #0c0a09;
+
+  --primary: #0d9488;
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #eff6ff;
-  --accent-foreground: #1e40af;
+
+  --secondary: #f5f5f4;
+  --secondary-foreground: #1c1917;
+
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+
+  --accent: #f0fdfa;
+  --accent-foreground: #0f766e;
+
   --destructive: #dc2626;
-  --border: #e4e4e7;
-  --input: #ffffff;
-  --ring: rgb(37 99 235 / 20%);
-  --radius: 0.5rem;
-  --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 5%);
-  --shadow-float: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
+  --destructive-foreground: #ffffff;
+
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #0d9488;
+
+  --radius: 0.625rem;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.05);
 }
 
 .dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #1e293b;
-  --accent-foreground: #93c5fd;
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+
+  --card: #1c1917;
+  --card-foreground: #fafaf9;
+
+  --popover: #1c1917;
+  --popover-foreground: #fafaf9;
+
+  --primary: #2dd4bf;
+  --primary-foreground: #042f2e;
+
+  --secondary: #292524;
+  --secondary-foreground: #fafaf9;
+
+  --muted: #292524;
+  --muted-foreground: #a8a29e;
+
+  --accent: #042f2e;
+  --accent-foreground: #5eead4;
+
   --destructive: #ef4444;
-  --border: #27272a;
-  --input: #18181b;
-  --ring: rgb(59 130 246 / 30%);
-  --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 30%);
-  --shadow-float: 0 4px 6px -1px rgb(0 0 0 / 40%), 0 2px 4px -2px rgb(0 0 0 / 30%);
+  --destructive-foreground: #ffffff;
+
+  --success: #22c55e;
+  --success-foreground: #052e16;
+
+  --warning: #f59e0b;
+  --warning-foreground: #1c1917;
+
+  --border: #292524;
+  --input: #292524;
+  --ring: #2dd4bf;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 2px 6px -2px rgb(0 0 0 / 0.3);
 }
 
 @layer base {
   * {
-    @apply outline-ring/50;
+    @apply border-border outline-ring/50;
   }
 
   html {
     @apply bg-background font-sans text-foreground antialiased;
     scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
@@ -97,35 +146,67 @@
   }
 
   ::selection {
-    background: color-mix(in oklch, var(--primary) 20%, white);
+    background: color-mix(in oklch, var(--primary) 18%, transparent);
     color: var(--foreground);
+  }
+
+  /* Typography hierarchy — heading dùng tracking tight + weight rõ */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-tight;
+    text-wrap: balance;
+  }
+
+  /* Scrollbar tối giản */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
   }
 }
 
 @layer components {
+  /* Card nền tảng — border + shadow tối thiểu */
   .surface-panel {
-    @apply rounded-lg border border-border bg-card text-card-foreground transition-colors;
-    box-shadow: var(--shadow-soft);
+    @apply rounded-lg border border-border bg-card text-card-foreground;
+    box-shadow: var(--shadow-xs);
   }
 
+  /* Card nổi hơn — cho hero / CTA */
   .surface-panel-strong {
     @apply rounded-lg border border-border bg-card text-card-foreground;
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-md);
   }
 
-  .rail-dot {
-    @apply size-1.5 rounded-full bg-foreground/40;
+  /* Panel yên tĩnh — cho metadata, stats */
+  .quiet-panel {
+    @apply rounded-lg border border-border bg-muted/50;
   }
 
+  /* Divider tinh tế */
   .soft-divider {
     @apply h-px w-full bg-border;
   }
 
-  .text-balance {
-    text-wrap: balance;
+  /* Pill nhỏ cho tag/label */
+  .route-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground;
   }
 
-  .route-pill {
-    @apply inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground;
+  /* Band gradient nhẹ cho page header — chỉ 1 lớp, không ồn */
+  .page-band {
+    @apply rounded-lg border border-border bg-card;
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }

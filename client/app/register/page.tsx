@@ -86,7 +86,7 @@ export default function RegisterPage() {
         </div>
 
         {register.isError ? (
-          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
             Tạo tài khoản thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau.
           </div>
         ) : null}

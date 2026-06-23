@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
     <AuthShell
       eyebrow="Quên mật khẩu"
       title="Gửi yêu cầu khôi phục tài khoản"
-      description="Form này vẫn gọi endpoint forgot-password hiện có, nhưng giao diện được bố trí lại để rõ luồng action, thông tin phản hồi và bước tiếp theo."
+      description="Nhập email đã đăng ký để nhận hướng dẫn đặt lại mật khẩu."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>Đã nhớ mật khẩu?</span>
@@ -69,14 +69,14 @@ export default function ForgotPasswordPage() {
         </Button>
 
         <div className="flex flex-wrap gap-2">
-          <StatusBadge label="Auth gateway" tone="brand" />
-          <StatusBadge label="Token preview local nếu có" tone="warning" />
+          <StatusBadge label="Khôi phục bảo mật" tone="brand" />
+          <StatusBadge label="Email xác minh" tone="warning" />
         </div>
 
         {tokenPreview ? (
-          <div className="rounded-lg bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/50 px-4 py-4 text-sm leading-6 text-foreground border border-border">
             <p className="text-xs font-medium text-muted-foreground">
-              Token preview
+              Mã khôi phục
             </p>
             <p className="mt-2 break-all font-mono text-xs text-foreground">{tokenPreview}</p>
             <Link href="/reset-password" className="mt-3 inline-flex font-semibold text-primary">
@@ -86,7 +86,7 @@ export default function ForgotPasswordPage() {
         ) : null}
 
         {forgotPassword.isError ? (
-          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
             Gửi yêu cầu thất bại. Vui lòng kiểm tra email và thử lại.
           </div>
         ) : null}

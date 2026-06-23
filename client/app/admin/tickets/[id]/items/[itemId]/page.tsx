@@ -10,7 +10,10 @@ import { Input } from "@/components/ui/input";
 import {
   useChangePrice,
   useChangeSaleWindow,
+  useReleaseSeat,
   useRemoveTicketItem,
+  useReserveSeat,
+  useTicketItemAvailability,
   useTicketItem,
   useUpdateTicketItem,
 } from "@/hooks/ticket.hook";
@@ -22,10 +25,13 @@ export default function AdminTicketItemPage() {
   const itemId = typeof params.itemId === "string" ? params.itemId : "";
 
   const itemQuery = useTicketItem(ticketId, itemId);
+  const availabilityQuery = useTicketItemAvailability(ticketId, itemId);
   const updateTicketItem = useUpdateTicketItem();
   const removeTicketItem = useRemoveTicketItem();
   const changePrice = useChangePrice();
   const changeSaleWindow = useChangeSaleWindow();
+  const reserveSeat = useReserveSeat();
+  const releaseSeat = useReleaseSeat();
 
   const [priceOriginal, setPriceOriginal] = useState("");
   const [priceFlash, setPriceFlash] = useState("");
@@ -33,24 +39,25 @@ export default function AdminTicketItemPage() {
   const [saleEndTime, setSaleEndTime] = useState("");
   const [itemName, setItemName] = useState("");
   const [seatClass, setSeatClass] = useState("");
+  const [seatLabel, setSeatLabel] = useState("");
 
   const item = itemQuery.data;
 
   return (
     <AppShell
-      title="Ticket item detail"
-      description="View chi tiet cap ticket-item de bo phan ops doc khoang ghe, stock, price va sale window cua mot toa cu the."
+      title="Chi tiết hạng ghế"
+      description="Quản lý giá, thời gian bán và tình trạng ghế của một toa hoặc hạng vé."
     >
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel
-          title={item?.name ?? item?.coachCode ?? "Dang tai ticket item"}
-          description="Nguon du lieu tu `GET /tickets/:ticketId/ticket-items/:ticketItemId`."
+          title={item?.name ?? item?.coachCode ?? "Đang tải hạng ghế"}
+          description="Thông tin ghế, tồn chỗ, giá và thời gian mở bán."
         >
           <div className="space-y-5">
             <SectionHeading
               eyebrow="Coach block"
               title={item?.seatClass ?? "Seat block"}
-              description={item?.description ?? "Chua co mo ta cho ticket item nay."}
+              description={item?.description ?? "Chưa có mô tả cho hạng ghế này."}
             />
 
             {item ? (
@@ -98,8 +105,8 @@ export default function AdminTicketItemPage() {
 
         <div className="grid gap-6">
           <Panel
-            title="Change price"
-            description="Cap nhat gia goc va gia flash cho ticket item nay."
+            title="Cập nhật giá"
+            description="Điều chỉnh giá gốc và giá ưu đãi."
           >
             <div className="grid gap-3">
               <Input
@@ -133,8 +140,74 @@ export default function AdminTicketItemPage() {
           </Panel>
 
           <Panel
-            title="Change sale window"
-            description="Thay doi thoi gian mo va dong ban cua ticket item."
+            title="Giữ chỗ thủ công"
+            description="Giữ hoặc hoàn một ghế cụ thể khi cần hỗ trợ vận hành."
+          >
+            <div className="space-y-4">
+              {availabilityQuery.data ? (
+                <MetaGrid
+                  items={[
+                    {
+                      label: "Sale open",
+                      value: availabilityQuery.data.saleOpen ? "Yes" : "No",
+                    },
+                    {
+                      label: "Available",
+                      value: String(
+                        availabilityQuery.data.availableSeatLabels.length,
+                      ),
+                    },
+                    {
+                      label: "Occupied",
+                      value: String(
+                        availabilityQuery.data.occupiedSeatLabels.length,
+                      ),
+                    },
+                  ]}
+                  columns={3}
+                />
+              ) : null}
+              <Input
+                placeholder="Seat label, vd A1"
+                value={seatLabel}
+                onChange={(event) => setSeatLabel(event.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticketId || !itemId || !seatLabel || reserveSeat.isPending}
+                  onClick={() =>
+                    reserveSeat.mutate({
+                      ticketId,
+                      ticketItemId: itemId,
+                      payload: { seatLabel },
+                    })
+                  }
+                >
+                  Giữ ghế
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticketId || !itemId || !seatLabel || releaseSeat.isPending}
+                  onClick={() =>
+                    releaseSeat.mutate({
+                      ticketId,
+                      ticketItemId: itemId,
+                      payload: { seatLabel },
+                    })
+                  }
+                >
+                  Hoàn ghế
+                </Button>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Thời gian mở bán"
+            description="Cập nhật thời điểm bắt đầu và kết thúc bán vé."
           >
             <div className="grid gap-3">
               <Input
@@ -164,14 +237,14 @@ export default function AdminTicketItemPage() {
                   })
                 }
               >
-                {changeSaleWindow.isPending ? "Đang cập nhật..." : "Cập nhật sale window"}
+                {changeSaleWindow.isPending ? "Đang cập nhật..." : "Cập nhật thời gian"}
               </Button>
             </div>
           </Panel>
 
           <Panel
-            title="Update ticket item"
-            description="Cap nhat ten va hang ghe cua ticket item."
+            title="Thông tin hạng ghế"
+            description="Cập nhật tên hiển thị và hạng ghế."
           >
             <div className="grid gap-3">
               <Input
@@ -206,7 +279,7 @@ export default function AdminTicketItemPage() {
 
           <Panel
             title="Danger zone"
-            description="Xoa ticket item nay khoi ticket. Hanh dong khong the hoan tac."
+            description="Xoá hạng ghế khỏi hành trình. Hành động này không thể hoàn tác."
           >
             <Button
               type="button"
@@ -216,7 +289,7 @@ export default function AdminTicketItemPage() {
                 removeTicketItem.mutate({ ticketId, ticketItemId: itemId })
               }
             >
-              {removeTicketItem.isPending ? "Đang xoá..." : "Xoá ticket item"}
+              {removeTicketItem.isPending ? "Đang xoá..." : "Xoá hạng ghế"}
             </Button>
           </Panel>
         </div>

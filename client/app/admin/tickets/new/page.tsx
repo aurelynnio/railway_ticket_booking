@@ -38,12 +38,12 @@ export default function AdminTicketNewPage() {
 
   return (
     <AppShell
-      title="Create ticket"
-      description="Form intake toi gian de bo phan ops tao hanh trinh moi cung mot ticket item mac dinh, sat voi DTO thuc te cua gateway."
+      title="Tạo vé mới"
+      description="Thiết lập hành trình, lịch chạy và hạng ghế đầu tiên để mở bán."
     >
       <Panel
-        title="Ticket intake"
-        description="Payload map truc tiep vao `POST /tickets`. Chuoi seat labels dung format CSV de tranh overbuild form."
+        title="Thông tin hành trình"
+        description="Nhập tuyến, thời gian và danh sách ghế cho hạng vé mặc định."
       >
         <div className="grid gap-3 xl:grid-cols-2">
           <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -138,7 +138,7 @@ export default function AdminTicketNewPage() {
               router.push(`/admin/tickets/${result.id}`);
             }}
           >
-            {createTicket.isPending ? "Dang tao..." : "Tao ticket"}
+            {createTicket.isPending ? "Đang tạo..." : "Tạo vé"}
           </Button>
         </div>
       </Panel>

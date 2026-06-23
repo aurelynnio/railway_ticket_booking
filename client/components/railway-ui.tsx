@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils";
 export type Tone = "brand" | "positive" | "warning" | "danger" | "muted";
 
 const toneClasses: Record<Tone, string> = {
-  brand: "bg-primary text-primary-foreground",
-  positive: "bg-accent text-accent-foreground border border-border",
-  warning: "bg-secondary text-secondary-foreground border border-border",
-  danger: "bg-destructive text-white",
-  muted: "bg-muted text-muted-foreground border border-border",
+  brand: "bg-primary/10 text-primary",
+  positive: "bg-success/10 text-success",
+  warning: "bg-warning/10 text-warning",
+  danger: "bg-destructive/10 text-destructive",
+  muted: "bg-muted text-muted-foreground",
 };
 
 export function StatusBadge({
@@ -26,7 +26,7 @@ export function StatusBadge({
   tone?: Tone;
 }) {
   return (
-    <Badge className={cn("border-0 ring-0", toneClasses[tone])}>{label}</Badge>
+    <Badge className={cn("border-0 px-2.5 py-1 ring-0 font-medium", toneClasses[tone])}>{label}</Badge>
   );
 }
 
@@ -80,7 +80,7 @@ export function StatCard({
       <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 font-heading text-2xl font-semibold tracking-tight text-foreground">
+      <p className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground">
         {value}
       </p>
       {helper ? (
@@ -102,8 +102,8 @@ export function EmptyState({
   cta?: string;
 }) {
   return (
-    <div className="surface-panel flex flex-col items-start gap-3 px-5 py-6">
-      <div className="inline-flex size-9 items-center justify-center rounded-md bg-muted text-foreground">
+    <div className="quiet-panel flex flex-col items-start gap-3 px-5 py-6">
+      <div className="inline-flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
         <Sparkles className="size-4" />
       </div>
       <div className="space-y-1">
@@ -143,7 +143,7 @@ export function MetaGrid({
       {items.map((item) => (
         <div
           key={item.label}
-          className="rounded-md border border-border bg-muted/50 px-3.5 py-3"
+          className="quiet-panel px-3.5 py-3"
         >
           <p className="text-xs font-medium text-muted-foreground">
             {item.label}
@@ -181,7 +181,7 @@ export function PaginationBar({
   onNext: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="quiet-panel flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">
         Trang {page}/{Math.max(1, totalPages)}. Tổng {total} bản ghi.
       </p>
@@ -204,7 +204,7 @@ export function PaginationBar({
 
 export function InlineCode({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground border border-border">
+    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
       {children}
     </span>
   );
@@ -233,7 +233,7 @@ export function SurfaceLink({
             {description}
           </p>
         </div>
-        <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md bg-muted text-foreground border border-border">
+        <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground">
           <ArrowRight className="size-3.5" />
         </div>
       </div>
@@ -251,7 +251,7 @@ export function SeatCloud({ labels }: { labels: string[] }) {
       {labels.map((label) => (
         <span
           key={label}
-          className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground"
+          className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-foreground"
         >
           {label}
         </span>

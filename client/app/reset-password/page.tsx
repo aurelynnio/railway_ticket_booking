@@ -33,8 +33,8 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell
       eyebrow="Đặt lại mật khẩu"
-      title="Nhập token và đặt lại mật khẩu mới"
-      description="Trang reset được giữ đơn giản nhưng có hierarchy rõ hơn, để user biết token đến từ đâu và sau khi submit thì sẽ quay lại login."
+      title="Tạo mật khẩu mới"
+      description="Dán mã khôi phục trong email và chọn mật khẩu mới cho tài khoản của bạn."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>Cần tạo yêu cầu mới?</span>
@@ -47,10 +47,10 @@ export default function ResetPasswordPage() {
       <form onSubmit={handleSubmit} className="grid gap-4">
         <div className="grid gap-2">
           <p className="text-xs font-medium text-muted-foreground">
-            Token
+            Mã khôi phục
           </p>
           <Input
-            placeholder="Dán token reset vào đây"
+            placeholder="Dán mã khôi phục"
             value={token}
             onChange={(event) => setToken(event.target.value)}
             required
@@ -80,12 +80,12 @@ export default function ResetPasswordPage() {
         </Button>
 
         <div className="flex flex-wrap gap-2">
-          <StatusBadge label="Reset flow" tone="brand" />
-          <StatusBadge label="Gateway -> auth-service" tone="positive" />
+          <StatusBadge label="Khôi phục tài khoản" tone="brand" />
+          <StatusBadge label="Bảo mật mật khẩu" tone="positive" />
         </div>
 
         {isDone ? (
-          <div className="rounded-lg bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground ring-1 ring-border">
+          <div className="rounded-lg bg-muted/50 px-4 py-4 text-sm leading-6 text-foreground border border-border">
             Đặt lại mật khẩu thành công. Bạn có thể quay lại{" "}
             <Link href="/login" className="font-semibold text-primary">
               đăng nhập
@@ -95,8 +95,8 @@ export default function ResetPasswordPage() {
         ) : null}
 
         {resetPassword.isError ? (
-          <div className="rounded-lg bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground ring-1 ring-border">
-            Đặt lại mật khẩu thất bại. Kiểm tra token hoặc `auth-service`.
+          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
+            Đặt lại mật khẩu thất bại. Vui lòng kiểm tra mã khôi phục.
           </div>
         ) : null}
       </form>

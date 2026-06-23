@@ -144,17 +144,17 @@ export default function TicketsPage() {
             <StatCard
               label="Vé hiển thị"
               value={String(tickets.length)}
-              helper="Số vé trên trang hiện tại."
+              helper="Kết quả trong trang hiện tại."
             />
             <StatCard
               label="Đang mở bán"
               value={String(published)}
-              helper="Số hành trình đang ở trạng thái mở bán."
+              helper="Hành trình có thể bán ngay."
             />
             <StatCard
               label="Hạng vé"
               value={String(ticketItems)}
-              helper={`Phủ trên ${stations} mã ga trong viewport hiện tại.`}
+              helper={`Phủ trên ${stations} mã ga.`}
             />
           </div>
 
@@ -166,7 +166,7 @@ export default function TicketsPage() {
               <SectionHeading
                 eyebrow="Điều phối"
                 title="Theo dõi tồn vé đang bán"
-                description="Ticket detail, availability và seat map đều được nối tiếp từ từng item dưới đây."
+                description="Mở từng vé để điều chỉnh trạng thái bán, hạng ghế và sơ đồ chỗ."
               />
 
               {query.isLoading ? (
@@ -183,7 +183,7 @@ export default function TicketsPage() {
               {query.isError ? (
                 <EmptyState
                   title="Không tải được tồn vé"
-                  description="Kiểm tra `api-gateway` và `tickets-service`, sau đó thử làm mới danh sách."
+                  description="Không thể tải danh sách vé lúc này. Vui lòng thử lại sau."
                 />
               ) : null}
 
@@ -242,7 +242,7 @@ export default function TicketsPage() {
                     <div className="flex flex-col justify-between gap-4 rounded-lg bg-background px-4 py-4 border border-border">
                       <div className="space-y-3">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Ghi chú hành trình
+                          Ghi chú
                         </p>
                         <p className="text-sm leading-6 text-muted-foreground">
                           {ticket.journeyNote ?? "Chưa có ghi chú cho vé này."}
@@ -287,10 +287,10 @@ export default function TicketsPage() {
                     {tickets.length}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Số vé đang hiển thị trong grid danh mục.
+                    Số vé đang hiển thị.
                   </p>
                 </div>
-                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground border border-border">
                   <TrainFront className="size-5" />
                 </div>
               </div>
@@ -306,10 +306,10 @@ export default function TicketsPage() {
                     {ticketItems}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Tổng số block ghế mà user có thể đi sâu vào chi tiết.
+                    Tổng số lựa chọn ghế trong danh sách.
                   </p>
                 </div>
-                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground border border-border">
                   <Layers3 className="size-5" />
                 </div>
               </div>
@@ -325,10 +325,10 @@ export default function TicketsPage() {
                     {stations}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Số mã ga xuất hiện trong kết quả để user quét nhanh mạng lưới.
+                    Số mã ga xuất hiện trong kết quả.
                   </p>
                 </div>
-                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground border border-border">
                   <Sparkles className="size-5" />
                 </div>
               </div>
@@ -368,7 +368,7 @@ export default function TicketsPage() {
               {query.isError ? (
                 <EmptyState
                   title="Không tải được tồn vé"
-                  description="Kiểm tra `api-gateway` và `tickets-service`, sau đó thử làm mới danh sách."
+                description="Không thể tải danh sách vé lúc này. Vui lòng thử lại sau."
                 />
               ) : null}
 
@@ -433,10 +433,10 @@ export default function TicketsPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col justify-between gap-4 rounded-lg bg-muted/25 px-5 py-5 ring-1 ring-border">
+                    <div className="flex flex-col justify-between gap-4 rounded-lg bg-muted/25 px-5 py-5 border border-border">
                       <div className="space-y-3">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Vì sao nên mở vé này
+                          Điểm nổi bật
                         </p>
                         <p className="text-sm leading-6 text-muted-foreground">
                           {ticket.journeyNote ??
@@ -444,11 +444,10 @@ export default function TicketsPage() {
                         </p>
                         <div className="rounded-lg bg-background px-4 py-4 border border-border">
                           <p className="text-xs font-medium text-muted-foreground">
-                            Độ sâu chọn ghế
+                            Lựa chọn ghế
                           </p>
                           <p className="mt-2 text-sm leading-6 text-foreground">
-                            {ticket.ticketItems.length} coach block đang sẵn sàng để user
-                            đi tiếp vào chi tiết và chọn ghế.
+                            {ticket.ticketItems.length} lựa chọn đang sẵn sàng để xem chi tiết.
                           </p>
                         </div>
                       </div>

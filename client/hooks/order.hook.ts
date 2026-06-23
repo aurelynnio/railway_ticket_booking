@@ -11,6 +11,8 @@ import {
   OrderResponse,
   OrderSummaryResponse,
   PaginatedResponse,
+  UpdateOrderPassengersRequest,
+  UpdateOrderSeatLabelsRequest,
 } from "@/lib/api-types";
 import instance from "@/lib/http";
 
@@ -109,6 +111,20 @@ export function useCreateOrder() {
   });
 }
 
+export function useCreateOrderRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateOrderPayload) => {
+      const res = await instance.post<OrderResponse>("/orders", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
 function useOrderAction<TPayload = undefined>(
   pathBuilder: (orderId: string) => string,
 ) {
@@ -137,6 +153,10 @@ function useOrderAction<TPayload = undefined>(
 
 export function useMarkOrderPaid() {
   return useOrderAction((orderId) => `/orders/${orderId}/mark-paid`);
+}
+
+export function useMarkOrderPendingPayment() {
+  return useOrderAction((orderId) => `/orders/${orderId}/mark-pending-payment`);
 }
 
 export function useConfirmOrder() {
@@ -172,6 +192,60 @@ export function useRemoveOrder() {
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["orders"] });
       void queryClient.invalidateQueries({ queryKey: ["order", variables.orderId] });
+    },
+  });
+}
+
+export function useUpdateOrderPassengers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      payload,
+    }: {
+      orderId: string;
+      payload: UpdateOrderPassengersRequest;
+    }) => {
+      const res = await instance.patch<OrderResponse>(
+        `/orders/${orderId}/passengers`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["order", variables.orderId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["order-summary", variables.orderId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
+export function useUpdateOrderSeatLabels() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      payload,
+    }: {
+      orderId: string;
+      payload: UpdateOrderSeatLabelsRequest;
+    }) => {
+      const res = await instance.patch<OrderResponse>(
+        `/orders/${orderId}/seat-labels`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["order", variables.orderId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["order-summary", variables.orderId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }

@@ -22,7 +22,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { useSearchTrips } from "@/hooks/search.hook";
+import {
+  useSearchTrips,
+  useStationSuggestions,
+} from "@/hooks/search.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 
 type SortFilter = "recommended" | "price" | "departure";
@@ -60,6 +63,11 @@ export default function SearchPage() {
     page: deferredPage,
     limit: 8,
   });
+  const stationSuggestionsQuery = useStationSuggestions();
+  const stationOptions =
+    stationSuggestionsQuery.data && stationSuggestionsQuery.data.length > 0
+      ? stationSuggestionsQuery.data
+      : STATIONS;
 
   const trips = [...(query.data?.data ?? [])].sort((left, right) => {
     if (sort === "price") {
@@ -122,10 +130,10 @@ export default function SearchPage() {
       >
         <div className="space-y-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_19rem]">
-            <div className="rounded-lg bg-muted/35 px-5 py-5 ring-1 ring-border">
+            <div className="rounded-lg bg-muted/35 px-5 py-5 border border-border">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
-                  <span className="route-pill">Hành trình thực</span>
+                  <span className="route-pill">Tìm hành trình</span>
                   <StatusBadge
                     label={query.isFetching ? "Đang tải" : "Dữ liệu mới nhất"}
                     tone={query.isFetching ? "warning" : "brand"}
@@ -136,21 +144,21 @@ export default function SearchPage() {
                     Tìm vé theo điểm đi, điểm đến và ngày khởi hành.
                   </h2>
                   <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
-                    Kết quả được cập nhật theo bộ lọc hiện tại, giúp bạn kiểm tra
-                    nhanh chỗ trống, thời gian và mức giá mở đầu.
+                    So sánh nhanh giờ chạy, số ghế còn lại và mức giá phù hợp
+                    trước khi chọn vé.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 overflow-hidden rounded-lg bg-background ring-1 ring-border xl:grid-cols-1">
+            <div className="grid grid-cols-3 overflow-hidden rounded-lg bg-background border border-border xl:grid-cols-1">
               <SearchStat label="Chuyến" value={String(trips.length)} />
               <SearchStat label="Chỗ trống" value={String(availableSeats)} />
               <SearchStat label="Giá từ" value={formatCurrency(cheapest)} />
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-lg bg-muted/25 p-4 ring-1 ring-border lg:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 rounded-lg bg-muted/25 p-4 border border-border lg:grid-cols-2 xl:grid-cols-4">
             <Field label="Ga đi">
               <Select
                 value={from}
@@ -160,8 +168,8 @@ export default function SearchPage() {
                 }}
               >
                 <option value="">Tất cả ga đi</option>
-                {STATIONS.map((station) => (
-                  <option key={station.code} value={station.code}>
+                {stationOptions.map((station) => (
+                  <option key={station.code ?? station.name} value={station.code ?? ""}>
                     {station.name} ({station.code})
                   </option>
                 ))}
@@ -176,8 +184,8 @@ export default function SearchPage() {
                 }}
               >
                 <option value="">Tất cả ga đến</option>
-                {STATIONS.map((station) => (
-                  <option key={station.code} value={station.code}>
+                {stationOptions.map((station) => (
+                  <option key={station.code ?? station.name} value={station.code ?? ""}>
                     {station.name} ({station.code})
                   </option>
                 ))}
@@ -213,7 +221,7 @@ export default function SearchPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <Search className="size-4 text-primary" />
-              Dữ liệu được lấy từ tuyến tìm kiếm hiện có của hệ thống.
+              Kết quả tự cập nhật theo bộ lọc đang chọn.
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -246,9 +254,9 @@ export default function SearchPage() {
       >
         <div className="space-y-5">
           <SectionHeading
-            eyebrow="Storefront results"
-            title="Route đang mở theo bộ lọc hiện tại"
-            description="Chọn một tuyến để mở chi tiết vé, xem các hạng ghế và tiếp tục giữ chỗ."
+            eyebrow="Kết quả"
+            title="Chuyến phù hợp với lựa chọn của bạn"
+            description="Chọn một hành trình để xem hạng ghế, giá và tiếp tục đặt chỗ."
             action={
               <Button asChild variant="outline">
                 <Link href="/">Trang chủ</Link>
@@ -270,7 +278,7 @@ export default function SearchPage() {
           {query.isError ? (
             <EmptyState
               title="Không tải được kết quả"
-              description="Kiểm tra `api-gateway` và `search-service`, sau đó load lại page để tiếp tục."
+                description="Không thể tải kết quả lúc này. Vui lòng thử lại sau."
             />
           ) : null}
 
@@ -310,7 +318,7 @@ export default function SearchPage() {
                           {trip.title ?? "Tuyến chưa đặt tên"}
                         </p>
                       </div>
-                      <div className="rounded-lg bg-muted/30 px-4 py-4 ring-1 ring-border xl:min-w-44">
+                      <div className="rounded-lg bg-muted/50 px-4 py-4 border border-border xl:min-w-44">
                         <p className="text-xs font-medium text-muted-foreground">
                           Giá từ
                         </p>
@@ -345,7 +353,7 @@ export default function SearchPage() {
                       {trip.seatClasses.map((item) => (
                         <span
                           key={`${trip.ticketId}-${item}`}
-                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground ring-1 ring-border"
+                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground border border-border"
                         >
                           {item}
                         </span>
@@ -353,7 +361,7 @@ export default function SearchPage() {
                       {trip.seatTypes.map((item) => (
                         <span
                           key={`${trip.ticketId}-${item}`}
-                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground ring-1 ring-border"
+                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground border border-border"
                         >
                           {item}
                         </span>
@@ -361,21 +369,20 @@ export default function SearchPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg bg-muted/25 px-5 py-5 ring-1 ring-border">
+                  <div className="rounded-lg bg-muted/25 px-5 py-5 border border-border">
                     <div className="space-y-4">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">
                           Tóm tắt hành trình
                         </p>
                         <p className="mt-2 text-sm leading-6 text-foreground">
-                          Giá, tuyến và thời gian được gom lại để bạn quyết định nhanh
-                          trước khi mở chi tiết vé.
+                          Xem nhanh tuyến, giờ chạy và số ghế trước khi mở chi tiết.
                         </p>
                       </div>
 
-                      <div className="rounded-lg bg-background px-4 py-4 ring-1 ring-border">
+                      <div className="rounded-lg bg-background px-4 py-4 border border-border">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Bản tóm tắt
+                          Tóm tắt
                         </p>
                         <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
                           <div className="flex items-center justify-between gap-3">
@@ -439,19 +446,19 @@ export default function SearchPage() {
         <SupportCard
           icon={<Ticket className="size-5" />}
           title="Vé của tôi"
-          description="Nếu đã đăng nhập, mở khu `profile/orders` để xem đơn và trạng thái."
+          description="Theo dõi đơn đã đặt và vé đã phát hành."
           href="/profile/orders"
         />
         <SupportCard
           icon={<Wallet className="size-5" />}
           title="Thanh toán"
-          description="Theo dõi payment record và đối chiếu khi cần debug payment flow."
+          description="Kiểm tra giao dịch và trạng thái thanh toán."
           href="/payments"
         />
         <SupportCard
           icon={<TrainFront className="size-5" />}
-          title="Danh mục tồn vé"
-          description="Khi cần scan rộng hơn search hiện tại, mở thẳng trang tickets."
+          title="Danh mục vé"
+          description="Xem thêm các tuyến đang mở bán."
           href="/tickets"
         />
       </section>
@@ -493,7 +500,7 @@ function InfoTile({
   value: string;
 }) {
   return (
-    <div className="rounded-lg bg-muted/25 px-4 py-4 ring-1 ring-border">
+    <div className="rounded-lg bg-muted/25 px-4 py-4 border border-border">
       <div className="flex items-center gap-2">
         {icon}
         <p className="text-xs font-medium text-muted-foreground">
@@ -519,9 +526,9 @@ function SupportCard({
   return (
     <Link
       href={href}
-      className="surface-panel block rounded-lg px-5 py-5 transition-colors hover:bg-muted/30"
+      className="surface-panel block rounded-lg px-5 py-5 transition-colors hover:bg-muted/50"
     >
-      <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground ring-1 ring-border">
+      <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground border border-border">
         {icon}
       </div>
       <h3 className="mt-5 font-heading text-xl font-semibold tracking-tight text-foreground">
