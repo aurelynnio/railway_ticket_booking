@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   mysql:
     image: mysql:8.4
@@ -16,6 +18,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -proot"]
       interval: 10s
@@ -25,21 +28,150 @@ services:
     networks:
       - railway-ticket-network
 
-  redis:
+  # =========================================================================
+  # REDIS SENTINEL CLUSTER (1 Master + 2 Replica + 3 Sentinel)
+  # - Sentinel tự động failover khi master down
+  # - Quorum = 2/3 để tránh split-brain
+  # - Replica tách tải đọc, master đảm bảo consistency cho write
+  # =========================================================================
+  redis-master:
     image: redis:7.4-alpine
-    container_name: railway-ticket-redis
+    container_name: railway-ticket-redis-master
     restart: unless-stopped
     ports:
-      - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+      - "6380:6379"
+    command: ["redis-server", "/etc/redis/redis-master.conf"]
     volumes:
-      - redis_data:/data
+      - ./redis/redis-master.conf:/etc/redis/redis-master.conf:ro
+      - redis_master_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a 123456 ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - railway-ticket-network
+
+  redis-replica-1:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-replica-1
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    command: ["redis-server", "/etc/redis/redis-replica.conf"]
+    volumes:
+      - ./redis/redis-replica.conf:/etc/redis/redis-replica.conf:ro
+      - redis_replica1_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a 123456 ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - railway-ticket-network
+
+  redis-replica-2:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-replica-2
+    restart: unless-stopped
+    ports:
+      - "6382:6379"
+    command: ["redis-server", "/etc/redis/redis-replica.conf"]
+    volumes:
+      - ./redis/redis-replica.conf:/etc/redis/redis-replica.conf:ro
+      - redis_replica2_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a 123456 ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - railway-ticket-network
+
+  redis-sentinel-1:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-sentinel-1
+    restart: unless-stopped
+    ports:
+      - "26379:26379"
+    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - redis_sentinel1_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 26379 -a 123456 ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - railway-ticket-network
+
+  redis-sentinel-2:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-sentinel-2
+    restart: unless-stopped
+    ports:
+      - "26380:26379"
+    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - redis_sentinel2_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 26379 -a 123456 ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - railway-ticket-network
+
+  redis-sentinel-3:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-sentinel-3
+    restart: unless-stopped
+    ports:
+      - "26381:26379"
+    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - redis_sentinel3_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 26379 -a 123456 ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - railway-ticket-network
 
@@ -65,10 +197,213 @@ services:
     networks:
       - railway-ticket-network
 
+  mongodb:
+    image: mongo:7.0
+    container_name: railway-ticket-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - railway-ticket-network
+
+  # =========================================================================
+  # BACKEND MICROSERVICES
+  # =========================================================================
+  auth-service:
+    build:
+      context: ../../auth-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-auth-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_auth
+      JWT_SECRET: change-me
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  users-service:
+    build:
+      context: ../../users-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-users-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_users
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  search-service:
+    build:
+      context: ../../search-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-search-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mongodb://mongodb:27017/railway_ticket_search
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  tickets-service:
+    build:
+      context: ../../tickets-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-tickets-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mongodb://mongodb:27017/railway_ticket_tickets?replicaSet=rs0
+      # Redis Sentinel: app tự failover qua Sentinel
+      REDIS_SENTINELS: "redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379"
+      REDIS_SENTINEL_NAME: "mymaster"
+      REDIS_SENTINEL_PASSWORD: "123456"
+      REDIS_PASSWORD: "123456"
+      REDIS_DB: "0"
+      REDIS_REPLICA_COUNT: "2"
+      REDIS_CONNECT_TIMEOUT: "10000"
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+      redis-sentinel-1:
+        condition: service_healthy
+      redis-sentinel-2:
+        condition: service_healthy
+      redis-sentinel-3:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  orders-service:
+    build:
+      context: ../../orders-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-orders-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_orders
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  payments-service:
+    build:
+      context: ../../payments-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-payments-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_payments
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  notification-service:
+    build:
+      context: ../../notification-service
+      dockerfile: Dockerfile
+    container_name: railway-ticket-notification-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://app:app@mysql:3306/railway_notifications
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  api-gateway:
+    build:
+      context: ../../api-gateway
+      dockerfile: Dockerfile
+    container_name: railway-ticket-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      CLIENT_ORIGIN: http://localhost:3000
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      # VNPay Configuration
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-TEST_TMN_CODE}
+      VNPAY_SECURE_SECRET: ${VNPAY_SECURE_SECRET:-TEST_SECURE_SECRET}
+      VNPAY_HOST: ${VNPAY_HOST:-https://sandbox.vnpayment.vn}
+      VNPAY_TEST_MODE: ${VNPAY_TEST_MODE:-true}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:8080/payments/vnpay/return}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - railway-ticket-network
+
+  client:
+    build:
+      context: ../../client
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8080
+    container_name: railway-ticket-client
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - railway-ticket-network
+
 volumes:
   mysql_data:
-  redis_data:
+  redis_master_data:
+  redis_replica1_data:
+  redis_replica2_data:
+  redis_sentinel1_data:
+  redis_sentinel2_data:
+  redis_sentinel3_data:
   rabbitmq_data:
+  mongodb_data:
 
 networks:
   railway-ticket-network:
