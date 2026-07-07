@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { TrainFront } from "lucide-react";
+
+import { BrandLogo } from "@/components/brand-logo";
 
 export function AuthShell({
   eyebrow,
@@ -18,23 +18,13 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-8">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2.5"
-          >
-            <div className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <TrainFront className="size-4" />
-            </div>
-            <span className="font-heading text-base font-semibold tracking-tight">
-              Railway Hub
-            </span>
-          </Link>
+          <BrandLogo />
         </div>
 
-        <div className="surface-panel-strong px-6 py-8">
+          <div className="surface-panel-strong px-6 py-8">
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wider text-primary">
               {eyebrow}

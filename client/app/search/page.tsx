@@ -130,8 +130,8 @@ export default function SearchPage() {
       >
         <div className="space-y-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_19rem]">
-            <div className="rounded-lg bg-muted/35 px-5 py-5 border border-border">
-              <div className="space-y-4">
+            <div className="soft-wash rounded-lg px-5 py-5 shadow-xs ring-1 ring-white/80">
+              <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-end">
                 <div className="flex flex-wrap gap-2">
                   <span className="route-pill">Tìm hành trình</span>
                   <StatusBadge
@@ -140,25 +140,33 @@ export default function SearchPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="font-heading text-3xl font-semibold tracking-tight text-balance text-foreground sm:text-[3.4rem] sm:leading-[0.94]">
-                    Tìm vé theo điểm đi, điểm đến và ngày khởi hành.
+                  <h2 className="font-heading text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
+                    Tìm tuyến phù hợp trước khi chọn vé.
                   </h2>
-                  <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-[15px]">
+                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
                     So sánh nhanh giờ chạy, số ghế còn lại và mức giá phù hợp
                     trước khi chọn vé.
                   </p>
                 </div>
+                <div className="hidden rounded-lg bg-card/65 px-4 py-3 shadow-xs ring-1 ring-white/70 md:block">
+                  <div className="transit-line h-1.5 w-36 rounded-full" />
+                  <div className="mt-3 flex items-center justify-between gap-4 text-xs font-medium text-muted-foreground">
+                    <span>Đi</span>
+                    <span>Ga dừng</span>
+                    <span>Đến</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 overflow-hidden rounded-lg bg-background border border-border xl:grid-cols-1">
+            <div className="grid grid-cols-3 overflow-hidden rounded-lg bg-card/80 shadow-sm ring-1 ring-white/80 xl:grid-cols-1">
               <SearchStat label="Chuyến" value={String(trips.length)} />
               <SearchStat label="Chỗ trống" value={String(availableSeats)} />
               <SearchStat label="Giá từ" value={formatCurrency(cheapest)} />
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-lg bg-muted/25 p-4 border border-border lg:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 rounded-lg bg-secondary/55 p-4 shadow-xs ring-1 ring-white/80 lg:grid-cols-2 xl:grid-cols-4">
             <Field label="Ga đi">
               <Select
                 value={from}
@@ -293,7 +301,7 @@ export default function SearchPage() {
             {trips.map((trip) => (
               <article
                 key={trip.ticketId}
-                className="surface-panel rounded-lg px-5 py-5"
+                className="surface-panel rounded-lg px-5 py-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
                   <div className="space-y-4">
@@ -318,7 +326,7 @@ export default function SearchPage() {
                           {trip.title ?? "Tuyến chưa đặt tên"}
                         </p>
                       </div>
-                      <div className="rounded-lg bg-muted/50 px-4 py-4 border border-border xl:min-w-44">
+                      <div className="rounded-lg bg-secondary/65 px-4 py-4 shadow-xs ring-1 ring-white/80 xl:min-w-44">
                         <p className="text-xs font-medium text-muted-foreground">
                           Giá từ
                         </p>
@@ -353,7 +361,7 @@ export default function SearchPage() {
                       {trip.seatClasses.map((item) => (
                         <span
                           key={`${trip.ticketId}-${item}`}
-                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground border border-border"
+                          className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground"
                         >
                           {item}
                         </span>
@@ -361,7 +369,7 @@ export default function SearchPage() {
                       {trip.seatTypes.map((item) => (
                         <span
                           key={`${trip.ticketId}-${item}`}
-                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground border border-border"
+                          className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground"
                         >
                           {item}
                         </span>
@@ -369,7 +377,7 @@ export default function SearchPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg bg-muted/25 px-5 py-5 border border-border">
+                  <div className="rounded-lg bg-secondary/55 px-5 py-5 shadow-xs ring-1 ring-white/80">
                     <div className="space-y-4">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">
@@ -380,7 +388,7 @@ export default function SearchPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-lg bg-background px-4 py-4 border border-border">
+                      <div className="rounded-lg bg-card/80 px-4 py-4 shadow-xs ring-1 ring-white/80">
                         <p className="text-xs font-medium text-muted-foreground">
                           Tóm tắt
                         </p>
@@ -479,7 +487,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function SearchStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-border px-4 py-4 last:border-b-0 xl:border-b xl:last:border-b-0">
+    <div className="border-r border-border/60 px-4 py-4 last:border-r-0 xl:border-r-0 xl:border-b xl:last:border-b-0">
       <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
@@ -500,7 +508,7 @@ function InfoTile({
   value: string;
 }) {
   return (
-    <div className="rounded-lg bg-muted/25 px-4 py-4 border border-border">
+    <div className="rounded-lg bg-card/70 px-4 py-4 shadow-xs ring-1 ring-white/80">
       <div className="flex items-center gap-2">
         {icon}
         <p className="text-xs font-medium text-muted-foreground">
@@ -526,9 +534,9 @@ function SupportCard({
   return (
     <Link
       href={href}
-      className="surface-panel block rounded-lg px-5 py-5 transition-colors hover:bg-muted/50"
+      className="surface-panel block rounded-lg px-5 py-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
-      <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground border border-border">
+      <div className="flex size-11 items-center justify-center rounded-lg bg-accent text-accent-foreground">
         {icon}
       </div>
       <h3 className="mt-5 font-heading text-xl font-semibold tracking-tight text-foreground">

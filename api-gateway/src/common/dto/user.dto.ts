@@ -6,6 +6,8 @@ import {
   IsOptional,
   IsString,
   Min,
+  MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 export class ListUsersQuery {
@@ -27,11 +29,75 @@ export class UserProfile {
   userId: string;
 }
 
+export class UpdateProfilePayload {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  username?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+}
+
+export class UpdateUserPayload {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  username?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  role?: number;
+}
+
+export class CreateUserPayload {
+  @IsString()
+  @IsNotEmpty()
+  username: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  role?: number;
+}
+
 export class UpdateUserRequest {
   @IsString()
   userId: string;
-  @IsNotEmpty()
-  payload: Record<string, any>;
+
+  @ValidateNested()
+  @Type(() => UpdateUserPayload)
+  payload: UpdateUserPayload;
 }
 
 export class FindByEmailRequest {
@@ -46,7 +112,14 @@ export class GetUserByIdRequest {
   userId: string;
 }
 
-export class CreateUserRequest {
+export class DeleteUserRequest {
+  @IsString()
   @IsNotEmpty()
-  payload: Record<string, any>;
+  userId: string;
+}
+
+export class CreateUserRequest {
+  @ValidateNested()
+  @Type(() => CreateUserPayload)
+  payload: CreateUserPayload;
 }

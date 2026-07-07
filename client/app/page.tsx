@@ -1,11 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
   Clock3,
+  MapPin,
   Ticket,
+  TrainFront,
 } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
@@ -32,6 +35,13 @@ const taskCards = [
   },
 ] as const;
 
+const journeySteps = [
+  "Chọn tuyến",
+  "Giữ chỗ",
+  "Thanh toán",
+  "Nhận vé",
+] as const;
+
 export default function RootPage() {
   const tripsQuery = useSearchTrips({ page: 1, limit: 4 });
   const trips = tripsQuery.data?.data ?? [];
@@ -51,8 +61,8 @@ export default function RootPage() {
 
   return (
     <AppShell
-      title="Đặt vé tàu nhanh cho các tuyến Bắc Trung Nam"
-      description="Tra cứu chuyến đang mở, xem số chỗ còn lại, so sánh giá và đi thẳng tới chi tiết vé để giữ chỗ."
+      title="Vietrail Way"
+      description="Không gian đặt vé tàu nhẹ nhàng cho các tuyến Bắc - Trung - Nam, từ tra cứu chuyến đến theo dõi đơn sau thanh toán."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="lg">
@@ -67,29 +77,85 @@ export default function RootPage() {
         </div>
       }
     >
-      {/* Hero: featured trip + quick stats */}
-      <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-        <article className="surface-panel-strong px-6 py-6">
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <StatusBadge
-                  label={tripsQuery.isFetching ? "Đang cập nhật" : "Dữ liệu mới nhất"}
-                  tone={tripsQuery.isFetching ? "warning" : "brand"}
-                />
+      <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <article className="surface-panel-strong overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
+          <div className="grid gap-6 xl:grid-cols-[1fr_18rem] xl:items-center">
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge
+                    label={tripsQuery.isFetching ? "Đang cập nhật" : "Dữ liệu mới nhất"}
+                    tone={tripsQuery.isFetching ? "warning" : "brand"}
+                  />
+                  <span className="route-pill">
+                    <TrainFront className="size-3" />
+                    Vietrail Way
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <h2 className="font-heading text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
+                    Chọn tuyến, xem chỗ còn lại và giữ vé trong một mạch.
+                  </h2>
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                    Mỗi hành trình gom tuyến, giờ chạy, số ghế còn lại và giá mở đầu
+                    để bạn quyết định nhanh hơn.
+                  </p>
+                </div>
               </div>
-              <h2 className="font-heading text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
-                Đặt vé tàu nhanh cho các tuyến Bắc Trung Nam.
-              </h2>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                Tìm chuyến, chọn hạng vé và đi tiếp vào chi tiết vé trong cùng
-                một hành trình đặt chỗ.
-              </p>
+
+              <div className="grid gap-2 sm:grid-cols-4">
+                {journeySteps.map((step, index) => (
+                  <div key={step} className="quiet-panel px-3 py-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      0{index + 1}
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-foreground">
+                      {step}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {featuredTrip ? (
-              <div className="quiet-panel px-4 py-4">
-                <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="relative min-h-48 overflow-hidden rounded-lg bg-secondary/60 px-5 py-5">
+              <Image
+                src="/imgs/railway.png"
+                alt="Vietrail Way"
+                fill
+                priority
+                sizes="(min-width: 1280px) 18rem, 100vw"
+                className="object-contain p-5 opacity-[0.08] mix-blend-multiply"
+              />
+              <div className="relative flex h-full flex-col justify-between gap-6">
+                <div>
+                  <p className="text-xs font-medium uppercase text-muted-foreground">
+                    Transit map
+                  </p>
+                  <div className="mt-4 transit-line h-1.5 rounded-full" />
+                </div>
+                <div className="grid gap-2">
+                  {["HAN", "DAD", "SGN"].map((station) => (
+                    <div key={station} className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <span className="flex size-7 items-center justify-center rounded-md bg-card text-xs shadow-xs">
+                        {station}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {station === "HAN"
+                          ? "Hà Nội"
+                          : station === "DAD"
+                            ? "Đà Nẵng"
+                            : "Sài Gòn"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {featuredTrip ? (
+            <div className="mt-5 quiet-panel px-4 py-4">
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">
                       Tuyến nổi bật
@@ -118,10 +184,9 @@ export default function RootPage() {
                       <ArrowRight />
                     </Link>
                   </Button>
-                </div>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </article>
 
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
@@ -137,6 +202,21 @@ export default function RootPage() {
             label="Giá từ"
             value={formatCurrency(lowestPrice)}
           />
+          <div className="quiet-panel hidden px-5 py-4 lg:block">
+            <div className="flex items-start gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <MapPin className="size-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Bắc - Trung - Nam
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Tối ưu cho hành trình dài, nhiều điểm dừng và quản lý vé sau đặt chỗ.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

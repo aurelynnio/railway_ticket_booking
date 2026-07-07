@@ -30,6 +30,7 @@ import {
 } from './auth.constants';
 import type { Request, Response, CookieOptions } from 'express';
 import { firstValueFrom } from 'rxjs';
+import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -61,6 +62,7 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
+  @Post('refresh-token')
   @Post('refreshToken')
   @Public()
   async refreshToken(
@@ -116,33 +118,38 @@ export class AuthController {
     };
   }
 
+  @Post('forgot-password')
   @Post('forgotPassword')
   @Public()
   forgotPassword(@Body() forgotPasswordDto: ForgotPasswordRequest) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
+  @Post('reset-password')
   @Post('resetPassword')
   @Public()
   resetPassword(@Body() resetPasswordDto: ResetPasswordRequest) {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
+  @Post('change-password')
   @Post('changePassword')
   changePassword(
-    @Req() request: { user?: { userId?: string } },
+    @Req() request: { user?: RequestUser },
     @Body() changePasswordDto: ChangePasswordRequest,
   ) {
     const userId = request.user?.userId ?? '';
     return this.authService.changePassword(userId, changePasswordDto);
   }
 
+  @Post('verify-email')
   @Post('verifyEmail')
   @Public()
   verifyEmail(@Body() verifyEmailDto: VerifyEmailRequest) {
     return this.authService.verifyEmail(verifyEmailDto);
   }
 
+  @Post('resend-verification')
   @Post('resendVerification')
   @Public()
   resendVerification(@Body() resendDto: ResendVerificationRequest) {
@@ -152,7 +159,10 @@ export class AuthController {
   @Get('google')
   @Public()
   googleLogin(@Res() res: Response) {
-    const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=MOCK_CLIENT_ID&redirect_uri=http://localhost:3000/auth/google/callback&response_type=code&scope=email%20profile`;
+    const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:3000';
+    const googleClientId = process.env.GOOGLE_CLIENT_ID ?? 'MOCK_CLIENT_ID';
+    const callbackUrl = `${clientOrigin}/auth/google/callback`;
+    const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=email%20profile`;
     res.redirect(redirectUrl);
   }
 
@@ -180,8 +190,9 @@ export class AuthController {
     };
   }
 
+  @Post('revoke-all-sessions')
   @Post('revokeAllSessions')
-  revokeAllSessions(@Req() request: { user?: { userId?: string } }) {
+  revokeAllSessions(@Req() request: { user?: RequestUser }) {
     const userId = request.user?.userId ?? '';
     return this.authService.revokeAllSessions(userId);
   }

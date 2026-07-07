@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export type Tone = "brand" | "positive" | "warning" | "danger" | "muted";
 
 const toneClasses: Record<Tone, string> = {
-  brand: "bg-primary/10 text-primary",
+  brand: "bg-accent text-accent-foreground",
   positive: "bg-success/10 text-success",
   warning: "bg-warning/10 text-warning",
   danger: "bg-destructive/10 text-destructive",
@@ -26,7 +26,7 @@ export function StatusBadge({
   tone?: Tone;
 }) {
   return (
-    <Badge className={cn("border-0 px-2.5 py-1 ring-0 font-medium", toneClasses[tone])}>{label}</Badge>
+    <Badge className={cn("rounded-full border-0 px-2.5 py-1 ring-0 font-medium", toneClasses[tone])}>{label}</Badge>
   );
 }
 
@@ -103,7 +103,7 @@ export function EmptyState({
 }) {
   return (
     <div className="quiet-panel flex flex-col items-start gap-3 px-5 py-6">
-      <div className="inline-flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
+      <div className="inline-flex size-9 items-center justify-center rounded-md bg-card text-primary shadow-xs">
         <Sparkles className="size-4" />
       </div>
       <div className="space-y-1">
@@ -222,7 +222,7 @@ export function SurfaceLink({
   return (
     <Link
       href={href}
-      className="surface-panel block px-5 py-4 transition-colors hover:bg-muted/50"
+      className="surface-panel block px-5 py-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -233,7 +233,7 @@ export function SurfaceLink({
             {description}
           </p>
         </div>
-        <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground">
+        <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
           <ArrowRight className="size-3.5" />
         </div>
       </div>

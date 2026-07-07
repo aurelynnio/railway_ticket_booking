@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { Transport } from '@nestjs/microservices/enums/transport.enum';
-import { ClientsModule } from '@nestjs/microservices/module/clients.module';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TicketController } from './ticket.controller';
 import { TicketService } from './ticket.service';
 

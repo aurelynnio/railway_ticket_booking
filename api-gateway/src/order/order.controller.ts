@@ -23,12 +23,7 @@ import {
 } from './order.dto';
 import { Public } from '../common/decorator/public.decorator';
 import { Roles, UserRole } from '../common/decorator/roles.decorator';
-
-interface RequestUser {
-  userId?: string;
-  email?: string;
-  role?: number;
-}
+import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('orders')
 export class OrderController {

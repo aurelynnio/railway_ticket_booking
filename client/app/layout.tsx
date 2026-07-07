@@ -21,7 +21,7 @@ const headingFont = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Railway Hub",
+  title: "Vietrail Way",
   description: "Tra cứu chuyến, đặt vé, thanh toán và theo dõi đơn hàng tàu.",
 };
 

@@ -5,7 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, startTransition } from "react";
 import {
   ArrowUpRight,
+  CalendarCheck,
   ChevronRight,
+  MapPinned,
   Search,
   Receipt,
   Shield,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +44,12 @@ const publicPrimaryNav = [
 const publicSecondaryLinks = [
   { href: "/profile", label: "Hồ sơ" },
   { href: "/profile/tickets", label: "Vé đã phát hành" },
+];
+
+const bookingFlow = [
+  { label: "Tìm chuyến", icon: Search },
+  { label: "Chọn vé", icon: TrainFront },
+  { label: "Thanh toán", icon: CalendarCheck },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -75,17 +84,7 @@ export function AppShell({
         <div className="mx-auto grid min-h-screen w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 xl:grid-cols-[260px_minmax(0,1fr)] xl:px-8">
           <aside className="surface-panel flex flex-col gap-6 px-4 py-5 xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
             <div className="space-y-4">
-              <Link href="/" className="inline-flex items-center gap-2.5">
-                <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <TrainFront className="size-4" />
-                </div>
-                <div>
-                  <p className="font-heading text-sm font-semibold tracking-tight">
-                    Railway Hub
-                  </p>
-                  <p className="text-xs text-muted-foreground">Admin</p>
-                </div>
-              </Link>
+              <BrandLogo sublabel="Admin" />
               <div className="quiet-panel px-3 py-3">
                 <p className="text-xs font-medium text-muted-foreground">
                   Tài khoản
@@ -170,22 +169,15 @@ export function AppShell({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-30 bg-background/85 shadow-[0_1px_0_rgb(227_225_216_/_0.65)] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 w-full items-center gap-6">
-            <Link href="/" className="inline-flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <TrainFront className="size-4" />
-              </div>
-              <span className="font-heading text-sm font-semibold tracking-tight">
-                Railway Hub
-              </span>
-            </Link>
+            <BrandLogo />
 
             <div className="hidden min-w-0 flex-1 justify-center lg:flex">
               <Link
                 href="/search"
-                className="inline-flex w-full max-w-md items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
+                className="inline-flex w-full max-w-md items-center gap-2 rounded-md border border-white/80 bg-card/75 px-3 py-2 text-sm text-muted-foreground shadow-xs transition-all hover:bg-card hover:text-foreground"
               >
                 <Search className="size-4" />
                 Tìm tuyến, ga đến hoặc ngày đi
@@ -240,7 +232,7 @@ export function AppShell({
           </div>
         </div>
         <div className="mx-auto flex w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
-          <nav className="flex items-center gap-1">
+          <nav className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto sm:items-center">
             {publicPrimaryNav.map((item) => {
               const active = isActive(pathname, item.href);
               return (
@@ -248,7 +240,7 @@ export function AppShell({
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "border-b-2 px-3 py-2.5 text-sm transition-colors",
+                    "border-b-2 px-2 py-2.5 text-center text-sm leading-tight transition-colors sm:px-3",
                     active
                       ? "border-primary font-medium text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -263,25 +255,50 @@ export function AppShell({
       </header>
 
       <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="space-y-4">
-          <div className="space-y-2">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+        <section className="page-band soft-wash overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
+          <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="space-y-2">
+              <div className="route-pill w-fit">
+                <MapPinned className="size-3" />
+                Bắc - Trung - Nam
+              </div>
+              <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {title}
-            </h1>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
+              </h1>
+              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                {description}
+              </p>
+            </div>
+            <div className="hidden min-w-72 rounded-lg bg-card/60 px-4 py-3 shadow-xs ring-1 ring-white/70 lg:block">
+              <div className="transit-line h-1.5 rounded-full" />
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {bookingFlow.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <div key={item.label} className="space-y-1">
+                      <div className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                        <Icon className="size-3.5" />
+                      </div>
+                      <p className="text-xs font-medium text-foreground">
+                        {item.label}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          {actions ? <div>{actions}</div> : null}
+          {actions ? <div className="mt-5">{actions}</div> : null}
         </section>
 
         <div className="flex min-w-0 flex-col gap-8">{children}</div>
 
-        <footer className="border-t border-border pt-8">
+        <footer className="border-t border-border/70 pt-8">
           <div className="grid gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
             <div>
               <p className="font-heading text-sm font-semibold tracking-tight text-foreground">
-                Railway Hub
+                Vietrail Way
               </p>
               <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
                 Lên kế hoạch, giữ chỗ và theo dõi hành trình trong một trải nghiệm

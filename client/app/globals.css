@@ -41,52 +41,51 @@
 }
 
 /* =========================================================================
-   DESIGN TOKENS — Clean & Minimal (Stripe / Linear inspired)
-   - Nền trắng tinh, không gradient ồn
-   - Border nhất quán dùng stone scale
-   - Teal accent giữ identity nhưng sáng hơn
-   - Typography hierarchy rõ qua tracking & weight
+   DESIGN TOKENS - Soft Transit Minimal
    ========================================================================= */
 :root {
-  --background: #ffffff;
-  --foreground: #0c0a09;
+  --background: #faf9f5;
+  --foreground: #111c1a;
 
-  --card: #ffffff;
-  --card-foreground: #0c0a09;
+  --card: #fffef9;
+  --card-foreground: #111c1a;
 
-  --popover: #ffffff;
-  --popover-foreground: #0c0a09;
+  --popover: #fffef9;
+  --popover-foreground: #111c1a;
 
-  --primary: #0d9488;
+  --primary: #0f8f83;
   --primary-foreground: #ffffff;
 
-  --secondary: #f5f5f4;
-  --secondary-foreground: #1c1917;
+  --secondary: #eef4ef;
+  --secondary-foreground: #17211f;
 
-  --muted: #f5f5f4;
-  --muted-foreground: #78716c;
+  --muted: #f4f1eb;
+  --muted-foreground: #6f746d;
 
-  --accent: #f0fdfa;
-  --accent-foreground: #0f766e;
+  --accent: #e7f6f2;
+  --accent-foreground: #0d756d;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --success: #16a34a;
+  --success: #25875a;
   --success-foreground: #ffffff;
 
-  --warning: #d97706;
-  --warning-foreground: #ffffff;
+  --warning: #c27a1f;
+  --warning-foreground: #fffaf0;
 
-  --border: #e7e5e4;
-  --input: #e7e5e4;
-  --ring: #0d9488;
+  --border: #e3e1d8;
+  --input: #dddcd3;
+  --ring: #0f8f83;
 
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+  --shadow-xs: 0 1px 2px 0 rgb(32 39 34 / 0.04);
+  --shadow-sm: 0 10px 30px -24px rgb(32 39 34 / 0.36), 0 1px 2px rgb(32 39 34 / 0.04);
+  --shadow-md: 0 22px 60px -38px rgb(32 39 34 / 0.42), 0 1px 3px rgb(32 39 34 / 0.05);
+  --track: #d7eee9;
+  --track-strong: #0f8f83;
+  --sun: #f0b35a;
 }
 
 .dark {
@@ -143,6 +142,8 @@
 
   body {
     @apply min-h-screen bg-background text-foreground;
+    background:
+      linear-gradient(180deg, #fffef9 0%, #faf9f5 42%, #f5f7f1 100%);
   }
 
   ::selection {
@@ -174,36 +175,44 @@
 }
 
 @layer components {
-  /* Card nền tảng — border + shadow tối thiểu */
+  /* Core soft surfaces */
   .surface-panel {
-    @apply rounded-lg border border-border bg-card text-card-foreground;
-    box-shadow: var(--shadow-xs);
+    @apply rounded-lg border border-white/80 bg-card/90 text-card-foreground;
+    box-shadow: var(--shadow-sm);
   }
 
-  /* Card nổi hơn — cho hero / CTA */
   .surface-panel-strong {
-    @apply rounded-lg border border-border bg-card text-card-foreground;
+    @apply rounded-lg border border-white/80 bg-card text-card-foreground;
     box-shadow: var(--shadow-md);
   }
 
-  /* Panel yên tĩnh — cho metadata, stats */
   .quiet-panel {
-    @apply rounded-lg border border-border bg-muted/50;
+    @apply rounded-lg border border-white/70 bg-secondary/70;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
   }
 
-  /* Divider tinh tế */
   .soft-divider {
-    @apply h-px w-full bg-border;
+    @apply h-px w-full bg-border/70;
   }
 
-  /* Pill nhỏ cho tag/label */
   .route-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground;
   }
 
-  /* Band gradient nhẹ cho page header — chỉ 1 lớp, không ồn */
   .page-band {
-    @apply rounded-lg border border-border bg-card;
+    @apply rounded-lg border border-white/80 bg-card/90;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .transit-line {
+    background:
+      linear-gradient(90deg, transparent 0 8%, var(--track) 8% 100%),
+      repeating-linear-gradient(90deg, transparent 0 28px, rgb(15 143 131 / 0.18) 28px 30px);
+  }
+
+  .soft-wash {
+    background:
+      linear-gradient(135deg, rgb(231 246 242 / 0.95), rgb(255 254 249 / 0.9) 54%, rgb(240 179 90 / 0.16));
   }
 
   .text-balance {

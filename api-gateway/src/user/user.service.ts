@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices/client/client-proxy';
+import { ClientProxy } from '@nestjs/microservices';
 import {
   CreateUserRequest,
+  DeleteUserRequest,
   FindByEmailRequest,
   GetUserByIdRequest,
   ListUsersQuery,
@@ -34,6 +35,11 @@ export class UserService {
   getUserById(userId: GetUserByIdRequest) {
     return this.userClient.send({ cmd: 'users.get_by_id' }, userId);
   }
+
+  remove(userId: DeleteUserRequest) {
+    return this.userClient.send({ cmd: 'users.delete' }, userId);
+  }
+
   findByEmail(email: FindByEmailRequest) {
     return this.userClient.send({ cmd: 'users.find_by_email' }, email);
   }

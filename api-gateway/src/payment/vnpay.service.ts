@@ -1,8 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { VnpayService } from 'nestjs-vnpay';
 import { ProductCode, VnpLocale } from 'vnpay';
+import { OrderStatus } from '../order/order.dto';
+import type { OrderResponse } from '../order/order.dto';
 import { PaymentService } from './payment.service';
+import { PaymentStatus } from './payment.dto';
+import type { PaymentDto } from './payment.dto';
 
 @Injectable()
 export class VnpayPaymentService {
@@ -15,49 +19,50 @@ export class VnpayPaymentService {
 
   /**
    * Tạo URL thanh toán VNPay
-   * 1. Tạo payment record trong DB qua payments-service
+   * 1. Tái sử dụng pending payment hiện có hoặc tạo mới đúng transactionId
    * 2. Build VNPay payment URL
    * 3. Trả về URL cho client redirect
    */
   async createPaymentUrl(params: {
-    orderId: string;
-    amount: number;
+    order: OrderResponse;
     orderInfo: string;
     ipAddr: string;
     userId?: string;
-  }): Promise<{ paymentUrl: string; paymentId: string; transactionId: string }> {
-    const { orderId, amount, orderInfo, ipAddr, userId } = params;
+  }): Promise<{
+    paymentUrl: string;
+    paymentId: string;
+    transactionId: string;
+    orderId: string;
+  }> {
+    const { order, orderInfo, ipAddr, userId } = params;
 
-    // Sinh transactionId duy nhất
-    const transactionId = `VNP${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    this.assertPayableOrder(order);
 
-    // 1. Tạo payment record trong DB
-    const payment = (await firstValueFrom(
-      this.paymentService.createPayment({
-        orderId,
-        userId: userId ?? null,
-        amount: String(amount),
-        paymentMethod: 'VNPAY',
-      }),
-    )) as any;
+    const payment = await this.findOrCreateVnpayPayment(order, userId);
+    if (payment.status === PaymentStatus.Pending) {
+      await firstValueFrom(this.paymentService.markProcessing({ id: payment.id }));
+    }
 
     // 2. Build VNPay payment URL
     const paymentUrl = this.vnpayService.buildPaymentUrl({
-      vnp_Amount: amount,
+      vnp_Amount: Number(payment.amount),
       vnp_IpAddr: ipAddr,
-      vnp_TxnRef: transactionId,
+      vnp_TxnRef: payment.transactionId,
       vnp_OrderInfo: orderInfo,
       vnp_OrderType: ProductCode.Other,
       vnp_ReturnUrl: process.env.VNPAY_RETURN_URL || 'http://localhost:8080/payments/vnpay/return',
       vnp_Locale: VnpLocale.VN,
     });
 
-    this.logger.log(`Created VNPay payment URL for order ${orderId}, txnRef: ${transactionId}`);
+    this.logger.log(
+      `Created VNPay payment URL for order ${order.id}, txnRef: ${payment.transactionId}`,
+    );
 
     return {
       paymentUrl,
-      paymentId: payment?.id ?? '',
-      transactionId,
+      paymentId: payment.id,
+      transactionId: payment.transactionId,
+      orderId: payment.orderId,
     };
   }
 
@@ -73,9 +78,12 @@ export class VnpayPaymentService {
     vnp_Amount: number;
     vnp_ResponseCode: string;
     message: string;
+    paymentId: string | null;
+    orderId: string | null;
   }> {
     try {
       const verify = await this.vnpayService.verifyReturnUrl(query);
+      const payment = await this.findPaymentByTransactionId(verify.vnp_TxnRef);
 
       this.logger.log(
         `Return URL verified: isSuccess=${verify.isSuccess}, txnRef=${verify.vnp_TxnRef}`,
@@ -88,6 +96,8 @@ export class VnpayPaymentService {
         vnp_Amount: Number(verify.vnp_Amount),
         vnp_ResponseCode: (verify as any).vnp_ResponseCode ?? '',
         message: verify.message ?? '',
+        paymentId: payment?.id ?? null,
+        orderId: payment?.orderId ?? null,
       };
     } catch (error: any) {
       // SDK throw exception khi query không hợp lệ (thiếu params, checksum sai)
@@ -101,6 +111,8 @@ export class VnpayPaymentService {
         vnp_Amount: Number(query?.vnp_Amount ?? 0),
         vnp_ResponseCode: '',
         message: 'Verification failed',
+        paymentId: null,
+        orderId: null,
       };
     }
   }
@@ -120,18 +132,7 @@ export class VnpayPaymentService {
         return { RspCode: '97', Message: 'Checksum failed' };
       }
 
-      // Thanh toán thất bại
-      if (!verify.isSuccess) {
-        this.logger.warn(`IPN payment failed for txnRef=${verify.vnp_TxnRef}`);
-        return { RspCode: '00', Message: 'Payment failed but confirmed' };
-      }
-
-      // Tìm payment theo transactionId (vnp_TxnRef)
-      const payment = (await firstValueFrom(
-        this.paymentService.getPaymentByTransactionId({
-          transactionId: verify.vnp_TxnRef,
-        }),
-      )) as any;
+      const payment = await this.findPaymentByTransactionId(verify.vnp_TxnRef);
 
       if (!payment) {
         this.logger.warn(`IPN order not found: txnRef=${verify.vnp_TxnRef}`);
@@ -153,11 +154,16 @@ export class VnpayPaymentService {
         return { RspCode: '00', Message: 'Order already confirmed' };
       }
 
+      if (!verify.isSuccess) {
+        await firstValueFrom(this.paymentService.markFailed({ id: payment.id }));
+        this.logger.warn(`IPN payment failed for txnRef=${verify.vnp_TxnRef}`);
+        return { RspCode: '00', Message: 'Payment failed but confirmed' };
+      }
+
       // Cập nhật trạng thái thanh toán thành công
       await firstValueFrom(
         this.paymentService.markPaidWorkflow({
           id: payment.id,
-          transactionId: verify.vnp_TxnRef,
         }),
       );
 
@@ -167,6 +173,105 @@ export class VnpayPaymentService {
       // Exception thường do verify fail (checksum sai, query không hợp lệ)
       this.logger.error(`IPN handling error: ${error.message}`, error.stack);
       return { RspCode: '97', Message: 'Checksum failed' };
+    }
+  }
+
+  private assertPayableOrder(order: OrderResponse): void {
+    if (
+      [
+        OrderStatus.Cancelled,
+        OrderStatus.Expired,
+        OrderStatus.Refunded,
+      ].includes(order.status)
+    ) {
+      throw new HttpException(
+        'Order is closed and cannot be paid',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    if (
+      [
+        OrderStatus.Paid,
+        OrderStatus.Confirmed,
+        OrderStatus.TicketIssued,
+      ].includes(order.status)
+    ) {
+      throw new HttpException(
+        'Order is already paid',
+        HttpStatus.CONFLICT,
+      );
+    }
+  }
+
+  private async findOrCreateVnpayPayment(
+    order: OrderResponse,
+    userId?: string,
+  ): Promise<PaymentDto> {
+    const payments = await this.listPaymentsByOrderId(order.id);
+    const paidPayment = payments.find(
+      (payment) =>
+        payment.paymentMethod === 'VNPAY' &&
+        payment.status === PaymentStatus.Paid,
+    );
+
+    if (paidPayment) {
+      throw new HttpException('Order is already paid', HttpStatus.CONFLICT);
+    }
+
+    const activePayment = payments.find(
+      (payment) =>
+        payment.paymentMethod === 'VNPAY' &&
+        [PaymentStatus.Pending, PaymentStatus.Processing].includes(payment.status),
+    );
+
+    if (activePayment) {
+      return activePayment;
+    }
+
+    return firstValueFrom(
+      this.paymentService.createPayment({
+        orderId: order.id,
+        userId: userId ?? order.userId,
+        amount: String(order.totalPrice),
+        paymentMethod: 'VNPAY',
+      }),
+    ) as Promise<PaymentDto>;
+  }
+
+  private async listPaymentsByOrderId(orderId: string): Promise<PaymentDto[]> {
+    try {
+      return (await firstValueFrom(
+        this.paymentService.getPaymentsByOrderId({ orderId }),
+      )) as PaymentDto[];
+    } catch (error: any) {
+      const status =
+        error?.status ?? error?.response?.statusCode ?? error?.response?.status;
+      if (status === HttpStatus.NOT_FOUND) {
+        return [];
+      }
+
+      throw error;
+    }
+  }
+
+  private async findPaymentByTransactionId(
+    transactionId: string,
+  ): Promise<PaymentDto | null> {
+    try {
+      return (await firstValueFrom(
+        this.paymentService.getPaymentByTransactionId({
+          transactionId,
+        }),
+      )) as PaymentDto;
+    } catch (error: any) {
+      const status =
+        error?.status ?? error?.response?.statusCode ?? error?.response?.status;
+      if (status === HttpStatus.NOT_FOUND) {
+        return null;
+      }
+
+      throw error;
     }
   }
 }

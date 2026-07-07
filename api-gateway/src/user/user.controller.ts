@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -13,8 +14,11 @@ import {
   CreateUserRequest,
   FindByEmailRequest,
   ListUsersQuery,
+  UpdateProfilePayload,
+  UpdateUserPayload,
 } from '../common/dto/user.dto';
 import { Roles, UserRole } from '../common/decorator/roles.decorator';
+import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('users')
 export class UserController {
@@ -27,21 +31,17 @@ export class UserController {
   }
 
   @Get('me')
-  profile(@Req() request: { user?: { id?: string; userId?: string } }) {
-    const resolvedUserId = request.user?.id ?? request.user?.userId;
-
-    return this.userService.profile({ userId: resolvedUserId ?? '' });
+  profile(@Req() request: { user?: RequestUser }) {
+    return this.userService.profile({ userId: request.user?.userId ?? '' });
   }
 
   @Patch('me')
   updateMe(
-    @Req() request: { user?: { id?: string; userId?: string } },
-    @Body() payload: Record<string, unknown>,
+    @Req() request: { user?: RequestUser },
+    @Body() payload: UpdateProfilePayload,
   ) {
-    const resolvedUserId = request.user?.id ?? request.user?.userId;
-
     return this.userService.update({
-      userId: resolvedUserId ?? '',
+      userId: request.user?.userId ?? '',
       payload,
     });
   }
@@ -68,8 +68,14 @@ export class UserController {
   @Roles(UserRole.ADMIN)
   update(
     @Param('userId') userId: string,
-    @Body() payload: Record<string, unknown>,
+    @Body() payload: UpdateUserPayload,
   ) {
     return this.userService.update({ userId, payload });
+  }
+
+  @Delete(':userId')
+  @Roles(UserRole.ADMIN)
+  remove(@Param('userId') userId: string) {
+    return this.userService.remove({ userId });
   }
 }

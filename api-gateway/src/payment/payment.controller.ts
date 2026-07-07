@@ -13,7 +13,6 @@ import { firstValueFrom } from 'rxjs';
 import { PaymentService } from './payment.service';
 import {
   CancelPaymentRequest,
-  CreatePaymentRequest,
   ExpirePaymentRequest,
   ListPaymentsQuery,
   MarkFailedRequest,
@@ -24,12 +23,7 @@ import {
 } from './payment.dto';
 import { Public } from '../common/decorator/public.decorator';
 import { Roles, UserRole } from '../common/decorator/roles.decorator';
-
-interface RequestUser {
-  userId?: string;
-  email?: string;
-  role?: number;
-}
+import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('payments')
 export class PaymentController {
@@ -39,16 +33,6 @@ export class PaymentController {
   @Public()
   health() {
     return this.paymentService.health();
-  }
-
-  @Post()
-  createPayment(
-    @Req() request: { user?: RequestUser },
-    @Body() payload: CreatePaymentRequest,
-  ) {
-    // Override userId từ JWT — chống impersonation
-    payload.userId = request.user?.userId ?? null;
-    return this.paymentService.createPayment(payload);
   }
 
   @Get()
@@ -149,12 +133,6 @@ export class PaymentController {
   @Roles(UserRole.ADMIN)
   softDeletePayment(@Param('id') id: string) {
     return this.paymentService.softDeletePayment({ id });
-  }
-
-  @Post('webhook/stripe')
-  @Public()
-  handleStripeWebhook(@Body() payload: any) {
-    return this.paymentService.handleStripeWebhook(payload);
   }
 
   /**

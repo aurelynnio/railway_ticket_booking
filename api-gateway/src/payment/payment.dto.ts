@@ -64,6 +64,11 @@ export class CreatePaymentRequest {
   @IsString()
   @IsNotEmpty()
   paymentMethod: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  transactionId?: string;
 }
 
 export class GetPaymentByIdRequest {
