@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { FormField } from "@/components/form-field";
+import { RouteMap } from "@/components/route-map";
 import {
+  DetailBlock,
   MetaGrid,
+  NoticeBox,
   SectionHeading,
   SeatCloud,
   StatusBadge,
@@ -15,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useCreateOrder } from "@/hooks/order.hook";
+import { useCreateVnpayPayment } from "@/hooks/payment.hook";
 import {
   useAddTicketItem,
   useCloseSale,
@@ -36,11 +44,17 @@ import {
   formatTicketStatus,
   getTicketStatusTone,
 } from "@/lib/formatters";
+import { integerText, optionalText } from "@/lib/validation";
+
+const createOrderSchema = z.object({
+  passengerName: optionalText(),
+  seatLabels: optionalText(),
+  quantity: integerText("Số lượng", 1),
+});
 
 export default function TicketDetailPage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const ticketId = typeof params.id === "string" ? params.id : "";
   const isAdminView = pathname.startsWith("/admin");
 
@@ -48,6 +62,7 @@ export default function TicketDetailPage() {
   const availabilityQuery = useTicketAvailability(ticketId);
   const seatMapQuery = useSeatMap(ticketId);
   const createOrder = useCreateOrder();
+  const createVnpayPayment = useCreateVnpayPayment();
   const sessionQuery = useAuthSession();
   const sessionUserId = sessionQuery.data?.userId;
   const publishTicket = usePublishTicket();
@@ -60,11 +75,16 @@ export default function TicketDetailPage() {
   const releaseTicket = useReleaseTicket();
   const addTicketItem = useAddTicketItem();
   const updateTicket = useUpdateTicket(ticketId);
+  const createOrderForm = useForm<z.infer<typeof createOrderSchema>>({
+    resolver: zodResolver(createOrderSchema),
+    defaultValues: {
+      passengerName: "",
+      seatLabels: "",
+      quantity: "1",
+    },
+  });
 
   const [selectedTicketItemId, setSelectedTicketItemId] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [seatLabels, setSeatLabels] = useState("");
-  const [passengerName, setPassengerName] = useState("");
   const [reservationSeatLabel, setReservationSeatLabel] = useState("");
   const [reservationQuantity, setReservationQuantity] = useState("1");
   const [newItemCoach, setNewItemCoach] = useState("");
@@ -87,12 +107,12 @@ export default function TicketDetailPage() {
     [resolvedSelectedTicketItemId, ticket?.ticketItems],
   );
 
-  async function handleCreateOrder() {
+  async function handleCreateOrder(values: z.infer<typeof createOrderSchema>) {
     if (!ticket || !selectedItem) {
       return;
     }
 
-    const numericQuantity = Number(quantity);
+    const numericQuantity = Number(values.quantity);
     const unitPrice = selectedItem.priceFlash ?? selectedItem.priceOriginal ?? 0;
 
     const result = await createOrder.mutateAsync({
@@ -112,16 +132,20 @@ export default function TicketDetailPage() {
       seatType: selectedItem.seatType,
       quantity: Number.isNaN(numericQuantity) ? 1 : numericQuantity,
       unitPrice,
-      seatLabels: seatLabels
+      seatLabels: values.seatLabels
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean),
-        passengers: passengerName
-          ? [{ fullName: passengerName, passengerType: "ADULT" }]
+        passengers: values.passengerName
+          ? [{ fullName: values.passengerName.trim(), passengerType: "ADULT" }]
           : [],
     });
+    const vnpay = await createVnpayPayment.mutateAsync({
+      orderId: result.order.id,
+      orderInfo: `Thanh toan don hang ${result.order.id.slice(0, 8)}`,
+    });
 
-    router.push(`/payments/${result.payment.id}`);
+    window.location.assign(vnpay.paymentUrl);
   }
 
   return (
@@ -135,6 +159,31 @@ export default function TicketDetailPage() {
               Quay lại danh sách
             </Link>
           </Button>
+          {isAdminView && ticket ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => publishTicket.mutate({ ticketId })}
+              >
+                Công bố
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  openSale.mutate({
+                    ticketId,
+                    payload: { ticketItemId: selectedItem?.id },
+                  })
+                }
+              >
+                Mở bán
+              </Button>
+            </>
+          ) : null}
           {ticket ? (
             <StatusBadge
               label={formatTicketStatus(ticket.status)}
@@ -144,7 +193,7 @@ export default function TicketDetailPage() {
         </div>
       }
     >
-      <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Panel
           title={ticket?.title ?? "Đang tải vé"}
           description="Hành trình, lịch chạy và các hạng ghế đang mở."
@@ -185,10 +234,10 @@ export default function TicketDetailPage() {
                         key={item.id}
                         type="button"
                         onClick={() => setSelectedTicketItemId(item.id)}
-                        className={`rounded-lg px-4 py-4 text-left transition ${
+                        className={`rounded-lg border px-4 py-4 text-left transition-colors ${
                           isSelected
-                            ? "bg-muted/55 ring-1 ring-foreground/18"
-                            : "bg-background border border-border hover:bg-muted/25"
+                            ? "border-primary/30 bg-accent/45"
+                            : "border-border/80 bg-background hover:bg-muted/20"
                         }`}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -237,10 +286,18 @@ export default function TicketDetailPage() {
           </div>
         </Panel>
 
+        {/* Route map visualization - only visible to non-admin users */}
+        {!isAdminView && ticket && (
+          <RouteMap
+            from={ticket.departureStationCode ?? undefined}
+            to={ticket.arrivalStationCode ?? undefined}
+          />
+        )}
+
         <div className="grid gap-8">
           <Panel
-          title="Tình trạng chỗ"
-          description="Số ghế còn lại và trạng thái mở bán theo từng hạng."
+            title="Tình trạng chỗ"
+            description="Số ghế còn lại và trạng thái mở bán theo từng hạng."
           >
             {availabilityQuery.data ? (
               <div className="space-y-4">
@@ -251,7 +308,7 @@ export default function TicketDetailPage() {
                 {availabilityQuery.data.items.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-lg bg-background px-4 py-4 border border-border"
+                    className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
                   >
                     <p className="font-medium text-foreground">
                       {item.name ?? item.coachCode ?? item.id}
@@ -275,30 +332,35 @@ export default function TicketDetailPage() {
               }
             >
               <div className="space-y-4">
-                <MetaGrid
-                  items={[
-                    { label: "Toa", value: selectedItem.coachCode ?? "N/A" },
-                    { label: "Hạng ghế", value: selectedItem.seatClass ?? "N/A" },
-                    { label: "Loại ghế", value: selectedItem.seatType ?? "N/A" },
-                    {
-                      label: "Giá gốc",
-                      value: formatCurrency(selectedItem.priceOriginal),
-                    },
-                    {
-                      label: "Giá hiện tại",
-                      value: formatCurrency(selectedItem.priceFlash),
-                    },
-                    {
-                      label: "Chỗ còn",
-                      value: String(selectedItem.availableSeatLabels.length),
-                    },
-                  ]}
-                  columns={3}
-                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailBlock label="Toa" value={selectedItem.coachCode ?? "N/A"} />
+                  <DetailBlock label="Hạng ghế" value={selectedItem.seatClass ?? "N/A"} />
+                  <DetailBlock label="Loại ghế" value={selectedItem.seatType ?? "N/A"} />
+                  <DetailBlock label="Giá gốc" value={formatCurrency(selectedItem.priceOriginal)} />
+                  <DetailBlock label="Giá hiện tại" value={formatCurrency(selectedItem.priceFlash)} />
+                  <DetailBlock
+                    label="Chỗ còn"
+                    value={String(selectedItem.availableSeatLabels.length)}
+                  />
+                </div>
                 <SeatCloud labels={selectedItem.availableSeatLabels} />
 
                 {isAdminView ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="space-y-3">
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px]">
+                      <Input
+                        placeholder="Seat label"
+                        value={reservationSeatLabel}
+                        onChange={(event) => setReservationSeatLabel(event.target.value)}
+                      />
+                      <Input
+                        type="number"
+                        min="1"
+                        value={reservationQuantity}
+                        onChange={(event) => setReservationQuantity(event.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline">
                       <Link href={`/admin/tickets/${ticketId}/items/${selectedItem.id}`}>
                         Mở hạng ghế
@@ -338,48 +400,67 @@ export default function TicketDetailPage() {
                     >
                       Hoàn chỗ
                     </Button>
-                    <Input
-                      className="min-w-36 flex-1"
-                      placeholder="Seat label"
-                      value={reservationSeatLabel}
-                      onChange={(event) => setReservationSeatLabel(event.target.value)}
-                    />
-                    <Input
-                      className="w-24"
-                      type="number"
-                      min="1"
-                      value={reservationQuantity}
-                      onChange={(event) => setReservationQuantity(event.target.value)}
-                    />
+                    </div>
                   </div>
                 ) : (
-                  <div className="grid gap-3">
-                    <Input
-                      placeholder="Họ tên hành khách"
-                      value={passengerName}
-                      onChange={(event) => setPassengerName(event.target.value)}
-                    />
-                    <Input
-                      placeholder="Mã ghế, ví dụ A1,A2"
-                      value={seatLabels}
-                      onChange={(event) => setSeatLabels(event.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(event) => setQuantity(event.target.value)}
-                    />
-                    <Button
-                      type="button"
-                      disabled={!sessionUserId || createOrder.isPending}
-                      onClick={() => void handleCreateOrder()}
+                  <form
+                    className="grid gap-3"
+                    onSubmit={createOrderForm.handleSubmit((values) =>
+                      void handleCreateOrder(values),
+                    )}
+                  >
+                    <FormField
+                      label="Họ tên hành khách"
+                      error={createOrderForm.formState.errors.passengerName?.message}
                     >
-                      {createOrder.isPending
-                        ? "Đang giữ chỗ..."
-                        : "Giữ chỗ & tạo thanh toán"}
+                      <Input
+                        placeholder="Họ tên hành khách"
+                        aria-invalid={Boolean(createOrderForm.formState.errors.passengerName)}
+                        {...createOrderForm.register("passengerName")}
+                      />
+                    </FormField>
+                    <FormField
+                      label="Mã ghế"
+                      hint="Ví dụ A1,A2"
+                      error={createOrderForm.formState.errors.seatLabels?.message}
+                    >
+                      <Input
+                        placeholder="Mã ghế, ví dụ A1,A2"
+                        aria-invalid={Boolean(createOrderForm.formState.errors.seatLabels)}
+                        {...createOrderForm.register("seatLabels")}
+                      />
+                    </FormField>
+                    <FormField
+                      label="Số lượng"
+                      error={createOrderForm.formState.errors.quantity?.message}
+                    >
+                      <Input
+                        type="number"
+                        min="1"
+                        aria-invalid={Boolean(createOrderForm.formState.errors.quantity)}
+                        {...createOrderForm.register("quantity")}
+                      />
+                    </FormField>
+                    <Button
+                      type="submit"
+                      disabled={
+                        !sessionUserId ||
+                        createOrder.isPending ||
+                        createVnpayPayment.isPending
+                      }
+                    >
+                      {createOrder.isPending || createVnpayPayment.isPending
+                        ? "Đang chuyển sang VNPay..."
+                        : "Giữ chỗ & thanh toán VNPay"}
                     </Button>
-                  </div>
+                    {!sessionUserId ? (
+                      <NoticeBox
+                        title="Cần đăng nhập để tiếp tục"
+                        description="Đăng nhập trước khi giữ chỗ và chuyển sang thanh toán VNPay."
+                        tone="warning"
+                      />
+                    ) : null}
+                  </form>
                 )}
               </div>
             </Panel>
@@ -560,7 +641,7 @@ export default function TicketDetailPage() {
               {seatMapQuery.data?.items.map((item) => (
                 <div
                   key={item.ticketItemId}
-                  className="rounded-lg bg-background px-4 py-4 border border-border"
+                  className="rounded-lg border border-border/80 bg-background px-4 py-4"
                 >
                   <p className="font-medium text-foreground">
                     {item.coachCode ?? "Toa"} • {item.seatClass ?? "Chưa rõ"}
@@ -583,11 +664,6 @@ export default function TicketDetailPage() {
 
 function ItemMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-muted/35 px-3 py-3 border border-border">
-      <p className="text-xs font-medium text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-2 text-sm font-medium text-foreground">{value}</p>
-    </div>
+    <DetailBlock label={label} value={value} />
   );
 }

@@ -117,14 +117,14 @@ export default function RootPage() {
               </div>
             </div>
 
-            <div className="relative min-h-48 overflow-hidden rounded-lg bg-secondary/60 px-5 py-5">
+            <div className="relative min-h-48 overflow-hidden rounded-lg bg-secondary/70 px-5 py-5">
               <Image
                 src="/imgs/railway.png"
                 alt="Vietrail Way"
                 fill
                 priority
                 sizes="(min-width: 1280px) 18rem, 100vw"
-                className="object-contain p-5 opacity-[0.08] mix-blend-multiply"
+                className="object-contain p-5 opacity-[0.08] mix-blend-multiply dark:invert dark:mix-blend-screen"
               />
               <div className="relative flex h-full flex-col justify-between gap-6">
                 <div>
@@ -136,7 +136,7 @@ export default function RootPage() {
                 <div className="grid gap-2">
                   {["HAN", "DAD", "SGN"].map((station) => (
                     <div key={station} className="flex items-center gap-2 text-sm font-medium text-foreground">
-                      <span className="flex size-7 items-center justify-center rounded-md bg-card text-xs shadow-xs">
+                      <span className="flex size-7 items-center justify-center rounded-md border border-border/80 bg-card text-xs">
                         {station}
                       </span>
                       <span className="text-muted-foreground">
@@ -154,7 +154,7 @@ export default function RootPage() {
           </div>
 
           {featuredTrip ? (
-            <div className="mt-5 quiet-panel px-4 py-4">
+            <div className="mt-5 rounded-lg border border-border/80 bg-background px-4 py-4">
               <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">
@@ -202,7 +202,7 @@ export default function RootPage() {
             label="Giá từ"
             value={formatCurrency(lowestPrice)}
           />
-          <div className="quiet-panel hidden px-5 py-4 lg:block">
+          <div className="surface-panel hidden px-5 py-4 lg:block">
             <div className="flex items-start gap-3">
               <div className="flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
                 <MapPin className="size-4" />
@@ -230,7 +230,7 @@ export default function RootPage() {
             {trips.map((trip) => (
               <article
                 key={trip.ticketId}
-                className="quiet-panel px-5 py-4 transition-colors hover:bg-muted"
+                className="surface-panel px-5 py-4 transition-colors hover:bg-muted/35"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -295,7 +295,7 @@ export default function RootPage() {
             <Link
               key={item.href}
               href={item.href}
-              className="quiet-panel block px-5 py-4 transition-colors hover:bg-muted"
+              className="surface-panel block px-5 py-4 transition-colors hover:bg-muted/35"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>

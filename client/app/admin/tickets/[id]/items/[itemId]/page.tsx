@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { MetaGrid, SeatCloud, SectionHeading } from "@/components/railway-ui";
+import {
+  DetailBlock,
+  MetaGrid,
+  NoticeBox,
+  SeatCloud,
+  SectionHeading,
+} from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,8 +61,8 @@ export default function AdminTicketItemPage() {
         >
           <div className="space-y-5">
             <SectionHeading
-              eyebrow="Coach block"
-              title={item?.seatClass ?? "Seat block"}
+              eyebrow="Khoang ghế"
+              title={item?.seatClass ?? "Hạng ghế"}
               description={item?.description ?? "Chưa có mô tả cho hạng ghế này."}
             />
 
@@ -64,39 +70,31 @@ export default function AdminTicketItemPage() {
               <>
                 <MetaGrid
                   items={[
-                    { label: "Coach", value: item.coachCode ?? "N/A" },
-                    { label: "Seat class", value: item.seatClass ?? "N/A" },
-                    { label: "Seat type", value: item.seatType ?? "N/A" },
-                    { label: "Stock initial", value: String(item.stockInitial ?? 0) },
-                    { label: "Stock available", value: String(item.stockAvailable ?? 0) },
-                    { label: "Prepared", value: item.stockPrepared ? "Yes" : "No" },
-                    { label: "Original price", value: formatCurrency(item.priceOriginal) },
-                    { label: "Flash price", value: formatCurrency(item.priceFlash) },
-                    { label: "Sale start", value: formatDateTime(item.saleStartTime) },
-                    { label: "Sale end", value: formatDateTime(item.saleEndTime) },
-                    { label: "Created", value: formatDateTime(item.createdAt) },
-                    { label: "Updated", value: formatDateTime(item.updatedAt) },
+                    { label: "Mã toa", value: item.coachCode ?? "N/A" },
+                    { label: "Hạng ghế", value: item.seatClass ?? "N/A" },
+                    { label: "Loại ghế", value: item.seatType ?? "N/A" },
+                    { label: "Tồn đầu", value: String(item.stockInitial ?? 0) },
+                    { label: "Tồn hiện tại", value: String(item.stockAvailable ?? 0) },
+                    { label: "Đã chuẩn bị", value: item.stockPrepared ? "Có" : "Chưa" },
+                    { label: "Giá gốc", value: formatCurrency(item.priceOriginal) },
+                    { label: "Giá ưu đãi", value: formatCurrency(item.priceFlash) },
+                    { label: "Mở bán từ", value: formatDateTime(item.saleStartTime) },
+                    { label: "Kết thúc bán", value: formatDateTime(item.saleEndTime) },
+                    { label: "Ngày tạo", value: formatDateTime(item.createdAt) },
+                    { label: "Cập nhật", value: formatDateTime(item.updatedAt) },
                   ]}
                   columns={3}
                 />
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-lg bg-background px-4 py-4 border border-border">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Seat labels
-                    </p>
-                    <div className="mt-3">
-                      <SeatCloud labels={item.seatLabels} />
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-background px-4 py-4 border border-border">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Available seats
-                    </p>
-                    <div className="mt-3">
-                      <SeatCloud labels={item.availableSeatLabels} />
-                    </div>
-                  </div>
+                  <DetailBlock
+                    label="Danh sách ghế"
+                    value={<SeatCloud labels={item.seatLabels} />}
+                  />
+                  <DetailBlock
+                    label="Ghế còn trống"
+                    value={<SeatCloud labels={item.availableSeatLabels} />}
+                  />
                 </div>
               </>
             ) : null}
@@ -281,9 +279,15 @@ export default function AdminTicketItemPage() {
             title="Danger zone"
             description="Xoá hạng ghế khỏi hành trình. Hành động này không thể hoàn tác."
           >
+            <NoticeBox
+              title="Thao tác không hoàn tác"
+              description="Chỉ xoá khi chắc chắn toa hoặc hạng ghế này không còn dùng trong vận hành."
+              tone="danger"
+            />
             <Button
               type="button"
               variant="destructive"
+              className="mt-4"
               disabled={!ticketId || !itemId || removeTicketItem.isPending}
               onClick={() =>
                 removeTicketItem.mutate({ ticketId, ticketItemId: itemId })

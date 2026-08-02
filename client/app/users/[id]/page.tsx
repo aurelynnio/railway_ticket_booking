@@ -1,17 +1,37 @@
 "use client";
-import { useState } from "react";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { usePathname, useParams } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { MetaGrid, SectionHeading, SurfaceLink, compactId } from "@/components/railway-ui";
+import { FormField } from "@/components/form-field";
+import {
+  NoticeBox,
+  MetaGrid,
+  SectionHeading,
+  SurfaceLink,
+  compactId,
+} from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useOrders } from "@/hooks/order.hook";
 import { usePaymentsByUserId } from "@/hooks/payment.hook";
-import { useUpdateUser, useUser } from "@/hooks/user.hook";
+import { useDeleteUser, useUpdateUser, useUser } from "@/hooks/user.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { emailField, requiredText } from "@/lib/validation";
+
+const updateUserSchema = z.object({
+  username: requiredText("Username"),
+  email: emailField,
+  name: z.string(),
+});
 
 export default function UserDetailPage() {
+  const router = useRouter();
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const userId = typeof params.id === "string" ? params.id : "";
@@ -25,10 +45,23 @@ export default function UserDetailPage() {
     isAdminView && Boolean(userId),
   );
   const updateUser = useUpdateUser(userId);
+  const deleteUser = useDeleteUser();
+  const form = useForm<z.infer<typeof updateUserSchema>>({
+    resolver: zodResolver(updateUserSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      name: "",
+    },
+  });
 
-  const [draftUsername, setDraftUsername] = useState("");
-  const [draftEmail, setDraftEmail] = useState("");
-  const [draftName, setDraftName] = useState("");
+  useEffect(() => {
+    form.reset({
+      username: userQuery.data?.username ?? "",
+      email: userQuery.data?.email ?? "",
+      name: userQuery.data?.name ?? "",
+    });
+  }, [form, userQuery.data?.email, userQuery.data?.name, userQuery.data?.username]);
 
   const user = userQuery.data;
   const orders = ordersQuery.data?.data ?? [];
@@ -83,45 +116,94 @@ export default function UserDetailPage() {
               title="Cập nhật người dùng"
               description="Chỉnh sửa thông tin cơ bản của tài khoản."
             >
-              <div className="grid gap-3">
-                <Input
-                  placeholder="Username"
-                  value={draftUsername}
-                  onChange={(event) => setDraftUsername(event.target.value)}
-                />
-                <Input
-                  placeholder="Email"
-                  value={draftEmail}
-                  onChange={(event) => setDraftEmail(event.target.value)}
-                />
-                <Input
-                  placeholder="Tên hiển thị"
-                  value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
-                />
+              <form
+                className="grid gap-3"
+                onSubmit={form.handleSubmit((values) =>
+                  updateUser.mutate({
+                    username: values.username,
+                    email: values.email,
+                    name: values.name.trim() || undefined,
+                  }),
+                )}
+              >
+                <FormField
+                  label="Username"
+                  error={form.formState.errors.username?.message}
+                >
+                  <Input
+                    placeholder="Username"
+                    aria-invalid={Boolean(form.formState.errors.username)}
+                    {...form.register("username")}
+                  />
+                </FormField>
+                <FormField
+                  label="Email"
+                  error={form.formState.errors.email?.message}
+                >
+                  <Input
+                    placeholder="Email"
+                    aria-invalid={Boolean(form.formState.errors.email)}
+                    {...form.register("email")}
+                  />
+                </FormField>
+                <FormField
+                  label="Tên hiển thị"
+                  error={form.formState.errors.name?.message}
+                >
+                  <Input
+                    placeholder="Tên hiển thị"
+                    aria-invalid={Boolean(form.formState.errors.name)}
+                    {...form.register("name")}
+                  />
+                </FormField>
                 <Button
-                  type="button"
+                  type="submit"
                   variant="outline"
                   disabled={!userId || updateUser.isPending}
-                  onClick={() =>
-                    updateUser.mutate({
-                      username: draftUsername || undefined,
-                      email: draftEmail || undefined,
-                      name: draftName || undefined,
-                    })
-                  }
                 >
                   {updateUser.isPending ? "Đang cập nhật..." : "Cập nhật"}
                 </Button>
                 {updateUser.isSuccess ? (
-                  <p className="text-sm text-emerald-700">Cập nhật thành công.</p>
+                  <NoticeBox
+                    title="Cập nhật thành công"
+                    description="Thông tin người dùng đã được lưu."
+                    tone="positive"
+                  />
                 ) : null}
                 {updateUser.isError ? (
-                  <p className="text-sm text-rose-700">
-                    Cập nhật thất bại. Vui lòng thử lại.
-                  </p>
+                  <NoticeBox
+                    title="Cập nhật thất bại"
+                    description="Vui lòng thử lại."
+                    tone="danger"
+                  />
                 ) : null}
-              </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={!userId || deleteUser.isPending}
+                  onClick={() => {
+                    if (
+                      typeof window !== "undefined" &&
+                      !window.confirm(
+                        `Xóa người dùng ${user?.email ?? compactId(userId)}?`,
+                      )
+                    ) {
+                      return;
+                    }
+
+                    deleteUser.mutate(
+                      { userId },
+                      {
+                        onSuccess: () => {
+                          router.push("/admin/users");
+                        },
+                      },
+                    );
+                  }}
+                >
+                  {deleteUser.isPending ? "Đang xóa..." : "Xóa người dùng"}
+                </Button>
+              </form>
             </Panel>
           ) : null}
         </div>

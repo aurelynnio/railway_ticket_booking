@@ -16,13 +16,13 @@ export function BrandLogo({
 }) {
   return (
     <Link href={href} className={cn("inline-flex items-center gap-2.5", className)}>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-card/80 p-1.5 shadow-xs ring-1 ring-white/80">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border/80 bg-card p-1.5">
         <Image
           src="/imgs/vietrail-mark.png"
           alt=""
           width={64}
           height={28}
-          className="h-auto w-full object-contain"
+          className="h-auto w-full object-contain dark:invert"
           priority
         />
       </span>

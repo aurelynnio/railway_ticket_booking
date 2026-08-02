@@ -1,35 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useState, FormEvent } from "react";
+import { useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AuthShell } from "@/components/auth-shell";
-import { StatusBadge } from "@/components/railway-ui";
+import { FormField } from "@/components/form-field";
+import { NoticeBox, StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useForgotPassword } from "@/hooks/auth.hook";
+import { emailField } from "@/lib/validation";
+
+const forgotPasswordSchema = z.object({
+  email: emailField,
+});
 
 export default function ForgotPasswordPage() {
   const forgotPassword = useForgotPassword();
-  const [email, setEmail] = useState("");
   const [tokenPreview, setTokenPreview] = useState<string | null>(null);
+  const form = useForm<z.infer<typeof forgotPasswordSchema>>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!email) return;
-
-    forgotPassword.mutate(
-      { email },
-      {
-        onSuccess: (result: Record<string, unknown>) => {
-          setTokenPreview(
-            typeof result?.token === "string" ? result.token : null,
-          );
-        },
+  const handleSubmit = form.handleSubmit((values) => {
+    forgotPassword.mutate(values, {
+      onSuccess: (result: Record<string, unknown>) => {
+        setTokenPreview(typeof result?.token === "string" ? result.token : null);
       },
-    );
-  };
+    });
+  });
 
   return (
     <AuthShell
@@ -46,23 +52,22 @@ export default function ForgotPasswordPage() {
       }
     >
       <form onSubmit={handleSubmit} className="grid gap-4">
-        <div className="grid gap-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Email
-          </p>
+        <FormField
+          label="Email"
+          error={form.formState.errors.email?.message}
+        >
           <Input
             type="email"
             placeholder="ban@railway.test"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
+            aria-invalid={Boolean(form.formState.errors.email)}
+            {...form.register("email")}
           />
-        </div>
+        </FormField>
 
         <Button
           type="submit"
           size="lg"
-          disabled={forgotPassword.isPending}
+          disabled={forgotPassword.isPending || form.formState.isSubmitting}
         >
           {forgotPassword.isPending ? "Đang gửi..." : "Gửi yêu cầu"}
           <ArrowRight />
@@ -74,21 +79,21 @@ export default function ForgotPasswordPage() {
         </div>
 
         {tokenPreview ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-4 text-sm leading-6 text-foreground border border-border">
-            <p className="text-xs font-medium text-muted-foreground">
-              Mã khôi phục
-            </p>
-            <p className="mt-2 break-all font-mono text-xs text-foreground">{tokenPreview}</p>
-            <Link href="/reset-password" className="mt-3 inline-flex font-semibold text-primary">
+          <div className="space-y-3 rounded-lg border border-border/80 bg-secondary/45 px-4 py-4">
+            <p className="text-xs font-medium text-muted-foreground">Mã khôi phục</p>
+            <p className="break-all font-mono text-xs text-foreground">{tokenPreview}</p>
+            <Link href="/reset-password" className="inline-flex font-semibold text-primary">
               Đi tới màn reset
             </Link>
           </div>
         ) : null}
 
         {forgotPassword.isError ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
-            Gửi yêu cầu thất bại. Vui lòng kiểm tra email và thử lại.
-          </div>
+          <NoticeBox
+            title="Gửi yêu cầu thất bại"
+            description="Vui lòng kiểm tra email và thử lại."
+            tone="danger"
+          />
         ) : null}
       </form>
     </AuthShell>

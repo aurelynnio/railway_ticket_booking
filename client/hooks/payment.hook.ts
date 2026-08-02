@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   CancelPaymentRequest,
-  CreatePaymentRequest,
   ExpirePaymentRequest,
   ListPaymentsByUserIdRequest,
   ListPaymentsQuery,
@@ -119,20 +118,6 @@ export function usePaymentsByUserId(
   });
 }
 
-export function useCreatePayment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (payload: CreatePaymentRequest) => {
-      const res = await instance.post<PaymentDto>("/payments", payload);
-      return res.data;
-    },
-    onSuccess: (payment) => {
-      invalidatePaymentQueries(queryClient, payment);
-    },
-  });
-}
-
 function usePaymentAction<TPayload>(path: string) {
   const queryClient = useQueryClient();
 
@@ -205,14 +190,14 @@ export function useDeletePayment() {
 
 export interface CreateVnpayPaymentRequest {
   orderId: string;
-  amount: number;
-  orderInfo: string;
+  orderInfo?: string;
 }
 
 export interface CreateVnpayPaymentResponse {
   paymentUrl: string;
   paymentId: string;
   transactionId: string;
+  orderId: string;
 }
 
 export function useCreateVnpayPayment() {

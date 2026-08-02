@@ -2,35 +2,44 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AuthShell } from "@/components/auth-shell";
-import { StatusBadge } from "@/components/railway-ui";
+import { FormField } from "@/components/form-field";
+import { NoticeBox, StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRegister } from "@/hooks/auth.hook";
+import { emailField, passwordField, requiredText } from "@/lib/validation";
+
+const registerSchema = z.object({
+  username: requiredText("Username"),
+  email: emailField,
+  password: passwordField,
+});
 
 export default function RegisterPage() {
   const router = useRouter();
   const register = useRegister();
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const form = useForm<z.infer<typeof registerSchema>>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+    },
+  });
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!username || !email || !password) return;
-
-    register.mutate(
-      { username, email, password },
-      {
-        onSuccess: () => {
-          router.push("/login");
-        },
+  const handleSubmit = form.handleSubmit((values) => {
+    register.mutate(values, {
+      onSuccess: () => {
+        router.push("/login");
       },
-    );
-  };
+    });
+  });
 
   return (
     <AuthShell
@@ -47,34 +56,45 @@ export default function RegisterPage() {
       }
     >
       <form onSubmit={handleSubmit} className="grid gap-4">
-        <Field
+        <FormField
           label="Username"
-          value={username}
-          placeholder="nguyen-van-a"
-          onChange={setUsername}
-          required
-        />
-        <Field
+          error={form.formState.errors.username?.message}
+        >
+          <Input
+            placeholder="nguyen-van-a"
+            aria-invalid={Boolean(form.formState.errors.username)}
+            {...form.register("username")}
+          />
+        </FormField>
+
+        <FormField
           label="Email"
-          value={email}
-          placeholder="ban@railway.test"
-          onChange={setEmail}
-          type="email"
-          required
-        />
-        <Field
+          error={form.formState.errors.email?.message}
+        >
+          <Input
+            type="email"
+            placeholder="ban@railway.test"
+            aria-invalid={Boolean(form.formState.errors.email)}
+            {...form.register("email")}
+          />
+        </FormField>
+
+        <FormField
           label="Mật khẩu"
-          value={password}
-          placeholder="Tạo mật khẩu mới"
-          onChange={setPassword}
-          type="password"
-          required
-        />
+          error={form.formState.errors.password?.message}
+        >
+          <Input
+            type="password"
+            placeholder="Tạo mật khẩu mới"
+            aria-invalid={Boolean(form.formState.errors.password)}
+            {...form.register("password")}
+          />
+        </FormField>
 
         <Button
           type="submit"
           size="lg"
-          disabled={register.isPending}
+          disabled={register.isPending || form.formState.isSubmitting}
         >
           {register.isPending ? "Đang tạo..." : "Tạo tài khoản"}
           <ArrowRight />
@@ -86,42 +106,13 @@ export default function RegisterPage() {
         </div>
 
         {register.isError ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
-            Tạo tài khoản thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau.
-          </div>
+          <NoticeBox
+            title="Tạo tài khoản thất bại"
+            description="Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau."
+            tone="danger"
+          />
         ) : null}
       </form>
     </AuthShell>
-  );
-}
-
-function Field({
-  label,
-  value,
-  placeholder,
-  onChange,
-  type = "text",
-  required = false,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  type?: "text" | "password" | "email";
-  required?: boolean;
-}) {
-  return (
-    <div className="grid gap-2">
-      <p className="text-xs font-medium text-muted-foreground">
-        {label}
-      </p>
-      <Input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        required={required}
-      />
-    </div>
   );
 }

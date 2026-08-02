@@ -44,7 +44,7 @@ export const useRegister = () => {
 export const useRefreshToken = () => {
   return useMutation({
     mutationFn: async () => {
-      const res = await instance.post("/auth/refreshToken");
+      const res = await instance.post("/auth/refresh-token");
       return res.data;
     },
   });

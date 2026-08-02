@@ -3,10 +3,18 @@
 import { usePathname, useParams } from "next/navigation";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { MetaGrid, SectionHeading, StatusBadge, compactId } from "@/components/railway-ui";
+import {
+  DetailBlock,
+  MetaGrid,
+  NoticeBox,
+  SectionHeading,
+  StatusBadge,
+  compactId,
+} from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import {
   useCancelPayment,
+  useCreateVnpayPayment,
   useDeletePayment,
   useExpirePayment,
   useMarkPaymentFailed,
@@ -14,6 +22,7 @@ import {
   useMarkPaymentProcessing,
   usePayment,
 } from "@/hooks/payment.hook";
+import { PaymentStatus } from "@/lib/api-types";
 import {
   formatCurrency,
   formatDateTime,
@@ -28,6 +37,7 @@ export default function PaymentDetailPage() {
   const isAdminView = pathname.startsWith("/admin");
 
   const paymentQuery = usePayment(paymentId);
+  const createVnpayPayment = useCreateVnpayPayment();
   const markProcessing = useMarkPaymentProcessing();
   const markPaid = useMarkPaymentPaid();
   const markFailed = useMarkPaymentFailed();
@@ -93,10 +103,34 @@ export default function PaymentDetailPage() {
               Xoá
             </Button>
           </div>
+        ) : payment &&
+          payment.paymentMethod === "VNPAY" &&
+          ![PaymentStatus.Paid, PaymentStatus.Cancelled].includes(payment.status) ? (
+          <Button
+            type="button"
+            disabled={createVnpayPayment.isPending}
+            onClick={() => {
+              createVnpayPayment.mutate(
+                {
+                  orderId: payment.orderId,
+                  orderInfo: `Thanh toan don hang ${payment.orderId.slice(0, 8)}`,
+                },
+                {
+                  onSuccess: (result) => {
+                    window.location.assign(result.paymentUrl);
+                  },
+                },
+              );
+            }}
+          >
+            {createVnpayPayment.isPending
+              ? "Đang chuyển sang VNPay..."
+              : "Thanh toán qua VNPay"}
+          </Button>
         ) : null
       }
     >
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Panel
           title={payment ? compactId(payment.id) : "Chi tiết thanh toán"}
           description="Thông tin giao dịch và liên kết với đơn hàng."
@@ -147,39 +181,45 @@ export default function PaymentDetailPage() {
           title="Trạng thái xử lý"
           description="Theo dõi thao tác đang chạy và trạng thái lưu trữ."
         >
-          <MetaGrid
-            items={[
-              {
-                label: "Đang xử lý",
-                value: markProcessing.isPending ? "Đang cập nhật..." : "Sẵn sàng",
-              },
-              {
-                label: "Đánh dấu đã trả",
-                value: markPaid.isPending ? "Đang cập nhật..." : "Sẵn sàng",
-              },
-              {
-                label: "Đánh dấu lỗi",
-                value: markFailed.isPending ? "Đang cập nhật..." : "Sẵn sàng",
-              },
-              {
-                label: "Huỷ",
-                value: cancelPayment.isPending ? "Đang cập nhật..." : "Sẵn sàng",
-              },
-              {
-                label: "Hết hạn",
-                value: expirePayment.isPending ? "Đang cập nhật..." : "Sẵn sàng",
-              },
-              {
-                label: "Xoá",
-                value: deletePayment.isPending ? "Đang cập nhật..." : "Sẵn sàng",
-              },
-              {
-                label: "Trạng thái lưu trữ",
-                value: payment?.deletedAt ? formatDateTime(payment.deletedAt) : "Đang hoạt động",
-              },
-            ]}
-            columns={3}
-          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <DetailBlock
+              label="Đang xử lý"
+              value={markProcessing.isPending ? "Đang cập nhật..." : "Sẵn sàng"}
+            />
+            <DetailBlock
+              label="Đánh dấu đã trả"
+              value={markPaid.isPending ? "Đang cập nhật..." : "Sẵn sàng"}
+            />
+            <DetailBlock
+              label="Đánh dấu lỗi"
+              value={markFailed.isPending ? "Đang cập nhật..." : "Sẵn sàng"}
+            />
+            <DetailBlock
+              label="Huỷ"
+              value={cancelPayment.isPending ? "Đang cập nhật..." : "Sẵn sàng"}
+            />
+            <DetailBlock
+              label="Hết hạn"
+              value={expirePayment.isPending ? "Đang cập nhật..." : "Sẵn sàng"}
+            />
+            <DetailBlock
+              label="Xoá"
+              value={deletePayment.isPending ? "Đang cập nhật..." : "Sẵn sàng"}
+            />
+            <DetailBlock
+              label="Trạng thái lưu trữ"
+              value={payment?.deletedAt ? formatDateTime(payment.deletedAt) : "Đang hoạt động"}
+            />
+          </div>
+          {!isAdminView && payment && payment.status !== PaymentStatus.Paid ? (
+            <div className="mt-4">
+              <NoticeBox
+                title="Thanh toán chưa hoàn tất"
+                description="Nếu giao dịch trước đó bị gián đoạn, bạn có thể tạo lại phiên thanh toán VNPay từ nút hành động."
+                tone="warning"
+              />
+            </div>
+          ) : null}
         </Panel>
       </div>
     </AppShell>

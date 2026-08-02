@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, startTransition } from "react";
 import {
   ArrowUpRight,
+  Bell,
   CalendarCheck,
   ChevronRight,
   MapPinned,
@@ -19,6 +20,7 @@ import {
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const adminNavGroups = [
@@ -30,9 +32,11 @@ const adminNavGroups = [
       { href: "/admin/orders", label: "Đơn hàng", icon: Receipt },
       { href: "/admin/users", label: "Người dùng", icon: UserRound },
       { href: "/admin/payments", label: "Thanh toán", icon: Wallet },
+      { href: "/admin/notifications", label: "Thông báo", icon: Bell },
     ],
   },
 ];
+
 
 const publicPrimaryNav = [
   { href: "/", label: "Trang chủ" },
@@ -44,6 +48,7 @@ const publicPrimaryNav = [
 const publicSecondaryLinks = [
   { href: "/profile", label: "Hồ sơ" },
   { href: "/profile/tickets", label: "Vé đã phát hành" },
+  { href: "/profile/notifications", label: "Thông báo" },
 ];
 
 const bookingFlow = [
@@ -77,6 +82,7 @@ export function AppShell({
   const logout = useLogout();
 
   const isAdmin = pathname.startsWith("/admin");
+  const isHome = pathname === "/";
 
   if (isAdmin) {
     return (
@@ -85,6 +91,9 @@ export function AppShell({
           <aside className="surface-panel flex flex-col gap-6 px-4 py-5 xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
             <div className="space-y-4">
               <BrandLogo sublabel="Admin" />
+              <div className="flex justify-end">
+                <ThemeToggle />
+              </div>
               <div className="quiet-panel px-3 py-3">
                 <p className="text-xs font-medium text-muted-foreground">
                   Tài khoản
@@ -169,15 +178,15 @@ export function AppShell({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 bg-background/85 shadow-[0_1px_0_rgb(227_225_216_/_0.65)] backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-30 border-b border-border/75 bg-background/92 backdrop-blur-xl">
+        <div className="app-container flex">
           <div className="flex h-16 w-full items-center gap-6">
             <BrandLogo />
 
             <div className="hidden min-w-0 flex-1 justify-center lg:flex">
               <Link
                 href="/search"
-                className="inline-flex w-full max-w-md items-center gap-2 rounded-md border border-white/80 bg-card/75 px-3 py-2 text-sm text-muted-foreground shadow-xs transition-all hover:bg-card hover:text-foreground"
+                className="inline-flex w-full max-w-md items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground"
               >
                 <Search className="size-4" />
                 Tìm tuyến, ga đến hoặc ngày đi
@@ -185,6 +194,7 @@ export function AppShell({
             </div>
 
             <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
               {sessionQuery.data ? (
                 <div className="hidden items-center gap-2 text-xs text-muted-foreground lg:inline-flex">
                   <span className="line-clamp-1 max-w-[160px]">
@@ -231,7 +241,7 @@ export function AppShell({
             </div>
           </div>
         </div>
-        <div className="mx-auto flex w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
+        <div className="app-container flex">
           <nav className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto sm:items-center">
             {publicPrimaryNav.map((item) => {
               const active = isActive(pathname, item.href);
@@ -254,45 +264,65 @@ export function AppShell({
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="page-band soft-wash overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
-          <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div className="space-y-2">
-              <div className="route-pill w-fit">
-                <MapPinned className="size-3" />
-                Bắc - Trung - Nam
+      <div className="app-container flex flex-col gap-8 py-8">
+        {isHome ? (
+          <section className="page-band soft-wash overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
+            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+              <div className="space-y-2">
+                <div className="route-pill w-fit">
+                  <MapPinned className="size-3" />
+                  Bắc - Trung - Nam
+                </div>
+                <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                  {title}
+                </h1>
+                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  {description}
+                </p>
               </div>
-              <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {title}
-              </h1>
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                {description}
-              </p>
-            </div>
-            <div className="hidden min-w-72 rounded-lg bg-card/60 px-4 py-3 shadow-xs ring-1 ring-white/70 lg:block">
-              <div className="transit-line h-1.5 rounded-full" />
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {bookingFlow.map((item) => {
-                  const Icon = item.icon;
+              <div className="hidden min-w-72 rounded-lg border border-border/80 bg-card/70 px-4 py-3 lg:block">
+                <div className="transit-line h-1.5 rounded-full" />
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {bookingFlow.map((item) => {
+                    const Icon = item.icon;
 
-                  return (
-                    <div key={item.label} className="space-y-1">
-                      <div className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
-                        <Icon className="size-3.5" />
+                    return (
+                      <div key={item.label} className="space-y-1">
+                        <div className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                          <Icon className="size-3.5" />
+                        </div>
+                        <p className="text-xs font-medium text-foreground">
+                          {item.label}
+                        </p>
                       </div>
-                      <p className="text-xs font-medium text-foreground">
-                        {item.label}
-                      </p>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-          {actions ? <div className="mt-5">{actions}</div> : null}
-        </section>
+            {actions ? <div className="mt-5">{actions}</div> : null}
+          </section>
+        ) : (
+          <section className="page-header-compact">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-2">
+                <div className="route-pill w-fit">
+                  <MapPinned className="size-3" />
+                  Bắc - Trung - Nam
+                </div>
+                <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                  {title}
+                </h1>
+                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  {description}
+                </p>
+              </div>
+              {actions ? <div className="w-full lg:w-auto">{actions}</div> : null}
+            </div>
+          </section>
+        )}
 
-        <div className="flex min-w-0 flex-col gap-8">{children}</div>
+        <div className="page-section">{children}</div>
 
         <footer className="border-t border-border/70 pt-8">
           <div className="grid gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr]">

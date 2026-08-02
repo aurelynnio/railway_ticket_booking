@@ -1,34 +1,43 @@
 "use client";
 
 import Link from "next/link";
-import { useState, FormEvent } from "react";
+import { useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AuthShell } from "@/components/auth-shell";
-import { StatusBadge } from "@/components/railway-ui";
+import { FormField } from "@/components/form-field";
+import { NoticeBox, StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useResetPassword } from "@/hooks/auth.hook";
+import { passwordField, requiredText } from "@/lib/validation";
+
+const resetPasswordSchema = z.object({
+  token: requiredText("Mã khôi phục"),
+  newPassword: passwordField,
+});
 
 export default function ResetPasswordPage() {
   const resetPassword = useResetPassword();
-  const [token, setToken] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [isDone, setIsDone] = useState(false);
+  const form = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      token: "",
+      newPassword: "",
+    },
+  });
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!token || !newPassword) return;
-
-    resetPassword.mutate(
-      { token, newPassword },
-      {
-        onSuccess: () => {
-          setIsDone(true);
-        },
+  const handleSubmit = form.handleSubmit((values) => {
+    resetPassword.mutate(values, {
+      onSuccess: () => {
+        setIsDone(true);
       },
-    );
-  };
+    });
+  });
 
   return (
     <AuthShell
@@ -45,35 +54,33 @@ export default function ResetPasswordPage() {
       }
     >
       <form onSubmit={handleSubmit} className="grid gap-4">
-        <div className="grid gap-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Mã khôi phục
-          </p>
+        <FormField
+          label="Mã khôi phục"
+          error={form.formState.errors.token?.message}
+        >
           <Input
             placeholder="Dán mã khôi phục"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            required
+            aria-invalid={Boolean(form.formState.errors.token)}
+            {...form.register("token")}
           />
-        </div>
+        </FormField>
 
-        <div className="grid gap-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Mật khẩu mới
-          </p>
+        <FormField
+          label="Mật khẩu mới"
+          error={form.formState.errors.newPassword?.message}
+        >
           <Input
             type="password"
             placeholder="Nhập mật khẩu mới"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            required
+            aria-invalid={Boolean(form.formState.errors.newPassword)}
+            {...form.register("newPassword")}
           />
-        </div>
+        </FormField>
 
         <Button
           type="submit"
           size="lg"
-          disabled={resetPassword.isPending}
+          disabled={resetPassword.isPending || form.formState.isSubmitting}
         >
           {resetPassword.isPending ? "Đang cập nhật..." : "Đặt lại mật khẩu"}
           <ArrowRight />
@@ -85,19 +92,27 @@ export default function ResetPasswordPage() {
         </div>
 
         {isDone ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-4 text-sm leading-6 text-foreground border border-border">
-            Đặt lại mật khẩu thành công. Bạn có thể quay lại{" "}
-            <Link href="/login" className="font-semibold text-primary">
-              đăng nhập
-            </Link>
-            .
-          </div>
+          <NoticeBox
+            title="Đặt lại mật khẩu thành công"
+            description={
+              <>
+                Bạn có thể quay lại{" "}
+                <Link href="/login" className="font-semibold text-primary">
+                  đăng nhập
+                </Link>
+                .
+              </>
+            }
+            tone="positive"
+          />
         ) : null}
 
         {resetPassword.isError ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
-            Đặt lại mật khẩu thất bại. Vui lòng kiểm tra mã khôi phục.
-          </div>
+          <NoticeBox
+            title="Đặt lại mật khẩu thất bại"
+            description="Vui lòng kiểm tra mã khôi phục."
+            tone="danger"
+          />
         ) : null}
       </form>
     </AuthShell>

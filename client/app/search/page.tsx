@@ -12,11 +12,10 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
+import { AppShell } from "@/components/app-shell";
 import {
   EmptyState,
   PaginationBar,
-  SectionHeading,
   StatusBadge,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
@@ -100,10 +99,9 @@ export default function SearchPage() {
       title="Tìm vé theo tuyến, thời gian và nhu cầu đặt chỗ"
       description="Lọc theo ga đi, ga đến và ngày khởi hành để tìm các chuyến còn chỗ, giá phù hợp và đường dẫn đặt vé."
       actions={
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            size="lg"
             variant="outline"
             onClick={() => {
               setFrom("");
@@ -115,7 +113,7 @@ export default function SearchPage() {
           >
             Xóa bộ lọc
           </Button>
-          <Button asChild size="lg">
+          <Button asChild>
             <Link href="/tickets">
               Mở toàn bộ tồn vé
               <ArrowRight />
@@ -124,114 +122,83 @@ export default function SearchPage() {
         </div>
       }
     >
-      <Panel
-        title="Bộ lọc hành trình"
-        description="Chọn điểm đi, điểm đến, ngày khởi hành và cách sắp xếp để thu hẹp danh sách chuyến."
-      >
-        <div className="space-y-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_19rem]">
-            <div className="soft-wash rounded-lg px-5 py-5 shadow-xs ring-1 ring-white/80">
-              <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-end">
-                <div className="flex flex-wrap gap-2">
-                  <span className="route-pill">Tìm hành trình</span>
-                  <StatusBadge
-                    label={query.isFetching ? "Đang tải" : "Dữ liệu mới nhất"}
-                    tone={query.isFetching ? "warning" : "brand"}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="font-heading text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
-                    Tìm tuyến phù hợp trước khi chọn vé.
-                  </h2>
-                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                    So sánh nhanh giờ chạy, số ghế còn lại và mức giá phù hợp
-                    trước khi chọn vé.
-                  </p>
-                </div>
-                <div className="hidden rounded-lg bg-card/65 px-4 py-3 shadow-xs ring-1 ring-white/70 md:block">
-                  <div className="transit-line h-1.5 w-36 rounded-full" />
-                  <div className="mt-3 flex items-center justify-between gap-4 text-xs font-medium text-muted-foreground">
-                    <span>Đi</span>
-                    <span>Ga dừng</span>
-                    <span>Đến</span>
-                  </div>
-                </div>
+      <section className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+          <section className="surface-panel px-5 py-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Bộ lọc hành trình</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Chọn tuyến, ngày và cách sắp xếp để thu hẹp danh sách.
+                </p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-3 overflow-hidden rounded-lg bg-card/80 shadow-sm ring-1 ring-white/80 xl:grid-cols-1">
-              <SearchStat label="Chuyến" value={String(trips.length)} />
-              <SearchStat label="Chỗ trống" value={String(availableSeats)} />
-              <SearchStat label="Giá từ" value={formatCurrency(cheapest)} />
-            </div>
-          </div>
-
-          <div className="grid gap-3 rounded-lg bg-secondary/55 p-4 shadow-xs ring-1 ring-white/80 lg:grid-cols-2 xl:grid-cols-4">
-            <Field label="Ga đi">
-              <Select
-                value={from}
-                onChange={(event) => {
-                  setPage(1);
-                  setFrom(event.target.value);
-                }}
-              >
-                <option value="">Tất cả ga đi</option>
-                {stationOptions.map((station) => (
-                  <option key={station.code ?? station.name} value={station.code ?? ""}>
-                    {station.name} ({station.code})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Ga đến">
-              <Select
-                value={to}
-                onChange={(event) => {
-                  setPage(1);
-                  setTo(event.target.value);
-                }}
-              >
-                <option value="">Tất cả ga đến</option>
-                {stationOptions.map((station) => (
-                  <option key={station.code ?? station.name} value={station.code ?? ""}>
-                    {station.name} ({station.code})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Ngày đi">
-              <Input
-                type="date"
-                value={date}
-                onChange={(event) => {
-                  setPage(1);
-                  setDate(event.target.value);
-                }}
+              <StatusBadge
+                label={query.isFetching ? "Đang tải" : "Mới nhất"}
+                tone={query.isFetching ? "warning" : "brand"}
               />
-            </Field>
-            <Field label="Sắp xếp">
-              <Select
-                value={sort}
-                onChange={(event) => {
-                  setPage(1);
-                  setSort(event.target.value as SortFilter);
-                }}
-              >
-                {sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <Search className="size-4 text-primary" />
-              Kết quả tự cập nhật theo bộ lọc đang chọn.
             </div>
-            <div className="flex flex-wrap gap-2">
+
+            <div className="mt-5 grid gap-4">
+              <Field label="Ga đi">
+                <Select
+                  value={from}
+                  onChange={(event) => {
+                    setPage(1);
+                    setFrom(event.target.value);
+                  }}
+                >
+                  <option value="">Tất cả ga đi</option>
+                  {stationOptions.map((station) => (
+                    <option key={station.code ?? station.name} value={station.code ?? ""}>
+                      {station.name} ({station.code})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Ga đến">
+                <Select
+                  value={to}
+                  onChange={(event) => {
+                    setPage(1);
+                    setTo(event.target.value);
+                  }}
+                >
+                  <option value="">Tất cả ga đến</option>
+                  {stationOptions.map((station) => (
+                    <option key={station.code ?? station.name} value={station.code ?? ""}>
+                      {station.name} ({station.code})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Ngày đi">
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(event) => {
+                    setPage(1);
+                    setDate(event.target.value);
+                  }}
+                />
+              </Field>
+              <Field label="Sắp xếp">
+                <Select
+                  value={sort}
+                  onChange={(event) => {
+                    setPage(1);
+                    setSort(event.target.value as SortFilter);
+                  }}
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2 border-t border-border/75 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -252,32 +219,37 @@ export default function SearchPage() {
                 </Link>
               </Button>
             </div>
-          </div>
-        </div>
-      </Panel>
+          </section>
 
-      <Panel
-        title="Kết quả hành trình"
-        description="Mỗi kết quả hiển thị tuyến, tàu, giờ chạy, số chỗ còn lại, hạng ghế và giá mở đầu."
-      >
-        <div className="space-y-5">
-          <SectionHeading
-            eyebrow="Kết quả"
-            title="Chuyến phù hợp với lựa chọn của bạn"
-            description="Chọn một hành trình để xem hạng ghế, giá và tiếp tục đặt chỗ."
-            action={
-              <Button asChild variant="outline">
-                <Link href="/">Trang chủ</Link>
-              </Button>
-            }
-          />
+          <section className="surface-panel overflow-hidden">
+            <div className="grid grid-cols-3 xl:grid-cols-1">
+              <SearchStat label="Chuyến" value={String(trips.length)} />
+              <SearchStat label="Chỗ trống" value={String(availableSeats)} />
+              <SearchStat label="Giá từ" value={formatCurrency(cheapest)} />
+            </div>
+          </section>
+        </aside>
+
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Kết quả hành trình</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Quét nhanh thời gian, hạng ghế và mức giá trước khi mở chi tiết.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Search className="size-4 text-primary" />
+              Kết quả tự cập nhật theo bộ lọc hiện tại.
+            </div>
+          </div>
 
           {query.isLoading ? (
             <div className="grid gap-4">
               {Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-52 animate-pulse rounded-lg bg-muted/60"
+                  className="h-48 animate-pulse rounded-lg bg-muted/60"
                 />
               ))}
             </div>
@@ -286,7 +258,7 @@ export default function SearchPage() {
           {query.isError ? (
             <EmptyState
               title="Không tải được kết quả"
-                description="Không thể tải kết quả lúc này. Vui lòng thử lại sau."
+              description="Không thể tải kết quả lúc này. Vui lòng thử lại sau."
             />
           ) : null}
 
@@ -301,45 +273,33 @@ export default function SearchPage() {
             {trips.map((trip) => (
               <article
                 key={trip.ticketId}
-                className="surface-panel rounded-lg px-5 py-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                className="surface-panel px-5 py-5 transition-colors hover:bg-muted/20"
               >
-                <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
                   <div className="space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap gap-2">
-                          <StatusBadge
-                            label={trip.trainNumber ?? compactTripCode(trip.ticketId)}
-                            tone="brand"
-                          />
-                          <StatusBadge
-                            label={trip.availableSeats > 0 ? "Sẵn sàng đặt vé" : "Hết chỗ"}
-                            tone={trip.availableSeats > 0 ? "positive" : "danger"}
-                          />
-                        </div>
-                        <h3 className="mt-4 font-heading text-2xl font-semibold tracking-tight text-foreground">
-                          {(trip.from.name ?? trip.from.code ?? "?") +
-                            " -> " +
-                            (trip.to.name ?? trip.to.code ?? "?")}
-                        </h3>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          {trip.title ?? "Tuyến chưa đặt tên"}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/65 px-4 py-4 shadow-xs ring-1 ring-white/80 xl:min-w-44">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Giá từ
-                        </p>
-                        <p className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground">
-                          {formatCurrency(trip.minPrice)}
-                        </p>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          {trip.availableSeats} chỗ đang mở
-                        </p>
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge
+                        label={trip.trainNumber ?? compactTripCode(trip.ticketId)}
+                        tone="brand"
+                      />
+                      <StatusBadge
+                        label={trip.availableSeats > 0 ? "Sẵn sàng đặt vé" : "Hết chỗ"}
+                        tone={trip.availableSeats > 0 ? "positive" : "danger"}
+                      />
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                        {(trip.from.name ?? trip.from.code ?? "?") +
+                          " -> " +
+                          (trip.to.name ?? trip.to.code ?? "?")}
+                      </h2>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        {trip.title ?? "Tuyến chưa đặt tên"}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <InfoTile
                         icon={<CalendarDays className="size-4 text-primary" />}
                         label="Khởi hành"
@@ -377,44 +337,28 @@ export default function SearchPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg bg-secondary/55 px-5 py-5 shadow-xs ring-1 ring-white/80">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Tóm tắt hành trình
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-foreground">
-                          Xem nhanh tuyến, giờ chạy và số ghế trước khi mở chi tiết.
-                        </p>
+                  <div className="rounded-lg border border-border/80 bg-secondary/55 px-4 py-4 lg:min-h-full">
+                    <p className="text-xs font-medium text-muted-foreground">Giá từ</p>
+                    <p className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground">
+                      {formatCurrency(trip.minPrice)}
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {trip.availableSeats} chỗ đang mở
+                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Mã tuyến</span>
+                        <span className="font-medium text-foreground">
+                          {(trip.from.code ?? "?") + " -> " + (trip.to.code ?? "?")}
+                        </span>
                       </div>
-
-                      <div className="rounded-lg bg-card/80 px-4 py-4 shadow-xs ring-1 ring-white/80">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Tóm tắt
-                        </p>
-                        <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Route</span>
-                            <span className="font-medium text-foreground">
-                              {(trip.from.code ?? "?") + " -> " + (trip.to.code ?? "?")}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Chỗ trống</span>
-                            <span className="font-medium text-foreground">
-                              {trip.availableSeats}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Nhãn ghế</span>
-                            <span className="font-medium text-foreground">
-                              {trip.seatClasses.length + trip.seatTypes.length}
-                            </span>
-                          </div>
-                        </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Nhãn ghế</span>
+                        <span className="font-medium text-foreground">
+                          {trip.seatClasses.length + trip.seatTypes.length}
+                        </span>
                       </div>
                     </div>
-
                     <div className="mt-5 flex flex-wrap gap-2">
                       <Button asChild className="flex-1">
                         <Link href={`/tickets/${trip.ticketId}`}>
@@ -447,8 +391,8 @@ export default function SearchPage() {
               }
             />
           ) : null}
-        </div>
-      </Panel>
+        </section>
+      </section>
 
       <section className="grid gap-4 md:grid-cols-3">
         <SupportCard
@@ -508,7 +452,7 @@ function InfoTile({
   value: string;
 }) {
   return (
-    <div className="rounded-lg bg-card/70 px-4 py-4 shadow-xs ring-1 ring-white/80">
+    <div className="rounded-lg border border-border/80 bg-background px-4 py-4">
       <div className="flex items-center gap-2">
         {icon}
         <p className="text-xs font-medium text-muted-foreground">
@@ -534,7 +478,7 @@ function SupportCard({
   return (
     <Link
       href={href}
-      className="surface-panel block rounded-lg px-5 py-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="surface-panel block rounded-lg px-5 py-5 transition-colors hover:bg-muted/20"
     >
       <div className="flex size-11 items-center justify-center rounded-lg bg-accent text-accent-foreground">
         {icon}

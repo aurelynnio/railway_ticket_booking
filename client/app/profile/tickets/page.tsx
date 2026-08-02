@@ -1,7 +1,13 @@
 "use client";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { EmptyState, SectionHeading, SeatCloud, StatusBadge } from "@/components/railway-ui";
+import {
+  DetailBlock,
+  EmptyState,
+  SectionHeading,
+  SeatCloud,
+  StatusBadge,
+} from "@/components/railway-ui";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useOrders } from "@/hooks/order.hook";
 import { OrderStatus } from "@/lib/api-types";
@@ -88,19 +94,16 @@ export default function ProfileTicketsPage() {
                   <SeatCloud labels={order.seatLabels} />
                 </div>
 
-                <div className="rounded-lg bg-background px-4 py-4 border border-border">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Thông tin vé
-                  </p>
-                  <p className="mt-3 font-heading text-2xl font-semibold tracking-tight">
-                    {formatCurrency(order.totalPrice)}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Phát hành gần nhất: {formatDateTime(order.updatedAt)}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground break-all">
-                    QR: {order.qrPayload ?? "Đang cập nhật"}
-                  </p>
+                <div className="grid gap-3">
+                  <DetailBlock
+                    label="Giá trị vé"
+                    value={formatCurrency(order.totalPrice)}
+                    hint={`Phát hành gần nhất: ${formatDateTime(order.updatedAt)}`}
+                  />
+                  <DetailBlock
+                    label="QR"
+                    value={<span className="break-all">{order.qrPayload ?? "Đang cập nhật"}</span>}
+                  />
                 </div>
               </article>
             ))}

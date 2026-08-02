@@ -33,6 +33,7 @@ export interface CreatePaymentRequest {
   userId?: string | null;
   amount: string;
   paymentMethod: string;
+  transactionId?: string;
 }
 
 export interface GetPaymentByIdRequest {

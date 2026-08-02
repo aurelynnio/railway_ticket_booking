@@ -102,8 +102,8 @@ export function EmptyState({
   cta?: string;
 }) {
   return (
-    <div className="quiet-panel flex flex-col items-start gap-3 px-5 py-6">
-      <div className="inline-flex size-9 items-center justify-center rounded-md bg-card text-primary shadow-xs">
+    <div className="quiet-panel flex flex-col items-start gap-3 border border-border/70 px-5 py-6">
+      <div className="inline-flex size-9 items-center justify-center rounded-md border border-border/80 bg-card text-primary">
         <Sparkles className="size-4" />
       </div>
       <div className="space-y-1">
@@ -222,7 +222,7 @@ export function SurfaceLink({
   return (
     <Link
       href={href}
-      className="surface-panel block px-5 py-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="surface-panel block px-5 py-4 transition-colors hover:bg-muted/20"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -238,6 +238,50 @@ export function SurfaceLink({
         </div>
       </div>
     </Link>
+  );
+}
+
+export function NoticeBox({
+  title,
+  description,
+  tone = "muted",
+}: {
+  title: string;
+  description: ReactNode;
+  tone?: Tone;
+}) {
+  const toneClass =
+    tone === "positive"
+      ? "border-success/20 bg-success/8"
+      : tone === "warning"
+        ? "border-warning/25 bg-warning/8"
+        : tone === "danger"
+          ? "border-destructive/20 bg-destructive/8"
+          : "border-border/80 bg-secondary/45";
+
+  return (
+    <div className={cn("rounded-lg border px-4 py-4", toneClass)}>
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <div className="mt-1 text-sm leading-6 text-muted-foreground">{description}</div>
+    </div>
+  );
+}
+
+export function DetailBlock({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border/80 bg-background px-4 py-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="mt-2 text-sm font-medium leading-6 text-foreground">{value}</div>
+      {hint ? <div className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</div> : null}
+    </div>
   );
 }
 

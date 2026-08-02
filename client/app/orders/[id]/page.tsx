@@ -4,8 +4,11 @@ import { usePathname, useParams } from "next/navigation";
 import { useState } from "react";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { QrCode } from "@/components/qr-code";
 import {
+  DetailBlock,
   MetaGrid,
+  NoticeBox,
   SectionHeading,
   SeatCloud,
   StatusBadge,
@@ -37,7 +40,7 @@ import {
   getOrderStatusTone,
   getPaymentStatusTone,
 } from "@/lib/formatters";
-import { PaymentStatus } from "@/lib/api-types";
+import { CountdownTimer } from "@/components/countdown-timer";
 
 export default function OrderDetailPage() {
   const pathname = usePathname();
@@ -161,12 +164,11 @@ export default function OrderDetailPage() {
                 createVnpayPayment.mutate(
                   {
                     orderId,
-                    amount: Number(summary?.totalPrice ?? order?.totalPrice ?? 0),
                     orderInfo: `Thanh toan don hang ${compactId(orderId)}`,
                   },
                   {
                     onSuccess: (data) => {
-                      window.location.href = data.paymentUrl;
+                      window.location.assign(data.paymentUrl);
                     },
                   },
                 );
@@ -190,7 +192,7 @@ export default function OrderDetailPage() {
         </div>
       }
     >
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Panel
           title={order?.ticketTitle ?? "Thông tin đơn hàng"}
           description="Thông tin hành trình, hành khách và ghế đã chọn."
@@ -226,7 +228,7 @@ export default function OrderDetailPage() {
                   ]}
                 />
 
-                <div className="rounded-lg bg-background px-5 py-5 border border-border">
+                <div className="rounded-lg border border-border/80 bg-background px-5 py-5">
                   <p className="text-xs font-medium text-muted-foreground">
                     Ghế đã chọn
                   </p>
@@ -235,7 +237,7 @@ export default function OrderDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-lg bg-background px-5 py-5 border border-border">
+                <div className="rounded-lg border border-border/80 bg-secondary/45 px-5 py-5">
                   <p className="text-xs font-medium text-muted-foreground">
                     Hành khách
                   </p>
@@ -248,7 +250,7 @@ export default function OrderDetailPage() {
                       order.passengers.map((passenger, index) => (
                         <div
                           key={`${passenger.fullName}-${index}`}
-                          className="rounded-lg bg-background px-4 py-4 border border-border"
+                          className="rounded-lg border border-border/80 bg-background px-4 py-4"
                         >
                           <p className="font-medium text-foreground">
                             {passenger.fullName}
@@ -283,19 +285,27 @@ export default function OrderDetailPage() {
             description="Số lượng, giá vé và trạng thái phát hành."
           >
             {summary ? (
-              <MetaGrid
-                items={[
-                  { label: "Số lượng", value: String(summary.quantity) },
-                  { label: "Số ghế", value: String(summary.seatCount) },
-                  { label: "Hành khách", value: String(summary.passengerCount) },
-                  { label: "Đơn giá", value: formatCurrency(summary.unitPrice) },
-                  { label: "Tổng tiền", value: formatCurrency(summary.totalPrice) },
-                  { label: "Đã phát hành", value: summary.ticketIssued ? "Có" : "Chưa" },
-                ]}
-              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DetailBlock label="Số lượng" value={String(summary.quantity)} />
+                <DetailBlock label="Số ghế" value={String(summary.seatCount)} />
+                <DetailBlock label="Hành khách" value={String(summary.passengerCount)} />
+                <DetailBlock label="Đơn giá" value={formatCurrency(summary.unitPrice)} />
+                <DetailBlock label="Tổng tiền" value={formatCurrency(summary.totalPrice)} />
+                <DetailBlock label="Đã phát hành" value={summary.ticketIssued ? "Có" : "Chưa"} />
+              </div>
             ) : null}
             {summaryQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Đang tải tổng thanh toán...</p>
+            ) : null}
+            {!isAdminView && order && (order.status === 0 || order.status === 1) ? (
+              <div className="mt-4 space-y-3">
+                <CountdownTimer createdAt={order.createdAt} expiryMinutes={10} />
+                <NoticeBox
+                  title="Đơn đang chờ hoàn tất thanh toán"
+                  description="Bạn có thể tiếp tục thanh toán từ nút hành động phía trên để giữ nguyên luồng đặt vé hiện tại."
+                  tone="warning"
+                />
+              </div>
             ) : null}
           </Panel>
 
@@ -312,7 +322,7 @@ export default function OrderDetailPage() {
                 payments.map((payment) => (
                   <div
                     key={payment.id}
-                    className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3"
+                    className="flex items-center justify-between rounded-lg border border-border/80 bg-background px-4 py-3"
                   >
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">
@@ -340,17 +350,59 @@ export default function OrderDetailPage() {
               title="Thông tin phát hành"
               description="Mã vé, QR và thông tin toa ghế dùng sau khi hoàn tất đơn."
             >
-              <MetaGrid
-                items={[
-                  { label: "Toa", value: order.coachCode ?? "Chưa có" },
-                  { label: "Hạng ghế", value: order.seatClass ?? "Chưa có" },
-                  { label: "Loại ghế", value: order.seatType ?? "Chưa có" },
-                  { label: "Mã vé", value: order.ticketCode ?? "Chưa phát hành" },
-                  { label: "QR", value: order.qrPayload ?? "Chưa phát hành" },
-                  { label: "Lý do huỷ", value: order.cancelReason ?? "Không có" },
-                ]}
-                columns={3}
-              />
+              <div className="space-y-5">
+                {order.ticketCode && order.qrPayload ? (
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                    <div className="flex shrink-0 flex-col items-center gap-3">
+                      <div className="rounded-xl border border-border/80 bg-white p-3 shadow-sm">
+                        <QrCode value={order.qrPayload} size={160} />
+                      </div>
+                      <p className="text-center text-xs font-medium text-muted-foreground">
+                        Quét để xác nhận vé
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="rounded-lg bg-accent/50 px-4 py-4">
+                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          Mã vé
+                        </p>
+                        <p className="mt-1.5 break-all font-mono text-base font-semibold text-foreground">
+                          {order.ticketCode}
+                        </p>
+                      </div>
+                      <MetaGrid
+                        items={[
+                          { label: "Toa", value: order.coachCode ?? "Chưa có" },
+                          { label: "Hạng ghế", value: order.seatClass ?? "Chưa có" },
+                          { label: "Loại ghế", value: order.seatType ?? "Chưa có" },
+                          { label: "Lý do huỷ", value: order.cancelReason ?? "Không có" },
+                        ]}
+                        columns={2}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 py-6 text-center">
+                    <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="size-7 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h6v6H3V3zm0 12h6v6H3v-6zm12-12h6v6h-6V3zm0 12h6v6h-6v-6zM9 9h1v1H9V9zm0 6h1v1H9v-1zm6 0h1v1h-1v-1zm0-6h1v1h-1V9z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Vé chưa được phát hành</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        QR code sẽ xuất hiện sau khi thanh toán hoàn tất và vé được phát hành.
+                      </p>
+                    </div>
+                    <MetaGrid
+                      items={[
+                        { label: "Toa", value: order.coachCode ?? "Chưa có" },
+                        { label: "Hạng ghế", value: order.seatClass ?? "Chưa có" },
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
             </Panel>
           ) : null}
 

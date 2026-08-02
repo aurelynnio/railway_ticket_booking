@@ -44,10 +44,10 @@
    DESIGN TOKENS - Soft Transit Minimal
    ========================================================================= */
 :root {
-  --background: #faf9f5;
+  --background: #f7f5ef;
   --foreground: #111c1a;
 
-  --card: #fffef9;
+  --card: #fcfbf7;
   --card-foreground: #111c1a;
 
   --popover: #fffef9;
@@ -56,10 +56,10 @@
   --primary: #0f8f83;
   --primary-foreground: #ffffff;
 
-  --secondary: #eef4ef;
+  --secondary: #eff2eb;
   --secondary-foreground: #17211f;
 
-  --muted: #f4f1eb;
+  --muted: #f1eee7;
   --muted-foreground: #6f746d;
 
   --accent: #e7f6f2;
@@ -74,15 +74,15 @@
   --warning: #c27a1f;
   --warning-foreground: #fffaf0;
 
-  --border: #e3e1d8;
-  --input: #dddcd3;
+  --border: #ddd9cf;
+  --input: #d6d2c8;
   --ring: #0f8f83;
 
   --radius: 0.5rem;
 
   --shadow-xs: 0 1px 2px 0 rgb(32 39 34 / 0.04);
-  --shadow-sm: 0 10px 30px -24px rgb(32 39 34 / 0.36), 0 1px 2px rgb(32 39 34 / 0.04);
-  --shadow-md: 0 22px 60px -38px rgb(32 39 34 / 0.42), 0 1px 3px rgb(32 39 34 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(32 39 34 / 0.04);
+  --shadow-md: 0 8px 24px -18px rgb(32 39 34 / 0.18);
   --track: #d7eee9;
   --track-strong: #0f8f83;
   --sun: #f0b35a;
@@ -142,8 +142,15 @@
 
   body {
     @apply min-h-screen bg-background text-foreground;
+  }
+
+  :root:not(.dark) body {
     background:
-      linear-gradient(180deg, #fffef9 0%, #faf9f5 42%, #f5f7f1 100%);
+      linear-gradient(180deg, #fbfaf6 0%, #f7f5ef 55%, #f2f3ee 100%);
+  }
+
+  .dark body {
+    background: var(--background);
   }
 
   ::selection {
@@ -177,18 +184,16 @@
 @layer components {
   /* Core soft surfaces */
   .surface-panel {
-    @apply rounded-lg border border-white/80 bg-card/90 text-card-foreground;
-    box-shadow: var(--shadow-sm);
+    @apply rounded-lg border border-border/90 bg-card text-card-foreground;
   }
 
   .surface-panel-strong {
-    @apply rounded-lg border border-white/80 bg-card text-card-foreground;
+    @apply rounded-lg border border-border/90 bg-card text-card-foreground;
     box-shadow: var(--shadow-md);
   }
 
   .quiet-panel {
-    @apply rounded-lg border border-white/70 bg-secondary/70;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
+    @apply rounded-lg bg-secondary/80;
   }
 
   .soft-divider {
@@ -196,12 +201,11 @@
   }
 
   .route-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground;
+    @apply inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground;
   }
 
   .page-band {
-    @apply rounded-lg border border-white/80 bg-card/90;
-    box-shadow: var(--shadow-sm);
+    @apply rounded-lg border border-border/90 bg-card;
   }
 
   .transit-line {
@@ -212,10 +216,28 @@
 
   .soft-wash {
     background:
-      linear-gradient(135deg, rgb(231 246 242 / 0.95), rgb(255 254 249 / 0.9) 54%, rgb(240 179 90 / 0.16));
+      linear-gradient(135deg, rgb(231 246 242 / 0.75), rgb(252 251 247 / 0.94) 52%, rgb(240 179 90 / 0.1));
   }
+
+  .dark .soft-wash {
+    background:
+      linear-gradient(135deg, rgba(15, 143, 131, 0.15), rgba(28, 25, 23, 0.95) 52%, rgba(240, 179, 90, 0.05));
+  }
+
 
   .text-balance {
     text-wrap: balance;
+  }
+
+  .app-container {
+    @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8;
+  }
+
+  .page-header-compact {
+    @apply border-b border-border/75 pb-5;
+  }
+
+  .page-section {
+    @apply flex min-w-0 flex-col gap-6;
   }
 }

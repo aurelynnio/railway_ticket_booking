@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PaginatedResponse, UserResponse } from "@/lib/api-types";
+import {
+  CreateUserPayload,
+  PaginatedResponse,
+  UpdateUserPayload,
+  UserResponse,
+} from "@/lib/api-types";
 import instance from "@/lib/http";
 
 export const useMe = (enabled = true) => {
@@ -65,7 +70,7 @@ export const useCreateUser = () => {
 
   return useMutation({
     mutationKey: ["createUser"],
-    mutationFn: async (data: Record<string, unknown>) => {
+    mutationFn: async (data: CreateUserPayload) => {
       const res = await instance.post<UserResponse>("/users", { payload: data });
       return res.data;
     },
@@ -80,7 +85,7 @@ export const useUpdateUser = (userId?: string) => {
 
   return useMutation({
     mutationKey: ["updateUser", userId],
-    mutationFn: async (data: Record<string, unknown>) => {
+    mutationFn: async (data: UpdateUserPayload) => {
       const res = await instance.patch<UserResponse>(`/users/${userId}`, data);
       return res.data;
     },
@@ -90,6 +95,22 @@ export const useUpdateUser = (userId?: string) => {
       if (user.email) {
         void queryClient.invalidateQueries({ queryKey: ["user", "email", user.email] });
       }
+    },
+  });
+};
+
+export const useDeleteUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: ["deleteUser"],
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const res = await instance.delete<{ message: string }>(`/users/${userId}`);
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      void queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
     },
   });
 };

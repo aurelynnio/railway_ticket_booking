@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { AppShell, Panel } from "@/components/app-shell";
 import {
+  DetailBlock,
   EmptyState,
   PaginationBar,
   SectionHeading,
@@ -13,6 +14,7 @@ import {
   compactId,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useOrders } from "@/hooks/order.hook";
 import {
@@ -21,6 +23,7 @@ import {
   formatOrderStatus,
   getOrderStatusTone,
 } from "@/lib/formatters";
+import { OrderResponse } from "@/lib/api-types";
 
 export default function ProfileOrdersPage() {
   const sessionQuery = useAuthSession();
@@ -44,17 +47,33 @@ export default function ProfileOrdersPage() {
       title="Đơn của tôi"
       description="Theo dõi đơn hàng của tài khoản đang đăng nhập, gồm trạng thái, tổng tiền và chi tiết vé đã chọn."
       actions={
-        <div className="grid gap-3 md:grid-cols-2">
-          <StatCard
-            label="Session email"
-            value={sessionQuery.data?.email ?? "Guest"}
-            helper="Tài khoản đang đăng nhập."
-          />
-          <StatCard
-            label="Đơn hiển thị"
-            value={String(orders.length)}
-            helper="Số đơn đang có trong trang hiện tại."
-          />
+        <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <StatCard
+              label="Session email"
+              value={sessionQuery.data?.email ?? "Guest"}
+              helper="Tài khoản đang đăng nhập."
+            />
+            <StatCard
+              label="Đơn hiển thị"
+              value={String(orders.length)}
+              helper="Số đơn đang có trong trang hiện tại."
+            />
+          </div>
+          {orders.length > 0 ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                id="export-orders-csv"
+                onClick={() => exportOrdersToCsv(orders)}
+              >
+                <Download className="size-4" />
+                Xuất CSV
+              </Button>
+            </div>
+          ) : null}
         </div>
       }
     >
@@ -108,16 +127,12 @@ export default function ProfileOrdersPage() {
                   </p>
                 </div>
 
-                <div className="rounded-lg bg-background px-4 py-4 border border-border">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Tổng tiền
-                  </p>
-                  <p className="mt-2 font-heading text-3xl font-semibold tracking-tight">
-                    {formatCurrency(order.totalPrice)}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Cập nhật {formatDateTime(order.updatedAt)}
-                  </p>
+                <div className="grid gap-3">
+                  <DetailBlock
+                    label="Tổng tiền"
+                    value={formatCurrency(order.totalPrice)}
+                    hint={`Cập nhật ${formatDateTime(order.updatedAt)}`}
+                  />
                   <div className="mt-4">
                     <Button asChild variant="outline">
                       <Link href={`/profile/orders/${order.id}`}>Mở chi tiết</Link>
@@ -147,4 +162,56 @@ export default function ProfileOrdersPage() {
       </Panel>
     </AppShell>
   );
+}
+function exportOrdersToCsv(orders: OrderResponse[]) {
+  const headers = [
+    "Order ID",
+    "Ticket Title",
+    "Route",
+    "Departure Time",
+    "Arrival Time",
+    "Train Number",
+    "Seat Labels",
+    "Passengers",
+    "Quantity",
+    "Unit Price",
+    "Total Price",
+    "Status",
+    "Ticket Code",
+    "Created At",
+  ];
+
+  const rows = orders.map((order) => [
+    order.id,
+    order.ticketTitle,
+    `${order.departureStationName ?? order.departureStationCode ?? "?"} -> ${order.arrivalStationName ?? order.arrivalStationCode ?? "?"}`,
+    order.departureTime ?? "",
+    order.arrivalTime ?? "",
+    order.trainNumber ?? "",
+    order.seatLabels.join(" | "),
+    order.passengers.map((p) => p.fullName).join(" | "),
+    String(order.quantity),
+    String(order.unitPrice),
+    String(order.totalPrice),
+    String(order.status),
+    order.ticketCode ?? "",
+    order.createdAt,
+  ]);
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) =>
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+    ),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `orders-${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

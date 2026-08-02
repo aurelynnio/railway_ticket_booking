@@ -1,16 +1,50 @@
 "use client";
 
-import { useState } from "react";
-
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import { MetaGrid, SectionHeading, SurfaceLink } from "@/components/railway-ui";
+import { FormField } from "@/components/form-field";
+import {
+  MetaGrid,
+  NoticeBox,
+  SectionHeading,
+  SurfaceLink,
+} from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuthSession, useChangePassword, useLogout, useRevokeAllSessions, useVerifyEmail, useResendVerification } from "@/hooks/auth.hook";
+import {
+  useAuthSession,
+  useChangePassword,
+  useLogout,
+  useResendVerification,
+  useRevokeAllSessions,
+  useVerifyEmail,
+} from "@/hooks/auth.hook";
 import { useMe, useUpdateProfile } from "@/hooks/user.hook";
 import { formatDateTime } from "@/lib/formatters";
+import { emailField, passwordField, requiredText } from "@/lib/validation";
+
+const profileSchema = z.object({
+  username: requiredText("Username"),
+  email: emailField,
+});
+
+const changePasswordSchema = z.object({
+  oldPassword: z.string(),
+  newPassword: passwordField,
+});
+
+const verifyEmailSchema = z.object({
+  token: requiredText("Token xác minh"),
+});
+
+const resendVerificationSchema = z.object({
+  email: emailField,
+});
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -23,19 +57,41 @@ export default function ProfilePage() {
   const verifyEmail = useVerifyEmail();
   const resendVerification = useResendVerification();
 
-  const [draftUsername, setDraftUsername] = useState<string | null>(null);
-  const [draftEmail, setDraftEmail] = useState<string | null>(null);
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [verifyToken, setVerifyToken] = useState("");
-  const [verifyEmailAddr, setVerifyEmailAddr] = useState("");
+  const profileForm = useForm<z.infer<typeof profileSchema>>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+    },
+  });
+  const passwordForm = useForm<z.infer<typeof changePasswordSchema>>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      oldPassword: "",
+      newPassword: "",
+    },
+  });
+  const verifyForm = useForm<z.infer<typeof verifyEmailSchema>>({
+    resolver: zodResolver(verifyEmailSchema),
+    defaultValues: {
+      token: "",
+    },
+  });
+  const resendForm = useForm<z.infer<typeof resendVerificationSchema>>({
+    resolver: zodResolver(resendVerificationSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
 
-  const username =
-    draftUsername ??
-    (typeof profileQuery.data?.username === "string" ? profileQuery.data.username : "");
-  const email =
-    draftEmail ??
-    (typeof profileQuery.data?.email === "string" ? profileQuery.data.email : "");
+  useEffect(() => {
+    profileForm.reset({
+      username:
+        typeof profileQuery.data?.username === "string" ? profileQuery.data.username : "",
+      email:
+        typeof profileQuery.data?.email === "string" ? profileQuery.data.email : "",
+    });
+  }, [profileForm, profileQuery.data?.email, profileQuery.data?.username]);
 
   return (
     <AppShell
@@ -55,7 +111,7 @@ export default function ProfilePage() {
           />
           <button
             type="button"
-            className="surface-panel block rounded-lg px-5 py-5 text-left transition-colors hover:bg-muted/50"
+            className="surface-panel block rounded-lg px-5 py-5 text-left transition-colors hover:bg-muted/20"
             disabled={logout.isPending}
             onClick={() =>
               logout.mutate(undefined, {
@@ -136,40 +192,53 @@ export default function ProfilePage() {
           title="Quick update"
           description="Cập nhật username và email cơ bản."
         >
-          <div className="grid gap-3">
-            <Input
-              placeholder="Username"
-              value={username}
-              onChange={(event) => setDraftUsername(event.target.value)}
-            />
-            <Input
-              placeholder="Email"
-              value={email}
-              onChange={(event) => setDraftEmail(event.target.value)}
-            />
+          <form
+            className="grid gap-3"
+            onSubmit={profileForm.handleSubmit((values) =>
+              updateProfile.mutate(values),
+            )}
+          >
+            <FormField
+              label="Username"
+              error={profileForm.formState.errors.username?.message}
+            >
+              <Input
+                placeholder="Username"
+                aria-invalid={Boolean(profileForm.formState.errors.username)}
+                {...profileForm.register("username")}
+              />
+            </FormField>
+            <FormField
+              label="Email"
+              error={profileForm.formState.errors.email?.message}
+            >
+              <Input
+                placeholder="Email"
+                aria-invalid={Boolean(profileForm.formState.errors.email)}
+                {...profileForm.register("email")}
+              />
+            </FormField>
             <Button
-              type="button"
+              type="submit"
               disabled={!sessionQuery.data?.userId || updateProfile.isPending}
-              onClick={() =>
-                updateProfile.mutate({
-                  username: username || undefined,
-                  email: email || undefined,
-                })
-              }
             >
               {updateProfile.isPending ? "Đang cập nhật..." : "Cập nhật hồ sơ"}
             </Button>
             {updateProfile.isError ? (
-              <p className="text-sm text-rose-700">
-                Cập nhật thất bại. Vui lòng kiểm tra dữ liệu nhập và thử lại.
-              </p>
+              <NoticeBox
+                title="Cập nhật thất bại"
+                description="Vui lòng kiểm tra dữ liệu nhập và thử lại."
+                tone="danger"
+              />
             ) : null}
             {updateProfile.isSuccess ? (
-              <p className="text-sm text-emerald-700">
-                Đã gửi cập nhật hồ sơ thành công.
-              </p>
+              <NoticeBox
+                title="Đã gửi cập nhật hồ sơ"
+                description="Thông tin tài khoản đã được lưu thành công."
+                tone="positive"
+              />
             ) : null}
-          </div>
+          </form>
         </Panel>
       </div>
 
@@ -178,40 +247,58 @@ export default function ProfilePage() {
           title="Đổi mật khẩu"
           description="Đổi mật khẩu cho tài khoản đang đăng nhập."
         >
-          <div className="grid gap-3">
-            <Input
-              type="password"
-              placeholder="Mật khẩu cũ"
-              value={oldPassword}
-              onChange={(event) => setOldPassword(event.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="Mật khẩu mới (tối thiểu 6 ký tự)"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
+          <form
+            className="grid gap-3"
+            onSubmit={passwordForm.handleSubmit((values) =>
+              changePassword.mutate({
+                oldPassword: values.oldPassword || undefined,
+                newPassword: values.newPassword,
+              }),
+            )}
+          >
+            <FormField
+              label="Mật khẩu cũ"
+              error={passwordForm.formState.errors.oldPassword?.message}
+            >
+              <Input
+                type="password"
+                placeholder="Mật khẩu cũ"
+                aria-invalid={Boolean(passwordForm.formState.errors.oldPassword)}
+                {...passwordForm.register("oldPassword")}
+              />
+            </FormField>
+            <FormField
+              label="Mật khẩu mới"
+              error={passwordForm.formState.errors.newPassword?.message}
+            >
+              <Input
+                type="password"
+                placeholder="Mật khẩu mới (tối thiểu 6 ký tự)"
+                aria-invalid={Boolean(passwordForm.formState.errors.newPassword)}
+                {...passwordForm.register("newPassword")}
+              />
+            </FormField>
             <Button
-              type="button"
-              disabled={!newPassword || changePassword.isPending}
-              onClick={() =>
-                changePassword.mutate({
-                  oldPassword: oldPassword || undefined,
-                  newPassword,
-                })
-              }
+              type="submit"
+              disabled={changePassword.isPending}
             >
               {changePassword.isPending ? "Đang đổi..." : "Đổi mật khẩu"}
             </Button>
             {changePassword.isSuccess ? (
-              <p className="text-sm text-emerald-700">Đổi mật khẩu thành công.</p>
+              <NoticeBox
+                title="Đổi mật khẩu thành công"
+                description="Mật khẩu mới đã được áp dụng cho tài khoản hiện tại."
+                tone="positive"
+              />
             ) : null}
             {changePassword.isError ? (
-              <p className="text-sm text-rose-700">
-                Đổi mật khẩu thất bại. Kiểm tra mật khẩu cũ và thử lại.
-              </p>
+              <NoticeBox
+                title="Đổi mật khẩu thất bại"
+                description="Kiểm tra mật khẩu cũ và thử lại."
+                tone="danger"
+              />
             ) : null}
-          </div>
+          </form>
         </Panel>
 
         <Panel
@@ -219,46 +306,79 @@ export default function ProfilePage() {
           description="Xác minh email hoặc gửi lại email xác minh."
         >
           <div className="grid gap-3">
-            <Input
-              placeholder="Token xác minh"
-              value={verifyToken}
-              onChange={(event) => setVerifyToken(event.target.value)}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!verifyToken || verifyEmail.isPending}
-              onClick={() => verifyEmail.mutate({ token: verifyToken })}
+            <form
+              className="grid gap-3"
+              onSubmit={verifyForm.handleSubmit((values) =>
+                verifyEmail.mutate(values),
+              )}
             >
-              {verifyEmail.isPending ? "Đang xác minh..." : "Xác minh email"}
-            </Button>
+              <FormField
+                label="Token xác minh"
+                error={verifyForm.formState.errors.token?.message}
+              >
+                <Input
+                  placeholder="Token xác minh"
+                  aria-invalid={Boolean(verifyForm.formState.errors.token)}
+                  {...verifyForm.register("token")}
+                />
+              </FormField>
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={verifyEmail.isPending}
+              >
+                {verifyEmail.isPending ? "Đang xác minh..." : "Xác minh email"}
+              </Button>
+            </form>
             {verifyEmail.isSuccess ? (
-              <p className="text-sm text-emerald-700">Xác minh email thành công.</p>
+              <NoticeBox
+                title="Xác minh email thành công"
+                description="Địa chỉ email đã được xác minh."
+                tone="positive"
+              />
             ) : null}
             {verifyEmail.isError ? (
-              <p className="text-sm text-rose-700">Xác minh thất bại. Token có thể đã hết hạn.</p>
+              <NoticeBox
+                title="Xác minh thất bại"
+                description="Token có thể đã hết hạn hoặc không hợp lệ."
+                tone="danger"
+              />
             ) : null}
 
             <div className="mt-2 border-t border-border pt-3">
               <p className="mb-2 text-sm text-muted-foreground">
                 Gửi lại email xác minh nếu chưa nhận được.
               </p>
-              <Input
-                placeholder="Email nhận xác minh"
-                value={verifyEmailAddr}
-                onChange={(event) => setVerifyEmailAddr(event.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-2"
-                disabled={!verifyEmailAddr || resendVerification.isPending}
-                onClick={() => resendVerification.mutate({ email: verifyEmailAddr })}
+              <form
+                className="grid gap-3"
+                onSubmit={resendForm.handleSubmit((values) =>
+                  resendVerification.mutate(values),
+                )}
               >
-                {resendVerification.isPending ? "Đang gửi..." : "Gửi lại xác minh"}
-              </Button>
+                <FormField
+                  label="Email nhận xác minh"
+                  error={resendForm.formState.errors.email?.message}
+                >
+                  <Input
+                    placeholder="Email nhận xác minh"
+                    aria-invalid={Boolean(resendForm.formState.errors.email)}
+                    {...resendForm.register("email")}
+                  />
+                </FormField>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={resendVerification.isPending}
+                >
+                  {resendVerification.isPending ? "Đang gửi..." : "Gửi lại xác minh"}
+                </Button>
+              </form>
               {resendVerification.isSuccess ? (
-                <p className="mt-1 text-sm text-emerald-700">Đã gửi email xác minh.</p>
+                <NoticeBox
+                  title="Đã gửi email xác minh"
+                  description="Kiểm tra hộp thư đến của bạn để tiếp tục xác minh."
+                  tone="positive"
+                />
               ) : null}
             </div>
           </div>
@@ -279,14 +399,22 @@ export default function ProfilePage() {
             {revokeAllSessions.isPending ? "Đang thu hồi..." : "Đăng xuất tất cả thiết bị"}
           </Button>
           {revokeAllSessions.isSuccess ? (
-            <p className="mt-2 text-sm text-emerald-700">
-              Đã đăng xuất tất cả thiết bị. Bạn cần đăng nhập lại.
-            </p>
+            <div className="mt-3">
+              <NoticeBox
+                title="Đã thu hồi tất cả phiên"
+                description="Bạn cần đăng nhập lại trên các thiết bị đang sử dụng."
+                tone="positive"
+              />
+            </div>
           ) : null}
           {revokeAllSessions.isError ? (
-            <p className="mt-2 text-sm text-rose-700">
-              Thu hồi phiên thất bại. Vui lòng thử lại.
-            </p>
+            <div className="mt-3">
+              <NoticeBox
+                title="Thu hồi phiên thất bại"
+                description="Vui lòng thử lại sau."
+                tone="danger"
+              />
+            </div>
           ) : null}
         </Panel>
       </div>

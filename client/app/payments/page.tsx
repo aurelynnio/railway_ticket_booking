@@ -29,6 +29,10 @@ import { useAuthSession } from "@/hooks/auth.hook";
 import {
   usePayments,
   usePaymentsByUserId,
+  useCancelPayment,
+  useMarkPaymentFailed,
+  useMarkPaymentPaid,
+  useMarkPaymentProcessing,
 } from "@/hooks/payment.hook";
 import { PaymentStatus } from "@/lib/api-types";
 import {
@@ -47,6 +51,10 @@ export default function PaymentsPage() {
   const [transactionId, setTransactionId] = useState("");
 
   const session = useAuthSession();
+  const markProcessing = useMarkPaymentProcessing();
+  const markPaid = useMarkPaymentPaid();
+  const markFailed = useMarkPaymentFailed();
+  const cancelPayment = useCancelPayment();
 
   // Admin: xem tất cả payments. Non-admin: chỉ xem payment của mình
   const adminQuery = usePayments(
@@ -83,6 +91,11 @@ export default function PaymentsPage() {
       payment.status === PaymentStatus.Failed ||
       payment.status === PaymentStatus.Cancelled,
   ).length;
+  const isAdminActionPending =
+    markProcessing.isPending ||
+    markPaid.isPending ||
+    markFailed.isPending ||
+    cancelPayment.isPending;
 
   return (
     <AppShell
@@ -136,7 +149,7 @@ export default function PaymentsPage() {
         <StatCard
           label="Thanh toán hiển thị"
           value={String(payments.length)}
-          helper="Số bản ghi đang hiển thị."
+          helper="Số giao dịch trong trang hiện tại."
         />
         <StatCard
           label="Đã thanh toán"
@@ -178,11 +191,11 @@ export default function PaymentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Payment</TableHead>
-                <TableHead>Order / User</TableHead>
+                <TableHead>Thanh toán</TableHead>
+                <TableHead>Đơn / Người dùng</TableHead>
                 <TableHead>Trạng thái</TableHead>
-                <TableHead>Số tiền</TableHead>
-                <TableHead>Thanh toán lúc</TableHead>
+                <TableHead className="hidden md:table-cell">Số tiền</TableHead>
+                <TableHead className="hidden lg:table-cell">Thanh toán lúc</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
@@ -211,14 +224,56 @@ export default function PaymentsPage() {
                       tone={getPaymentStatusTone(payment.status)}
                     />
                   </TableCell>
-                  <TableCell>{formatCurrency(Number(payment.amount))}</TableCell>
-                  <TableCell>{formatDateTime(payment.paidAt)}</TableCell>
+                  <TableCell className="hidden md:table-cell">{formatCurrency(Number(payment.amount))}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{formatDateTime(payment.paidAt)}</TableCell>
                   <TableCell className="text-right">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`${isAdminView ? "/admin/payments" : "/payments"}/${payment.id}`}>
-                        Chi tiết
-                      </Link>
-                    </Button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {isAdminView ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isAdminActionPending}
+                            onClick={() => markProcessing.mutate({ id: payment.id })}
+                          >
+                            Xử lý
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isAdminActionPending}
+                            onClick={() => markPaid.mutate({ id: payment.id })}
+                          >
+                            Đã trả
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isAdminActionPending}
+                            onClick={() => markFailed.mutate({ id: payment.id })}
+                          >
+                            Lỗi
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={isAdminActionPending}
+                            onClick={() => cancelPayment.mutate({ id: payment.id })}
+                          >
+                            Hủy
+                          </Button>
+                        </>
+                      ) : null}
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`${isAdminView ? "/admin/payments" : "/payments"}/${payment.id}`}>
+                          Chi tiết
+                        </Link>
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

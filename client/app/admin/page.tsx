@@ -3,15 +3,21 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Activity,
   ArrowRight,
   RefreshCw,
   Search,
 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { BarChart, DonutStat } from "@/components/analytics-chart";
+import { FormField } from "@/components/form-field";
 import {
+  NoticeBox,
   EmptyState,
   MetaGrid,
   StatCard,
@@ -32,7 +38,6 @@ import {
 } from "@/hooks/order.hook";
 import {
   useCancelPayment,
-  useCreatePayment,
   useMarkPaymentFailed,
   useMarkPaymentPaid,
   useMarkPaymentProcessing,
@@ -64,6 +69,16 @@ import {
   getTicketStatusTone,
 } from "@/lib/formatters";
 import instance from "@/lib/http";
+import {
+  emailField,
+  integerText,
+  optionalDateTimeText,
+  optionalText,
+  passwordField,
+  requiredText,
+  toOptionalIsoDateTime,
+  toOptionalString,
+} from "@/lib/validation";
 
 type HealthResult = {
   key: string;
@@ -74,11 +89,53 @@ type HealthResult = {
 };
 
 const healthTargets = [
-  { key: "tickets", label: "Tickets", path: "/tickets/health" },
-  { key: "orders", label: "Orders", path: "/orders/health" },
-  { key: "payments", label: "Payments", path: "/payments/health" },
-  { key: "search", label: "Search", path: "/search/health" },
+  { key: "tickets", label: "Vé", path: "/tickets/health" },
+  { key: "orders", label: "Đơn hàng", path: "/orders/health" },
+  { key: "payments", label: "Thanh toán", path: "/payments/health" },
+  { key: "search", label: "Tra cứu", path: "/search/health" },
 ] as const;
+
+const quickTicketSchema = z
+  .object({
+    title: requiredText("Title"),
+    trainNumber: optionalText(),
+    departureCode: requiredText("Departure code"),
+    departureName: requiredText("Departure name"),
+    arrivalCode: requiredText("Arrival code"),
+    arrivalName: requiredText("Arrival name"),
+    dateStart: optionalDateTimeText("Khởi hành"),
+    dateEnd: optionalDateTimeText("Đến nơi"),
+    coachCode: requiredText("Coach"),
+    seatClass: requiredText("Seat class"),
+    seatLabels: requiredText("Seat labels"),
+    priceOriginal: integerText("Original price", 0),
+  })
+  .refine(
+    (values) =>
+      !values.dateStart ||
+      !values.dateEnd ||
+      new Date(values.dateEnd).getTime() >= new Date(values.dateStart).getTime(),
+    {
+      message: "Giờ đến phải sau giờ khởi hành",
+      path: ["dateEnd"],
+    },
+  );
+
+const quickOrderSchema = z.object({
+  userId: requiredText("Order user ID"),
+  ticketId: requiredText("Ticket ID"),
+  ticketItemId: requiredText("Ticket item ID"),
+  ticketTitle: requiredText("Ticket title"),
+  quantity: integerText("Quantity", 1),
+  unitPrice: integerText("Unit price", 0),
+  seatLabels: optionalText(),
+});
+
+const quickUserSchema = z.object({
+  username: requiredText("Username"),
+  email: emailField,
+  password: passwordField,
+});
 
 function splitCsv(value: string) {
   return value
@@ -123,7 +180,7 @@ export default function AdminPage() {
           label: target.label,
           path: target.path,
           healthy: false,
-          value: "Unavailable",
+          value: "Không phản hồi",
         };
       });
     },
@@ -142,49 +199,55 @@ export default function AdminPage() {
   const issueTicket = useIssueTicket();
   const cancelOrder = useCancelOrder();
 
-  const createPayment = useCreatePayment();
   const markPaymentProcessing = useMarkPaymentProcessing();
   const markPaymentPaid = useMarkPaymentPaid();
   const markPaymentFailed = useMarkPaymentFailed();
   const cancelPayment = useCancelPayment();
 
   const createUser = useCreateUser();
-
-  const [ticketTitle, setTicketTitle] = useState("");
-  const [ticketTrain, setTicketTrain] = useState("");
-  const [ticketFromCode, setTicketFromCode] = useState("");
-  const [ticketFromName, setTicketFromName] = useState("");
-  const [ticketToCode, setTicketToCode] = useState("");
-  const [ticketToName, setTicketToName] = useState("");
-  const [ticketStart, setTicketStart] = useState("");
-  const [ticketEnd, setTicketEnd] = useState("");
-  const [ticketCoach, setTicketCoach] = useState("");
-  const [ticketSeatClass, setTicketSeatClass] = useState("");
-  const [ticketSeats, setTicketSeats] = useState("");
-  const [ticketPrice, setTicketPrice] = useState("");
-
-  const [orderUserId, setOrderUserId] = useState("");
-  const [orderTicketId, setOrderTicketId] = useState("");
-  const [orderTicketItemId, setOrderTicketItemId] = useState("");
-  const [orderTitle, setOrderTitle] = useState("");
-  const [orderQuantity, setOrderQuantity] = useState("1");
-  const [orderUnitPrice, setOrderUnitPrice] = useState("0");
-  const [orderSeats, setOrderSeats] = useState("");
-
-  const [paymentOrderId, setPaymentOrderId] = useState("");
-  const [paymentUserId, setPaymentUserId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("manual");
-
-  const [newUsername, setNewUsername] = useState("");
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserPassword, setNewUserPassword] = useState("");
   const [lookupEmail, setLookupEmail] = useState("");
   const [submittedLookupEmail, setSubmittedLookupEmail] = useState("");
   const lookupQuery = useUserByEmail(
     submittedLookupEmail,
     Boolean(submittedLookupEmail),
   );
+  const quickTicketForm = useForm<z.infer<typeof quickTicketSchema>>({
+    resolver: zodResolver(quickTicketSchema),
+    defaultValues: {
+      title: "",
+      trainNumber: "",
+      departureCode: "",
+      departureName: "",
+      arrivalCode: "",
+      arrivalName: "",
+      dateStart: "",
+      dateEnd: "",
+      coachCode: "",
+      seatClass: "",
+      seatLabels: "",
+      priceOriginal: "",
+    },
+  });
+  const quickOrderForm = useForm<z.infer<typeof quickOrderSchema>>({
+    resolver: zodResolver(quickOrderSchema),
+    defaultValues: {
+      userId: "",
+      ticketId: "",
+      ticketItemId: "",
+      ticketTitle: "",
+      quantity: "1",
+      unitPrice: "0",
+      seatLabels: "",
+    },
+  });
+  const quickUserForm = useForm<z.infer<typeof quickUserSchema>>({
+    resolver: zodResolver(quickUserSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+    },
+  });
 
   const tickets = ticketsQuery.data?.data ?? [];
   const orders = ordersQuery.data?.data ?? [];
@@ -217,9 +280,9 @@ export default function AdminPage() {
   return (
     <AppShell
       title="Trung tâm quản trị"
-      description="Theo dõi vé, đơn hàng, thanh toán và người dùng trong một không gian vận hành thống nhất."
+      description="Không gian điều hành tập trung cho vé, đơn hàng, thanh toán và tài khoản."
       actions={
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
@@ -237,7 +300,7 @@ export default function AdminPage() {
           </Button>
           <Button asChild variant="ghost">
             <Link href="/search">
-              Xem trang đặt vé
+              Xem khu vực đặt vé
               <Search className="size-4" />
             </Link>
           </Button>
@@ -246,37 +309,93 @@ export default function AdminPage() {
     >
       <div className="grid gap-4 lg:grid-cols-4">
         <StatCard
-          label="Tickets"
+          label="Tổng vé"
           value={String(totals.tickets)}
           helper={`${operationalSummary.openTickets} hành trình đang mở bán.`}
         />
         <StatCard
-          label="Orders"
+          label="Tổng đơn"
           value={String(totals.orders)}
           helper={`${operationalSummary.pendingOrders} đơn chờ thanh toán.`}
         />
         <StatCard
-          label="Payments"
+          label="Tổng giao dịch"
           value={String(totals.payments)}
           helper={`${operationalSummary.paidPayments} giao dịch đã hoàn tất.`}
         />
         <StatCard
-          label="Users"
+          label="Tài khoản"
           value={String(totals.users)}
           helper="Tổng tài khoản đang quản lý."
         />
       </div>
 
+      {/* Analytics Overview */}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <DonutStat
+          value={operationalSummary.openTickets}
+          total={Math.max(totals.tickets, 1)}
+          label="Tỷ lệ mở bán"
+        />
+        <DonutStat
+          value={operationalSummary.paidPayments}
+          total={Math.max(totals.payments, 1)}
+          label="Giao dịch thành công"
+        />
+        <DonutStat
+          value={orders.filter((o) => o.status === OrderStatus.TicketIssued).length}
+          total={Math.max(orders.length, 1)}
+          label="Vé đã phát hành"
+        />
+        <DonutStat
+          value={operationalSummary.pendingOrders}
+          total={Math.max(totals.orders, 1)}
+          label="Chờ thanh toán"
+        />
+      </div>
+
+      <Panel
+        title="Phân tích vận hành"
+        description="Tổng quan trạng thái vé, đơn hàng và thanh toán trong kỳ hiện tại."
+      >
+        <div className="grid gap-6 md:grid-cols-3">
+          <BarChart
+            title="Trạng thái vé"
+            data={[
+              { label: "Nháp", value: operationalSummary.draftTickets, color: "var(--muted-foreground)" },
+              { label: "Mở bán", value: operationalSummary.openTickets, color: "var(--primary)" },
+              { label: "Tổng", value: totals.tickets, color: "var(--accent-foreground)" },
+            ]}
+          />
+          <BarChart
+            title="Trạng thái đơn"
+            data={[
+              { label: "Chờ TT", value: operationalSummary.pendingOrders, color: "var(--warning)" },
+              { label: "Hoàn tất", value: orders.filter((o) => o.status === OrderStatus.TicketIssued).length, color: "var(--success)" },
+              { label: "Tổng", value: totals.orders, color: "var(--accent-foreground)" },
+            ]}
+          />
+          <BarChart
+            title="Giao dịch"
+            data={[
+              { label: "Hoàn tất", value: operationalSummary.paidPayments, color: "var(--success)" },
+              { label: "Chờ", value: payments.filter((p) => p.status === PaymentStatus.Pending).length, color: "var(--warning)" },
+              { label: "Tổng", value: totals.payments, color: "var(--accent-foreground)" },
+            ]}
+          />
+        </div>
+      </Panel>
+
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel
           title="Trạng thái hệ thống"
-          description="Kiểm tra nhanh khả năng phản hồi của các phân hệ chính."
+          description="Kiểm tra nhanh phản hồi của các phân hệ chính trước khi thao tác."
         >
           <div className="grid gap-3 md:grid-cols-2">
             {(healthQuery.data ?? []).map((result) => (
               <div
                 key={result.key}
-                className="rounded-lg bg-muted/35 px-4 py-4 border border-border"
+                className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -286,7 +405,7 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <StatusBadge
-                    label={result.healthy ? "Online" : "Down"}
+                    label={result.healthy ? "Ổn định" : "Lỗi"}
                     tone={result.healthy ? "positive" : "danger"}
                   />
                 </div>
@@ -305,8 +424,8 @@ export default function AdminPage() {
         </Panel>
 
         <Panel
-          title="Khu vực quản lý"
-          description="Mở nhanh các module cần xử lý trong ngày."
+          title="Lối tắt điều hành"
+          description="Đi tới các khu vực xử lý chính của ca vận hành."
         >
           <div className="grid gap-3">
             <SurfaceLink
@@ -334,230 +453,161 @@ export default function AdminPage() {
       </div>
 
       {anyHealthDown ? (
-        <div className="rounded-lg bg-destructive px-5 py-4 text-sm text-white">
-          Một hoặc nhiều phân hệ chưa sẵn sàng. Một số thao tác có thể tạm thời
-          không thực hiện được.
-        </div>
+        <NoticeBox
+          title="Một hoặc nhiều phân hệ chưa sẵn sàng"
+          description="Một số thao tác vận hành có thể tạm thời không thực hiện được."
+          tone="danger"
+        />
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel
           title="Tạo nhanh vé"
-          description="Thiết lập hành trình và hạng ghế đầu tiên."
+          description="Lập hành trình đầu tiên mà không cần rời dashboard."
         >
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              placeholder="Title"
-              value={ticketTitle}
-              onChange={(event) => setTicketTitle(event.target.value)}
-            />
-            <Input
-              placeholder="Train number"
-              value={ticketTrain}
-              onChange={(event) => setTicketTrain(event.target.value)}
-            />
-            <Input
-              placeholder="Departure code"
-              value={ticketFromCode}
-              onChange={(event) => setTicketFromCode(event.target.value)}
-            />
-            <Input
-              placeholder="Departure name"
-              value={ticketFromName}
-              onChange={(event) => setTicketFromName(event.target.value)}
-            />
-            <Input
-              placeholder="Arrival code"
-              value={ticketToCode}
-              onChange={(event) => setTicketToCode(event.target.value)}
-            />
-            <Input
-              placeholder="Arrival name"
-              value={ticketToName}
-              onChange={(event) => setTicketToName(event.target.value)}
-            />
-            <Input
-              type="datetime-local"
-              value={ticketStart}
-              onChange={(event) => setTicketStart(event.target.value)}
-            />
-            <Input
-              type="datetime-local"
-              value={ticketEnd}
-              onChange={(event) => setTicketEnd(event.target.value)}
-            />
-            <Input
-              placeholder="Coach"
-              value={ticketCoach}
-              onChange={(event) => setTicketCoach(event.target.value)}
-            />
-            <Input
-              placeholder="Seat class"
-              value={ticketSeatClass}
-              onChange={(event) => setTicketSeatClass(event.target.value)}
-            />
-            <Textarea
-              className="md:col-span-2"
-              placeholder="Seat labels CSV, ví dụ A1,A2,A3"
-              value={ticketSeats}
-              onChange={(event) => setTicketSeats(event.target.value)}
-            />
-            <Input
-              placeholder="Original price"
-              value={ticketPrice}
-              onChange={(event) => setTicketPrice(event.target.value)}
-            />
-            <Button
-              type="button"
-              disabled={!ticketTitle || createTicket.isPending}
-              onClick={() => {
-                const seats = splitCsv(ticketSeats);
-                createTicket.mutate({
-                  title: ticketTitle,
-                  trainNumber: ticketTrain || undefined,
-                  departureStationCode: ticketFromCode || undefined,
-                  departureStationName: ticketFromName || undefined,
-                  arrivalStationCode: ticketToCode || undefined,
-                  arrivalStationName: ticketToName || undefined,
-                  dateStart: ticketStart
-                    ? new Date(ticketStart).toISOString()
-                    : undefined,
-                  dateEnd: ticketEnd ? new Date(ticketEnd).toISOString() : undefined,
+          <form
+            className="grid gap-3 md:grid-cols-2"
+            onSubmit={quickTicketForm.handleSubmit((values) => {
+              const seats = splitCsv(values.seatLabels);
+              createTicket.mutate(
+                {
+                  title: values.title,
+                  trainNumber: toOptionalString(values.trainNumber),
+                  departureStationCode: values.departureCode,
+                  departureStationName: values.departureName,
+                  arrivalStationCode: values.arrivalCode,
+                  arrivalStationName: values.arrivalName,
+                  dateStart: toOptionalIsoDateTime(values.dateStart),
+                  dateEnd: toOptionalIsoDateTime(values.dateEnd),
                   ticketItems: [
                     {
-                      coachCode: ticketCoach || undefined,
-                      seatClass: ticketSeatClass || undefined,
+                      coachCode: values.coachCode,
+                      seatClass: values.seatClass,
                       seatLabels: seats,
                       availableSeatLabels: seats,
-                      stockInitial: seats.length || undefined,
-                      stockAvailable: seats.length || undefined,
-                      priceOriginal: ticketPrice || undefined,
+                      stockInitial: seats.length,
+                      stockAvailable: seats.length,
+                      priceOriginal: values.priceOriginal,
                     },
                   ],
-                });
-              }}
+                },
+                {
+                  onSuccess: () => {
+                    quickTicketForm.reset();
+                  },
+                },
+              );
+            })}
+          >
+            <FormField label="Tên vé" error={quickTicketForm.formState.errors.title?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.title)} {...quickTicketForm.register("title")} />
+            </FormField>
+            <FormField label="Số tàu" error={quickTicketForm.formState.errors.trainNumber?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.trainNumber)} {...quickTicketForm.register("trainNumber")} />
+            </FormField>
+            <FormField label="Mã ga đi" error={quickTicketForm.formState.errors.departureCode?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.departureCode)} {...quickTicketForm.register("departureCode")} />
+            </FormField>
+            <FormField label="Tên ga đi" error={quickTicketForm.formState.errors.departureName?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.departureName)} {...quickTicketForm.register("departureName")} />
+            </FormField>
+            <FormField label="Mã ga đến" error={quickTicketForm.formState.errors.arrivalCode?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.arrivalCode)} {...quickTicketForm.register("arrivalCode")} />
+            </FormField>
+            <FormField label="Tên ga đến" error={quickTicketForm.formState.errors.arrivalName?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.arrivalName)} {...quickTicketForm.register("arrivalName")} />
+            </FormField>
+            <FormField label="Khởi hành" error={quickTicketForm.formState.errors.dateStart?.message}>
+              <Input type="datetime-local" aria-invalid={Boolean(quickTicketForm.formState.errors.dateStart)} {...quickTicketForm.register("dateStart")} />
+            </FormField>
+            <FormField label="Đến nơi" error={quickTicketForm.formState.errors.dateEnd?.message}>
+              <Input type="datetime-local" aria-invalid={Boolean(quickTicketForm.formState.errors.dateEnd)} {...quickTicketForm.register("dateEnd")} />
+            </FormField>
+            <FormField label="Mã toa" error={quickTicketForm.formState.errors.coachCode?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.coachCode)} {...quickTicketForm.register("coachCode")} />
+            </FormField>
+            <FormField label="Hạng ghế" error={quickTicketForm.formState.errors.seatClass?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.seatClass)} {...quickTicketForm.register("seatClass")} />
+            </FormField>
+            <FormField
+              className="md:col-span-2"
+              label="Danh sách ghế CSV"
+              hint="Ví dụ A1,A2,A3"
+              error={quickTicketForm.formState.errors.seatLabels?.message}
             >
-              {createTicket.isPending ? "Đang tạo..." : "Tạo ticket"}
+              <Textarea aria-invalid={Boolean(quickTicketForm.formState.errors.seatLabels)} {...quickTicketForm.register("seatLabels")} />
+            </FormField>
+            <FormField label="Giá gốc" error={quickTicketForm.formState.errors.priceOriginal?.message}>
+              <Input aria-invalid={Boolean(quickTicketForm.formState.errors.priceOriginal)} {...quickTicketForm.register("priceOriginal")} />
+            </FormField>
+            <Button
+              type="submit"
+              disabled={createTicket.isPending}
+            >
+              {createTicket.isPending ? "Đang tạo..." : "Tạo vé"}
             </Button>
-          </div>
+          </form>
         </Panel>
 
         <Panel
-          title="Tạo nhanh đơn và thanh toán"
-          description="Dùng khi cần hỗ trợ đặt chỗ hoặc đối soát thủ công."
+          title="Tạo nhanh đơn"
+          description="Dùng khi cần hỗ trợ đặt chỗ thủ công ngay từ dashboard."
         >
           <div className="grid gap-5">
-            <div className="grid gap-3 md:grid-cols-2">
-              <Input
-                placeholder="Order user ID"
-                value={orderUserId}
-                onChange={(event) => setOrderUserId(event.target.value)}
-              />
-              <Input
-                placeholder="Ticket ID"
-                value={orderTicketId}
-                onChange={(event) => setOrderTicketId(event.target.value)}
-              />
-              <Input
-                placeholder="Ticket item ID"
-                value={orderTicketItemId}
-                onChange={(event) => setOrderTicketItemId(event.target.value)}
-              />
-              <Input
-                placeholder="Ticket title"
-                value={orderTitle}
-                onChange={(event) => setOrderTitle(event.target.value)}
-              />
-              <Input
-                type="number"
-                min="1"
-                placeholder="Quantity"
-                value={orderQuantity}
-                onChange={(event) => setOrderQuantity(event.target.value)}
-              />
-              <Input
-                type="number"
-                min="0"
-                placeholder="Unit price"
-                value={orderUnitPrice}
-                onChange={(event) => setOrderUnitPrice(event.target.value)}
-              />
-              <Textarea
+            <form
+              className="grid gap-3 md:grid-cols-2"
+              onSubmit={quickOrderForm.handleSubmit((values) =>
+                createOrderRecord.mutate(
+                  {
+                    userId: values.userId,
+                    ticketId: values.ticketId,
+                    ticketItemId: values.ticketItemId,
+                    ticketTitle: values.ticketTitle,
+                    quantity: Number(values.quantity),
+                    unitPrice: Number(values.unitPrice),
+                    seatLabels: splitCsv(values.seatLabels),
+                  },
+                  {
+                    onSuccess: () => {
+                      quickOrderForm.reset();
+                    },
+                  },
+                ),
+              )}
+            >
+              <FormField label="Mã người dùng" error={quickOrderForm.formState.errors.userId?.message}>
+                <Input aria-invalid={Boolean(quickOrderForm.formState.errors.userId)} {...quickOrderForm.register("userId")} />
+              </FormField>
+              <FormField label="Mã vé" error={quickOrderForm.formState.errors.ticketId?.message}>
+                <Input aria-invalid={Boolean(quickOrderForm.formState.errors.ticketId)} {...quickOrderForm.register("ticketId")} />
+              </FormField>
+              <FormField label="Mã hạng ghế" error={quickOrderForm.formState.errors.ticketItemId?.message}>
+                <Input aria-invalid={Boolean(quickOrderForm.formState.errors.ticketItemId)} {...quickOrderForm.register("ticketItemId")} />
+              </FormField>
+              <FormField label="Tên vé" error={quickOrderForm.formState.errors.ticketTitle?.message}>
+                <Input aria-invalid={Boolean(quickOrderForm.formState.errors.ticketTitle)} {...quickOrderForm.register("ticketTitle")} />
+              </FormField>
+              <FormField label="Số lượng" error={quickOrderForm.formState.errors.quantity?.message}>
+                <Input aria-invalid={Boolean(quickOrderForm.formState.errors.quantity)} {...quickOrderForm.register("quantity")} />
+              </FormField>
+              <FormField label="Đơn giá" error={quickOrderForm.formState.errors.unitPrice?.message}>
+                <Input aria-invalid={Boolean(quickOrderForm.formState.errors.unitPrice)} {...quickOrderForm.register("unitPrice")} />
+              </FormField>
+              <FormField
                 className="md:col-span-2"
-                placeholder="Seat labels CSV"
-                value={orderSeats}
-                onChange={(event) => setOrderSeats(event.target.value)}
-              />
+                label="Danh sách ghế CSV"
+                error={quickOrderForm.formState.errors.seatLabels?.message}
+              >
+                <Textarea aria-invalid={Boolean(quickOrderForm.formState.errors.seatLabels)} {...quickOrderForm.register("seatLabels")} />
+              </FormField>
               <Button
-                type="button"
+                type="submit"
                 className="md:col-span-2"
-                disabled={
-                  !orderUserId ||
-                  !orderTicketId ||
-                  !orderTicketItemId ||
-                  !orderTitle ||
-                  createOrderRecord.isPending
-                }
-                onClick={() =>
-                  createOrderRecord.mutate({
-                    userId: orderUserId,
-                    ticketId: orderTicketId,
-                    ticketItemId: orderTicketItemId,
-                    ticketTitle: orderTitle,
-                    quantity: Number(orderQuantity) || 1,
-                    unitPrice: Number(orderUnitPrice) || 0,
-                    seatLabels: splitCsv(orderSeats),
-                  })
-                }
+                disabled={createOrderRecord.isPending}
               >
                 {createOrderRecord.isPending ? "Đang tạo đơn..." : "Tạo đơn"}
               </Button>
-            </div>
-
-            <div className="soft-divider" />
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <Input
-                placeholder="Payment order ID"
-                value={paymentOrderId}
-                onChange={(event) => setPaymentOrderId(event.target.value)}
-              />
-              <Input
-                placeholder="Payment user ID"
-                value={paymentUserId}
-                onChange={(event) => setPaymentUserId(event.target.value)}
-              />
-              <Input
-                placeholder="Amount"
-                value={paymentAmount}
-                onChange={(event) => setPaymentAmount(event.target.value)}
-              />
-              <Input
-                placeholder="Method"
-                value={paymentMethod}
-                onChange={(event) => setPaymentMethod(event.target.value)}
-              />
-              <Button
-                type="button"
-                className="md:col-span-2"
-                disabled={
-                  !paymentOrderId ||
-                  !paymentAmount ||
-                  !paymentMethod ||
-                  createPayment.isPending
-                }
-                onClick={() =>
-                  createPayment.mutate({
-                    orderId: paymentOrderId,
-                    userId: paymentUserId || undefined,
-                    amount: paymentAmount,
-                    paymentMethod,
-                  })
-                }
-              >
-                {createPayment.isPending ? "Đang tạo thanh toán..." : "Tạo thanh toán"}
-              </Button>
-            </div>
+            </form>
           </div>
         </Panel>
       </div>
@@ -567,48 +617,37 @@ export default function AdminPage() {
         description="Tạo tài khoản mới hoặc tìm nhanh theo email."
       >
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="grid gap-3 md:grid-cols-4">
-            <Input
-              placeholder="Username"
-              value={newUsername}
-              onChange={(event) => setNewUsername(event.target.value)}
-            />
-            <Input
-              placeholder="Email"
-              value={newUserEmail}
-              onChange={(event) => setNewUserEmail(event.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={newUserPassword}
-              onChange={(event) => setNewUserPassword(event.target.value)}
-            />
-            <Button
-              type="button"
-              disabled={
-                !newUsername ||
-                !newUserEmail ||
-                !newUserPassword ||
-                createUser.isPending
-              }
-              onClick={() => {
-                createUser.mutate({
-                  username: newUsername,
-                  email: newUserEmail,
-                  password: newUserPassword,
-                });
-                setNewUsername("");
-                setNewUserEmail("");
-                setNewUserPassword("");
-              }}
-            >
-              {createUser.isPending ? "Đang tạo..." : "Tạo user"}
-            </Button>
-          </div>
+          <form
+            className="grid gap-3 md:grid-cols-4"
+            onSubmit={quickUserForm.handleSubmit((values) =>
+              createUser.mutate(values, {
+                onSuccess: () => {
+                  quickUserForm.reset();
+                },
+              }),
+            )}
+          >
+            <FormField label="Tên đăng nhập" error={quickUserForm.formState.errors.username?.message}>
+              <Input aria-invalid={Boolean(quickUserForm.formState.errors.username)} {...quickUserForm.register("username")} />
+            </FormField>
+            <FormField label="Email" error={quickUserForm.formState.errors.email?.message}>
+              <Input aria-invalid={Boolean(quickUserForm.formState.errors.email)} {...quickUserForm.register("email")} />
+            </FormField>
+            <FormField label="Mật khẩu" error={quickUserForm.formState.errors.password?.message}>
+              <Input type="password" aria-invalid={Boolean(quickUserForm.formState.errors.password)} {...quickUserForm.register("password")} />
+            </FormField>
+            <div className="flex items-end">
+              <Button
+                type="submit"
+                disabled={createUser.isPending}
+              >
+                {createUser.isPending ? "Đang tạo..." : "Tạo tài khoản"}
+              </Button>
+            </div>
+          </form>
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
             <Input
-              placeholder="Find user by email"
+              placeholder="Tìm theo email"
               value={lookupEmail}
               onChange={(event) => setLookupEmail(event.target.value)}
             />
@@ -648,7 +687,7 @@ export default function AdminPage() {
             return (
               <div
                 key={ticket.id}
-                className="rounded-lg bg-muted/25 px-4 py-4 border border-border"
+                className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="space-y-3">
@@ -663,7 +702,7 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <p className="font-heading text-lg font-semibold tracking-tight">
-                        {ticket.title ?? "Untitled ticket"}
+                        {ticket.title ?? "Vé chưa đặt tên"}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {ticket.departureStationName ?? ticket.departureStationCode ?? "?"}
@@ -685,7 +724,7 @@ export default function AdminPage() {
                       disabled={isBusy}
                       onClick={() => publishTicket.mutate({ ticketId: ticket.id })}
                     >
-                      Publish
+                      Công bố
                     </Button>
                     <Button
                       type="button"
@@ -694,7 +733,7 @@ export default function AdminPage() {
                       disabled={isBusy}
                       onClick={() => unpublishTicket.mutate({ ticketId: ticket.id })}
                     >
-                      Unpublish
+                      Gỡ công bố
                     </Button>
                     <Button
                       type="button"
@@ -708,7 +747,7 @@ export default function AdminPage() {
                         })
                       }
                     >
-                      Prepare
+                      Chuẩn bị
                     </Button>
                     <Button
                       type="button"
@@ -722,7 +761,7 @@ export default function AdminPage() {
                         })
                       }
                     >
-                      Open
+                      Mở bán
                     </Button>
                     <Button
                       type="button"
@@ -731,7 +770,7 @@ export default function AdminPage() {
                       disabled={isBusy}
                       onClick={() => closeSale.mutate({ ticketId: ticket.id })}
                     >
-                      Close
+                      Đóng bán
                     </Button>
                   </div>
                 </div>
@@ -740,7 +779,7 @@ export default function AdminPage() {
           })}
           {tickets.length === 0 ? (
             <EmptyState
-              title="Chưa có ticket"
+              title="Chưa có vé"
                 description="Tạo vé mới để bắt đầu quản lý tồn chỗ."
             />
           ) : null}
@@ -761,10 +800,10 @@ export default function AdminPage() {
                 cancelOrder.isPending;
 
               return (
-                <div
-                  key={order.id}
-                  className="rounded-lg bg-muted/25 px-4 py-4 border border-border"
-                >
+              <div
+                key={order.id}
+                className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
+              >
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -791,7 +830,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => markOrderPaid.mutate({ orderId: order.id })}
                       >
-                        Paid
+                        Đã thanh toán
                       </Button>
                       <Button
                         type="button"
@@ -800,7 +839,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => confirmOrder.mutate({ orderId: order.id })}
                       >
-                        Confirm
+                        Xác nhận
                       </Button>
                       <Button
                         type="button"
@@ -809,7 +848,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => issueTicket.mutate({ orderId: order.id })}
                       >
-                        Issue
+                        Phát hành
                       </Button>
                       <Button
                         type="button"
@@ -823,7 +862,7 @@ export default function AdminPage() {
                           })
                         }
                       >
-                        Cancel
+                        Hủy
                       </Button>
                     </div>
                   </div>
@@ -832,7 +871,7 @@ export default function AdminPage() {
             })}
             {orders.length === 0 ? (
               <EmptyState
-                title="Chưa có order"
+                title="Chưa có đơn"
                 description="Các đơn mới sẽ xuất hiện tại đây."
               />
             ) : null}
@@ -852,10 +891,10 @@ export default function AdminPage() {
                 cancelPayment.isPending;
 
               return (
-                <div
-                  key={payment.id}
-                  className="rounded-lg bg-muted/25 px-4 py-4 border border-border"
-                >
+              <div
+                key={payment.id}
+                className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
+              >
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -867,7 +906,7 @@ export default function AdminPage() {
                           {formatCurrency(Number(payment.amount))}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {compactId(payment.transactionId)} · Order{" "}
+                          {compactId(payment.transactionId)} · Đơn{" "}
                           {compactId(payment.orderId)}
                         </p>
                       </div>
@@ -883,7 +922,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => markPaymentProcessing.mutate({ id: payment.id })}
                       >
-                        Processing
+                        Xử lý
                       </Button>
                       <Button
                         type="button"
@@ -892,7 +931,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => markPaymentPaid.mutate({ id: payment.id })}
                       >
-                        Paid
+                        Đã trả
                       </Button>
                       <Button
                         type="button"
@@ -901,7 +940,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => markPaymentFailed.mutate({ id: payment.id })}
                       >
-                        Failed
+                        Lỗi
                       </Button>
                       <Button
                         type="button"
@@ -910,7 +949,7 @@ export default function AdminPage() {
                         disabled={isBusy}
                         onClick={() => cancelPayment.mutate({ id: payment.id })}
                       >
-                        Cancel
+                        Hủy
                       </Button>
                     </div>
                   </div>
@@ -919,7 +958,7 @@ export default function AdminPage() {
             })}
             {payments.length === 0 ? (
               <EmptyState
-                title="Chưa có payment"
+                title="Chưa có giao dịch"
                 description="Các giao dịch mới sẽ xuất hiện tại đây."
               />
             ) : null}
@@ -936,7 +975,7 @@ export default function AdminPage() {
             <Link
               key={user.id}
               href={`/admin/users/${user.id}`}
-              className="rounded-lg bg-muted/25 px-4 py-4 border border-border transition-colors hover:bg-muted"
+              className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4 transition-colors hover:bg-muted/35"
             >
               <div className="flex items-start gap-3">
                 <div className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -947,9 +986,12 @@ export default function AdminPage() {
                     {user.name ?? user.username ?? user.email ?? compactId(user.id)}
                   </p>
                   <p className="mt-1 truncate text-sm text-muted-foreground">
-                    {user.email ?? "No email"}
+                    {user.email ?? "Chưa có email"}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
+                    {user.username ?? "Chưa có tên đăng nhập"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Cập nhật{" "}
                     {formatDateTime(
                       typeof user.updatedAt === "string" ? user.updatedAt : null,

@@ -2,37 +2,54 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { AuthShell } from "@/components/auth-shell";
-import { StatusBadge } from "@/components/railway-ui";
+import { FormField } from "@/components/form-field";
+import { NoticeBox, StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLogin } from "@/hooks/auth.hook";
+import { emailField, passwordField } from "@/lib/validation";
+
+const loginSchema = z.object({
+  email: emailField,
+  password: passwordField,
+});
 
 export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const login = useLogin();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!email || !password) return;
+  const handleSubmit = form.handleSubmit((values) => {
+    login.mutate(values, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["auth-session"] });
+        const nextPath =
+          typeof window === "undefined"
+            ? null
+            : new URLSearchParams(window.location.search).get("next");
+        const safeNextPath =
+          nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
+            ? nextPath
+            : "/profile";
 
-    login.mutate(
-      { email, password },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["auth-session"] });
-          router.push("/profile");
-        },
-      }
-    );
-  };
+        router.push(safeNextPath);
+      },
+    });
+  });
 
   return (
     <AuthShell
@@ -49,44 +66,42 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="grid gap-4">
-        <div className="grid gap-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Email
-          </p>
+        <FormField
+          label="Email"
+          error={form.formState.errors.email?.message}
+        >
           <Input
             type="email"
             placeholder="ban@railway.test"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
+            aria-invalid={Boolean(form.formState.errors.email)}
+            {...form.register("email")}
           />
-        </div>
+        </FormField>
 
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-muted-foreground">
-              Mật khẩu
-            </p>
+        <FormField
+          label="Mật khẩu"
+          error={form.formState.errors.password?.message}
+          aside={(
             <Link
               href="/forgot-password"
               className="text-sm font-medium text-primary"
             >
               Quên mật khẩu?
             </Link>
-          </div>
+          )}
+        >
           <Input
             type="password"
             placeholder="Nhập mật khẩu"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
+            aria-invalid={Boolean(form.formState.errors.password)}
+            {...form.register("password")}
           />
-        </div>
+        </FormField>
 
         <Button
           type="submit"
           size="lg"
-          disabled={login.isPending}
+          disabled={login.isPending || form.formState.isSubmitting}
         >
           {login.isPending ? "Đang đăng nhập..." : "Đăng nhập"}
           <ArrowRight />
@@ -104,10 +119,11 @@ export default function LoginPage() {
         </div>
 
         {login.isError ? (
-          <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground border border-border">
-            Đăng nhập thất bại. Vui lòng kiểm tra email, mật khẩu hoặc thử lại
-            sau.
-          </div>
+          <NoticeBox
+            title="Đăng nhập thất bại"
+            description="Vui lòng kiểm tra email, mật khẩu hoặc thử lại sau."
+            tone="danger"
+          />
         ) : null}
       </form>
     </AuthShell>
