@@ -31,3 +31,6 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Next.js build cache (cleanable)
+.next/
