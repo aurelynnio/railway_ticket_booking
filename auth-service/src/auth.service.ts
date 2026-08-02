@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
   Inject,
@@ -26,6 +27,8 @@ import { TokenService } from './utils/generate-token.util';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly tokenService: TokenService,
@@ -50,30 +53,38 @@ export class AuthService {
       throw new BadRequestException('Missing required fields');
     }
 
-    const existingUser = await this.prisma.authAccount.findUnique({
-      where: { email: payload.email },
-    });
-    if (existingUser) {
-      throw new ConflictException('Email already in use');
-    }
-
     const hashedPassword = await hashPassword(payload.password);
-    const newUser = await this.prisma.authAccount.create({
-      data: {
-        email: payload.email,
-        password: hashedPassword,
-        username: payload.username,
-        emailVerified: false,
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    let newUser;
+
+    try {
+      newUser = await this.prisma.authAccount.create({
+        data: {
+          email: payload.email,
+          password: hashedPassword,
+          username: payload.username,
+          emailVerified: false,
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } catch (error) {
+      // P2002 = unique constraint violation (email or username already taken)
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code: string }).code === 'P2002'
+      ) {
+        throw new ConflictException('Email or username already in use');
+      }
+      throw error;
+    }
 
     try {
       await this.generateAndStoreEmailVerificationToken(
@@ -81,7 +92,7 @@ export class AuthService {
         newUser.email,
       );
     } catch (error) {
-      console.error('Failed to generate verification token:', error);
+      this.logger.error(`Failed to generate verification token: ${error}`);
     }
 
     try {
@@ -91,9 +102,8 @@ export class AuthService {
         fullName: newUser.username,
       });
     } catch (error) {
-      console.error(
-        'Failed to emit notification.user_registered event:',
-        error,
+      this.logger.error(
+        `Failed to emit notification.user_registered event: ${error}`,
       );
     }
 
@@ -203,21 +213,28 @@ export class AuthService {
     };
   }
 
-  async logout(_payload?: LogoutRequest) {
+  logout(payload?: LogoutRequest) {
+    void payload;
     return {
       success: true,
       message: 'Logout successful',
     };
   }
 
-  async forgotPassword(payload: ForgotPasswordRequest): Promise<string> {
+  async forgotPassword(
+    payload: ForgotPasswordRequest,
+  ): Promise<{ success: boolean; message: string }> {
     if (!payload.email) {
       throw new BadRequestException('Missing email');
     }
 
+    // Don't reveal whether email exists — return generic success either way
     const user = await this.findActiveUserByEmail(payload.email);
     if (!user) {
-      throw new NotFoundException('Email not found');
+      return {
+        success: true,
+        message: 'If the email exists, a reset link has been sent.',
+      };
     }
 
     const resetToken = await this.tokenService.generatePasswordResetToken({
@@ -252,10 +269,14 @@ export class AuthService {
         token: resetToken,
       });
     } catch (error) {
-      console.error('Failed to emit notification.password_reset event:', error);
+      this.logger.error(`Failed to emit notification.password_reset event: ${error}`);
     }
 
-    return resetToken;
+    // Never return the raw token in the HTTP response — only via email
+    return {
+      success: true,
+      message: 'If the email exists, a reset link has been sent.',
+    };
   }
 
   async resetPassword(payload: ResetPasswordRequest) {
@@ -436,7 +457,11 @@ export class AuthService {
 
     const user = await this.findActiveUserByEmail(payload.email);
     if (!user) {
-      throw new NotFoundException('User not found');
+      // Don't reveal whether email exists
+      return {
+        success: true,
+        message: 'If the email exists and is unverified, a verification link has been sent.',
+      };
     }
 
     if (user.emailVerified) {
@@ -448,17 +473,21 @@ export class AuthService {
       user.email,
     );
 
-    // Mock sending email
-    await this.sendEmail(
-      user.email,
-      'Verify your email',
-      `Use this token to verify your email: ${token}`,
-    );
+    // Emit event for notification-service to send the email
+    try {
+      this.notificationClient.emit('notification.user_registered', {
+        userId: user.id,
+        email: user.email,
+        fullName: user.username,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to emit verification email event: ${error}`);
+    }
 
+    // Never return the raw token in the HTTP response
     return {
       success: true,
-      message: 'Verification email resent successfully',
-      token,
+      message: 'If the email exists and is unverified, a verification link has been sent.',
     };
   }
 
@@ -467,64 +496,22 @@ export class AuthService {
       throw new BadRequestException('Missing authorization code');
     }
 
-    // Simulation of fetching Google profile
-    const googleId = `google_id_${payload.code}`;
-    const email = `${payload.code}@gmail.com`.toLowerCase();
-    const username = `google_user_${payload.code}`;
-
-    let user = await this.prisma.authAccount.findUnique({
-      where: { googleId },
-    });
-
-    if (!user) {
-      // Check if user with this email exists
-      user = await this.prisma.authAccount.findUnique({
-        where: { email },
-      });
-
-      if (user) {
-        // Link Google ID to existing user
-        user = await this.prisma.authAccount.update({
-          where: { id: user.id },
-          data: {
-            googleId,
-            emailVerified: true, // Google emails are pre-verified
-          },
-        });
-      } else {
-        // Create new user via Google Sign In
-        user = await this.prisma.authAccount.create({
-          data: {
-            email,
-            username,
-            googleId,
-            emailVerified: true,
-          },
-        });
-      }
+    // Disable Google login if not properly configured
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new BadRequestException(
+        'Google OAuth is not configured. Set GOOGLE_CLIENT_ID environment variable.',
+      );
     }
 
-    if (user.deletedAt) {
-      throw new UnauthorizedException('Account has been deleted');
-    }
-
-    const accessToken = await this.tokenService.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion,
-    });
-    const refreshToken = await this.tokenService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion,
-    });
-
-    return {
-      accessToken,
-      refreshToken,
-    };
+    // TODO: Implement real Google OAuth code exchange:
+    // 1. Exchange authorization code for access token via Google API
+    // 2. Fetch user profile from Google userinfo endpoint
+    // 3. Find or create user based on google_id
+    // The previous implementation was a security hole — it accepted any code
+    // and created a fake user with google_id_<code>.
+    throw new BadRequestException(
+      'Google OAuth is not yet implemented. Please use email/password login.',
+    );
   }
 
   async revokeAllSessions(userId: string) {
@@ -577,8 +564,8 @@ export class AuthService {
     return token;
   }
 
-  async sendEmail(to: string, subject: string, text: string) {
-    // Log simulating sending email
-    console.log(`Sending email to ${to}: [${subject}] - ${text}`);
+  sendEmail(to: string, subject: string, text: string): void {
+    // Stub: real email sending is handled by notification-service via RabbitMQ events
+    this.logger.warn(`Email stub called directly — use notification events instead. To: ${to}, Subject: ${subject}`);
   }
 }

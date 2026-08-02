@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
-import { VnpayPaymentService } from './vnpay.service';
+import { VnpayPaymentService, type VnpayQuery } from './vnpay.service';
 import { Public } from '../common/decorator/public.decorator';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { OrderService } from '../order/order.service';
@@ -108,9 +108,9 @@ export class VnpayController {
   @Get('return')
   @Public()
   async returnUrl(
-    @Query() query: any,
+    @Query() query: VnpayQuery,
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     const result = await this.vnpayPaymentService.verifyReturnUrl(query);
 
     const clientUrl = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
@@ -135,7 +135,7 @@ export class VnpayController {
    */
   @Get('ipn')
   @Public()
-  async ipn(@Query() query: any) {
+  async ipn(@Query() query: VnpayQuery) {
     return this.vnpayPaymentService.handleIpn(query);
   }
 }

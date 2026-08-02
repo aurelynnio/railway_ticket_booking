@@ -10,6 +10,13 @@ import { Reflector } from '@nestjs/core';
 import { firstValueFrom } from 'rxjs';
 import { ACCESS_TOKEN_COOKIE_NAME } from '../../auth/auth.constants';
 import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
+import type { Request } from 'express';
+import type { RequestUser } from '../interfaces/request-user.interface';
+
+type AuthenticatedRequest = Omit<Request, 'cookies'> & {
+  cookies?: Record<string, string | undefined>;
+  user?: RequestUser;
+};
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -29,7 +36,7 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const cookieToken = request.cookies?.[ACCESS_TOKEN_COOKIE_NAME];
     const authHeader = request.headers['authorization'];
     const bearerToken =
@@ -43,8 +50,8 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const user = await firstValueFrom(
-        this.authClient.send({ cmd: 'auth.validate_token' }, { token }),
+      const user = await firstValueFrom<RequestUser>(
+        this.authClient.send<RequestUser>({ cmd: 'auth.validate_token' }, { token }),
       );
       request.user = user;
     } catch {

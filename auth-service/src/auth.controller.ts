@@ -24,6 +24,11 @@ export class AuthController {
     return this.authService.health();
   }
 
+  @MessagePattern({ cmd: 'auth.health' })
+  healthMessage() {
+    return this.authService.health();
+  }
+
   @MessagePattern({ cmd: 'auth.register' })
   register(@Payload() payload: RegisterRequest) {
     return this.authService.register(payload);
@@ -86,4 +91,3 @@ export class AuthController {
     return this.authService.revokeAllSessions(payload.userId);
   }
 }
-

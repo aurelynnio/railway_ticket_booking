@@ -13,13 +13,11 @@ import {
   ForgotPasswordRequest,
   LoginRequest,
   LogoutRequest,
-  RefreshTokenRequest,
   RegisterRequest,
   ResetPasswordRequest,
   ChangePasswordRequest,
   VerifyEmailRequest,
   ResendVerificationRequest,
-  SocialLoginGoogleRequest,
 } from '../common/dto/auth.dto';
 import { Public } from '../common/decorator/public.decorator';
 import {
@@ -30,24 +28,31 @@ import {
 } from './auth.constants';
 import type { Request, Response, CookieOptions } from 'express';
 import { firstValueFrom } from 'rxjs';
+import { Throttle } from '@nestjs/throttler';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
+
+type CookieRequest = Omit<Request, 'cookies'> & {
+  cookies?: Record<string, string | undefined>;
+};
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('health')
+  @Public()
+  health() {
+    return this.authService.health();
+  }
+
   @Post('login')
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async login(
     @Body() loginDto: LoginRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const authResult = (await firstValueFrom(
-      this.authService.login(loginDto),
-    )) as {
-      accessToken: string;
-      refreshToken: string;
-    };
+    const authResult = await firstValueFrom(this.authService.login(loginDto));
 
     this.setAuthCookies(response, authResult);
 
@@ -58,15 +63,15 @@ export class AuthController {
 
   @Post('register')
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   register(@Body() registerDto: RegisterRequest) {
     return this.authService.register(registerDto);
   }
 
-  @Post('refresh-token')
-  @Post('refreshToken')
+  @Post(['refresh-token', 'refreshToken'])
   @Public()
   async refreshToken(
-    @Req() request: Request,
+    @Req() request: CookieRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
     const refreshToken = request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
@@ -75,12 +80,9 @@ export class AuthController {
       throw new UnauthorizedException('Missing refresh token cookie');
     }
 
-    const authResult = (await firstValueFrom(
+    const authResult = await firstValueFrom(
       this.authService.refreshToken({ refreshToken }),
-    )) as {
-      accessToken: string;
-      refreshToken: string;
-    };
+    );
 
     this.setAuthCookies(response, authResult);
 
@@ -92,7 +94,7 @@ export class AuthController {
   @Post('logout')
   @Public()
   async logout(
-    @Req() request: Request,
+    @Req() request: CookieRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
     const refreshToken = request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
@@ -121,6 +123,7 @@ export class AuthController {
   @Post('forgot-password')
   @Post('forgotPassword')
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   forgotPassword(@Body() forgotPasswordDto: ForgotPasswordRequest) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
@@ -128,6 +131,7 @@ export class AuthController {
   @Post('reset-password')
   @Post('resetPassword')
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   resetPassword(@Body() resetPasswordDto: ResetPasswordRequest) {
     return this.authService.resetPassword(resetPasswordDto);
   }
@@ -152,6 +156,7 @@ export class AuthController {
   @Post('resend-verification')
   @Post('resendVerification')
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   resendVerification(@Body() resendDto: ResendVerificationRequest) {
     return this.authService.resendVerification(resendDto);
   }
@@ -175,12 +180,9 @@ export class AuthController {
     if (!code) {
       throw new UnauthorizedException('Authorization code missing');
     }
-    const authResult = (await firstValueFrom(
+    const authResult = await firstValueFrom(
       this.authService.socialLoginGoogle({ code }),
-    )) as {
-      accessToken: string;
-      refreshToken: string;
-    };
+    );
 
     this.setAuthCookies(response, authResult);
 
@@ -196,7 +198,6 @@ export class AuthController {
     const userId = request.user?.userId ?? '';
     return this.authService.revokeAllSessions(userId);
   }
-
 
   private setAuthCookies(
     response: Response,

@@ -8,6 +8,7 @@ import { UserModule } from './user/user.module';
 import { PaymentModule } from './payment/payment.module';
 import { OrderModule } from './order/order.module';
 import { SearchModule } from './search/search.module';
+import { NotificationModule } from './notification/notification.module';
 import { JwtAuthGuard } from './common/guards/jwt.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -26,6 +27,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     PaymentModule,
     OrderModule,
     SearchModule,
+    NotificationModule,
   ],
   providers: [
     // Thứ tự guard: Throttler → JwtAuth → Roles

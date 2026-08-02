@@ -8,9 +8,49 @@ import { PaymentService } from './payment.service';
 import { PaymentStatus } from './payment.dto';
 import type { PaymentDto } from './payment.dto';
 
+export type VnpayQuery = Record<string, string | undefined>;
+
+export interface VnpayIpnResponse {
+  RspCode: '00' | '01' | '04' | '97';
+  Message: string;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown VNPay error';
+}
+
+function getErrorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const candidate = error as { status?: unknown; response?: { status?: unknown; statusCode?: unknown } };
+  return typeof candidate.status === 'number'
+    ? candidate.status
+    : typeof candidate.response?.statusCode === 'number'
+      ? candidate.response.statusCode
+      : typeof candidate.response?.status === 'number'
+        ? candidate.response.status
+        : undefined;
+}
+
+/**
+ * Convert a hyphen-stripped UUID back to standard UUID format.
+ * VNPAY limits vnp_TxnRef to 34 chars, so we strip hyphens (36 → 32) when
+ * sending and restore them when receiving the IPN/return callback.
+ */
+function toUuidFormat(hex: string): string {
+  if (hex.length === 32 && !hex.includes('-')) {
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  return hex;
+}
+
 @Injectable()
 export class VnpayPaymentService {
   private readonly logger = new Logger(VnpayPaymentService.name);
+  private static readonly defaultLocalReturnUrl = 'http://localhost:8080/payments/vnpay/return';
 
   constructor(
     private readonly vnpayService: VnpayService,
@@ -47,10 +87,10 @@ export class VnpayPaymentService {
     const paymentUrl = this.vnpayService.buildPaymentUrl({
       vnp_Amount: Number(payment.amount),
       vnp_IpAddr: ipAddr,
-      vnp_TxnRef: payment.transactionId,
+      vnp_TxnRef: payment.transactionId.replace(/-/g, ''),
       vnp_OrderInfo: orderInfo,
       vnp_OrderType: ProductCode.Other,
-      vnp_ReturnUrl: process.env.VNPAY_RETURN_URL || 'http://localhost:8080/payments/vnpay/return',
+      vnp_ReturnUrl: this.resolveReturnUrl(),
       vnp_Locale: VnpLocale.VN,
     });
 
@@ -71,7 +111,7 @@ export class VnpayPaymentService {
    * Chỉ dùng để hiển thị kết quả cho user, KHÔNG cập nhật DB
    * DB cập nhật qua IPN endpoint
    */
-  async verifyReturnUrl(query: any): Promise<{
+  async verifyReturnUrl(query: VnpayQuery): Promise<{
     isSuccess: boolean;
     isVerified: boolean;
     vnp_TxnRef: string;
@@ -82,8 +122,8 @@ export class VnpayPaymentService {
     orderId: string | null;
   }> {
     try {
-      const verify = await this.vnpayService.verifyReturnUrl(query);
-      const payment = await this.findPaymentByTransactionId(verify.vnp_TxnRef);
+      const verify = (await this.vnpayService.verifyReturnUrl(query as never)) as Awaited<ReturnType<VnpayService['verifyReturnUrl']>> & { vnp_ResponseCode?: string };
+      const payment = await this.findPaymentByTransactionId(toUuidFormat(verify.vnp_TxnRef));
 
       this.logger.log(
         `Return URL verified: isSuccess=${verify.isSuccess}, txnRef=${verify.vnp_TxnRef}`,
@@ -94,15 +134,15 @@ export class VnpayPaymentService {
         isVerified: verify.isVerified,
         vnp_TxnRef: verify.vnp_TxnRef,
         vnp_Amount: Number(verify.vnp_Amount),
-        vnp_ResponseCode: (verify as any).vnp_ResponseCode ?? '',
+        vnp_ResponseCode: verify.vnp_ResponseCode ?? '',
         message: verify.message ?? '',
         paymentId: payment?.id ?? null,
         orderId: payment?.orderId ?? null,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // SDK throw exception khi query không hợp lệ (thiếu params, checksum sai)
       this.logger.warn(
-        `Return URL verification failed: ${error.message}`,
+        `Return URL verification failed: ${getErrorMessage(error)}`,
       );
       return {
         isSuccess: false,
@@ -122,9 +162,9 @@ export class VnpayPaymentService {
    * Đây là nguồn truth để cập nhật DB
    * Phải trả về RSP code cho VNPay
    */
-  async handleIpn(query: any): Promise<any> {
+  async handleIpn(query: VnpayQuery): Promise<VnpayIpnResponse> {
     try {
-      const verify = await this.vnpayService.verifyIpnCall(query);
+      const verify = await this.vnpayService.verifyIpnCall(query as never);
 
       // Checksum không hợp lệ
       if (!verify.isVerified) {
@@ -132,7 +172,7 @@ export class VnpayPaymentService {
         return { RspCode: '97', Message: 'Checksum failed' };
       }
 
-      const payment = await this.findPaymentByTransactionId(verify.vnp_TxnRef);
+      const payment = await this.findPaymentByTransactionId(toUuidFormat(verify.vnp_TxnRef));
 
       if (!payment) {
         this.logger.warn(`IPN order not found: txnRef=${verify.vnp_TxnRef}`);
@@ -148,7 +188,7 @@ export class VnpayPaymentService {
       }
 
       // Kiểm tra đã thanh toán chưa (idempotency)
-      if (payment.status === 2) {
+      if (payment.status === PaymentStatus.Paid) {
         // PaymentStatus.Paid
         this.logger.log(`IPN order already confirmed: txnRef=${verify.vnp_TxnRef}`);
         return { RspCode: '00', Message: 'Order already confirmed' };
@@ -169,9 +209,9 @@ export class VnpayPaymentService {
 
       this.logger.log(`IPN payment success confirmed: txnRef=${verify.vnp_TxnRef}`);
       return { RspCode: '00', Message: 'Confirm success' };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Exception thường do verify fail (checksum sai, query không hợp lệ)
-      this.logger.error(`IPN handling error: ${error.message}`, error.stack);
+      this.logger.error(`IPN handling error: ${getErrorMessage(error)}`, getErrorStack(error));
       return { RspCode: '97', Message: 'Checksum failed' };
     }
   }
@@ -182,7 +222,7 @@ export class VnpayPaymentService {
         OrderStatus.Cancelled,
         OrderStatus.Expired,
         OrderStatus.Refunded,
-      ].includes(order.status)
+      ].map(Number).includes(order.status)
     ) {
       throw new HttpException(
         'Order is closed and cannot be paid',
@@ -195,7 +235,7 @@ export class VnpayPaymentService {
         OrderStatus.Paid,
         OrderStatus.Confirmed,
         OrderStatus.TicketIssued,
-      ].includes(order.status)
+      ].map(Number).includes(order.status)
     ) {
       throw new HttpException(
         'Order is already paid',
@@ -219,14 +259,29 @@ export class VnpayPaymentService {
       throw new HttpException('Order is already paid', HttpStatus.CONFLICT);
     }
 
-    const activePayment = payments.find(
+    // VNPay requires vnp_TxnRef to be unique within the day. Reusing the same
+    // transactionId on retry triggers VNPay error code 72 (duplicate TxnRef),
+    // so we close out any prior pending/processing VNPay payment and issue a
+    // fresh one with a new transactionId on every createPaymentUrl call.
+    const activePayments = payments.filter(
       (payment) =>
         payment.paymentMethod === 'VNPAY' &&
         [PaymentStatus.Pending, PaymentStatus.Processing].includes(payment.status),
     );
 
-    if (activePayment) {
-      return activePayment;
+    for (const active of activePayments) {
+      try {
+        await firstValueFrom(
+          this.paymentService.markFailed({ id: active.id }),
+        );
+        this.logger.log(
+          `Closed stale VNPay payment ${active.id} (txnRef=${active.transactionId}) before reissuing`,
+        );
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Failed to close stale VNPay payment ${active.id}: ${getErrorMessage(error)}`,
+        );
+      }
     }
 
     return firstValueFrom(
@@ -244,9 +299,8 @@ export class VnpayPaymentService {
       return (await firstValueFrom(
         this.paymentService.getPaymentsByOrderId({ orderId }),
       )) as PaymentDto[];
-    } catch (error: any) {
-      const status =
-        error?.status ?? error?.response?.statusCode ?? error?.response?.status;
+    } catch (error: unknown) {
+      const status = getErrorStatus(error);
       if (status === HttpStatus.NOT_FOUND) {
         return [];
       }
@@ -264,14 +318,32 @@ export class VnpayPaymentService {
           transactionId,
         }),
       )) as PaymentDto;
-    } catch (error: any) {
-      const status =
-        error?.status ?? error?.response?.statusCode ?? error?.response?.status;
+    } catch (error: unknown) {
+      const status = getErrorStatus(error);
       if (status === HttpStatus.NOT_FOUND) {
         return null;
       }
 
       throw error;
     }
+  }
+
+  private resolveReturnUrl(): string {
+    const publicBaseUrl = this.normalizeUrl(
+      process.env.VNPAY_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL,
+    );
+
+    if (publicBaseUrl) {
+      return `${publicBaseUrl}/payments/vnpay/return`;
+    }
+
+    return (
+      this.normalizeUrl(process.env.VNPAY_RETURN_URL) ||
+      VnpayPaymentService.defaultLocalReturnUrl
+    );
+  }
+
+  private normalizeUrl(value?: string): string {
+    return value?.trim().replace(/[\\/]+$/, '') ?? '';
   }
 }

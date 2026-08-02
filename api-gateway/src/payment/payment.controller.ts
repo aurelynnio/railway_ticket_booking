@@ -13,6 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { PaymentService } from './payment.service';
 import {
   CancelPaymentRequest,
+  CreatePaymentRequest,
   ExpirePaymentRequest,
   ListPaymentsQuery,
   MarkFailedRequest,
@@ -33,6 +34,12 @@ export class PaymentController {
   @Public()
   health() {
     return this.paymentService.health();
+  }
+
+  @Post()
+  @Roles(UserRole.ADMIN)
+  createPayment(@Body() payload: CreatePaymentRequest) {
+    return this.paymentService.createPayment(payload);
   }
 
   @Get()
@@ -82,10 +89,11 @@ export class PaymentController {
     @Query() pagination: PaginationQuery,
   ) {
     // Non-admin chỉ xem payment của chính mình
-    if (request.user?.role !== UserRole.ADMIN && userId !== request.user?.userId) {
-      throw new ForbiddenException(
-        'You can only view your own payments',
-      );
+    if (
+      request.user?.role !== UserRole.ADMIN &&
+      userId !== request.user?.userId
+    ) {
+      throw new ForbiddenException('You can only view your own payments');
     }
     return this.paymentService.getPaymentsByUserId({ userId, pagination });
   }

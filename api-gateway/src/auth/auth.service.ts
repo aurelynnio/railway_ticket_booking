@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import type { Observable } from 'rxjs';
 import {
   ForgotPasswordRequest,
   LoginRequest,
@@ -13,22 +14,36 @@ import {
   SocialLoginGoogleRequest,
 } from '../common/dto/auth.dto';
 
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface LogoutResponse {
+  success: boolean;
+  message: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
     @Inject('auth_service') private readonly authClient: ClientProxy,
   ) {}
 
-  login(data: LoginRequest) {
-    return this.authClient.send({ cmd: 'auth.login' }, data);
+  health() {
+    return this.authClient.send({ cmd: 'auth.health' }, {});
+  }
+
+  login(data: LoginRequest): Observable<AuthTokens> {
+    return this.authClient.send<AuthTokens>({ cmd: 'auth.login' }, data);
   }
 
   register(data: RegisterRequest) {
     return this.authClient.send({ cmd: 'auth.register' }, data);
   }
 
-  refreshToken(refreshToken: RefreshTokenRequest) {
-    return this.authClient.send(
+  refreshToken(refreshToken: RefreshTokenRequest): Observable<AuthTokens> {
+    return this.authClient.send<AuthTokens>(
       {
         cmd: 'auth.refreshToken',
       },
@@ -36,8 +51,8 @@ export class AuthService {
     );
   }
 
-  logout(logoutDto: LogoutRequest) {
-    return this.authClient.send(
+  logout(logoutDto: LogoutRequest): Observable<LogoutResponse> {
+    return this.authClient.send<LogoutResponse>(
       {
         cmd: 'auth.logout',
       },
@@ -92,8 +107,8 @@ export class AuthService {
     );
   }
 
-  socialLoginGoogle(data: SocialLoginGoogleRequest) {
-    return this.authClient.send(
+  socialLoginGoogle(data: SocialLoginGoogleRequest): Observable<AuthTokens> {
+    return this.authClient.send<AuthTokens>(
       {
         cmd: 'auth.socialLoginGoogle',
       },
