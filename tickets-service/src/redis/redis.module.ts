@@ -21,9 +21,6 @@ import { RedisCacheService } from './redis.service';
         const redisPassword = process.env.REDIS_PASSWORD;
         const sentinelPassword = process.env.REDIS_SENTINEL_PASSWORD;
         const db = parseInt(process.env.REDIS_DB as string) || 0;
-        // Số lượng replica client muốn tạo (mặc định 2)
-        const replicaCount = parseInt(process.env.REDIS_REPLICA_COUNT as string) || 2;
-
         // Cấu hình chung cho cả hai chế độ (Sentinel & Standalone)
         const commonOptions: RedisOptions = {
           password: redisPassword,

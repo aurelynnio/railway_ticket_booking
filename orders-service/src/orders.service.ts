@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Injectable, Inject, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Inject,
+  Logger,
+} from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
@@ -45,17 +51,25 @@ const orderInclude = {
   passengers: true,
 } satisfies Prisma.OrderInclude;
 
+const EXPIRED_ORDERS_CRON_BATCH_SIZE = 100;
+
+interface UserEmailResponse {
+  email?: string;
+}
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
   constructor(
-	private readonly prisma: PrismaClient,
-	@Inject('payment_service') private readonly paymentClient: ClientProxy,
-	@Inject('ticket_service') private readonly ticketClient: ClientProxy,
-	@Inject('orders_expiration_service') private readonly expirationClient: ClientProxy,
-	@Inject('notification_service') private readonly notificationClient: ClientProxy,
-	@Inject('users_service') private readonly usersClient: ClientProxy,
+    private readonly prisma: PrismaClient,
+    @Inject('payment_service') private readonly paymentClient: ClientProxy,
+    @Inject('ticket_service') private readonly ticketClient: ClientProxy,
+    @Inject('orders_expiration_service')
+    private readonly expirationClient: ClientProxy,
+    @Inject('notification_service')
+    private readonly notificationClient: ClientProxy,
+    @Inject('users_service') private readonly usersClient: ClientProxy,
   ) {}
 
   health() {
@@ -125,19 +139,24 @@ export class OrdersService {
         orderId: order.id,
         userId: order.userId,
         amount: String(order.totalPrice),
-        paymentMethod: payload.paymentMethod?.trim() || 'MANUAL',
+        paymentMethod: 'VNPAY',
       });
 
       try {
-        this.expirationClient.emit('orders.expire_check', { orderId: order.id });
+        this.expirationClient.emit('orders.expire_check', {
+          orderId: order.id,
+        });
       } catch (err) {
-        console.error('Failed to emit orders.expire_check event:', err);
+        this.logger.error(`Failed to emit orders.expire_check event: ${err}`);
       }
 
       // Fetch user email for notification
       let email = `user-${order.userId}@example.com`;
       try {
-        const observable = this.usersClient.send({ cmd: 'users.get_by_id' }, { userId: order.userId });
+        const observable = this.usersClient.send<UserEmailResponse>(
+          { cmd: 'users.get_by_id' },
+          { userId: order.userId },
+        );
         if (observable) {
           const userObj = await lastValueFrom(observable);
           if (userObj && userObj.email) {
@@ -145,7 +164,9 @@ export class OrdersService {
           }
         }
       } catch (err) {
-        console.error(`Failed to fetch user profile for userId ${order.userId} during checkout email notification:`, err);
+        this.logger.error(
+          `Failed to fetch user profile for userId ${order.userId} during checkout email notification: ${err}`,
+        );
       }
 
       try {
@@ -158,7 +179,9 @@ export class OrdersService {
           seatLabels: normalizedSeatLabels,
         });
       } catch (err) {
-        console.error('Failed to emit notification.order_created event:', err);
+        this.logger.error(
+          `Failed to emit notification.order_created event: ${err}`,
+        );
       }
 
       return {
@@ -189,7 +212,7 @@ export class OrdersService {
           500,
         );
       } catch (releaseError) {
-        console.error(
+        this.logger.error(
           `CRITICAL distributed transaction compensation failure: Failed to release seats [${reservedSeatLabels.join(
             ', ',
           )}] for ticket ${payload.ticketId}. Error: ${this.getErrorMessage(
@@ -474,7 +497,10 @@ export class OrdersService {
       // Fetch user email for confirmation notification
       let email = `user-${currentOrder.userId}@example.com`;
       try {
-        const observable = this.usersClient.send({ cmd: 'users.get_by_id' }, { userId: currentOrder.userId });
+        const observable = this.usersClient.send<UserEmailResponse>(
+          { cmd: 'users.get_by_id' },
+          { userId: currentOrder.userId },
+        );
         if (observable) {
           const userObj = await lastValueFrom(observable);
           if (userObj && userObj.email) {
@@ -482,7 +508,9 @@ export class OrdersService {
           }
         }
       } catch (err) {
-        console.error(`Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification:`, err);
+        this.logger.error(
+          `Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification: ${err}`,
+        );
       }
 
       try {
@@ -494,7 +522,9 @@ export class OrdersService {
           ticketCode: currentOrder.ticketCode || '',
         });
       } catch (err) {
-        console.error('Failed to emit notification.payment_paid event:', err);
+        this.logger.error(
+          `Failed to emit notification.payment_paid event: ${err}`,
+        );
       }
     }
 
@@ -600,7 +630,7 @@ export class OrdersService {
       );
     } catch (error) {
       warnings.push(this.getErrorMessage(error));
-      console.error(
+      this.logger.error(
         `CRITICAL distributed transaction compensation failure in cancelWorkflow for order ${order.id}. Error: ${this.getErrorMessage(
           error,
         )}`,
@@ -899,7 +929,7 @@ export class OrdersService {
   private async retry<T>(
     fn: () => Promise<T>,
     retries = 3,
-    delay = (process.env.NODE_ENV === 'test' || typeof (global as any).jest !== 'undefined') ? 0 : 500,
+    delay = process.env.NODE_ENV === 'test' ? 0 : 500,
   ): Promise<T> {
     try {
       return await fn();
@@ -909,7 +939,7 @@ export class OrdersService {
       return this.retry(
         fn,
         retries - 1,
-        (process.env.NODE_ENV === 'test' || typeof (global as any).jest !== 'undefined') ? 0 : delay * 2,
+        process.env.NODE_ENV === 'test' ? 0 : delay * 2,
       );
     }
   }
@@ -917,15 +947,19 @@ export class OrdersService {
   async handleOrderExpireCheck(data: { orderId: string }) {
     try {
       const order = await this.getOrderOrThrow(data.orderId);
-      if (order.status === OrderStatus.PendingPayment) {
-        console.log(`Order ${data.orderId} is unpaid after TTL. Triggering cancellation workflow...`);
+      if (order.status === Number(OrderStatus.PendingPayment)) {
+        this.logger.log(
+          `Order ${data.orderId} is unpaid after TTL. Triggering cancellation workflow...`,
+        );
         await this.cancelWorkflow({
           orderId: data.orderId,
           payload: { reason: 'Unpaid order expired automatically' },
         });
       }
     } catch (error) {
-      console.error(`Error processing order expire check for order ${data.orderId}:`, error);
+      this.logger.error(
+        `Error processing order expire check for order ${data.orderId}: ${error}`,
+      );
     }
   }
 
@@ -938,22 +972,36 @@ export class OrdersService {
     const expiredOrders = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.PendingPayment,
+        deletedAt: null,
         createdAt: {
           lt: expirationThreshold,
         },
       },
+      // The worker only needs identifiers before loading each order as part of
+      // the cancellation workflow. Selecting the narrow index-covered shape
+      // avoids materializing ticket and QR data for an entire expired backlog.
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+      take: EXPIRED_ORDERS_CRON_BATCH_SIZE,
     });
 
     if (expiredOrders.length > 0) {
-      this.logger.log(`Found ${expiredOrders.length} expired unpaid orders. Expiring them...`);
+      this.logger.log(
+        `Found ${expiredOrders.length} expired unpaid orders. Expiring them...`,
+      );
       for (const order of expiredOrders) {
         try {
           await this.cancelWorkflow({
             orderId: order.id,
-            payload: { reason: 'Order expired due to payment timeout (cron fallback)' },
+            payload: {
+              reason: 'Order expired due to payment timeout (cron fallback)',
+            },
           });
         } catch (error) {
-          this.logger.error(`Failed to cancel expired order ${order.id} in cron:`, error);
+          this.logger.error(
+            `Failed to cancel expired order ${order.id} in cron:`,
+            error,
+          );
         }
       }
     }

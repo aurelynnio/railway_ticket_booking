@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, EventPattern, Payload } from '@nestjs/microservices';
 import { SearchService } from './search.service';
-import { SearchTripsQuery } from './search.dto';
+import { SearchTripsQuery, TicketSyncPayload } from './search.dto';
 
 @Controller()
 export class SearchController {
@@ -23,12 +23,12 @@ export class SearchController {
   }
 
   @EventPattern('ticket.created')
-  async handleTicketCreated(@Payload() data: any) {
+  async handleTicketCreated(@Payload() data: TicketSyncPayload) {
     await this.searchService.upsertTicket(data);
   }
 
   @EventPattern('ticket.updated')
-  async handleTicketUpdated(@Payload() data: any) {
+  async handleTicketUpdated(@Payload() data: TicketSyncPayload) {
     await this.searchService.upsertTicket(data);
   }
 

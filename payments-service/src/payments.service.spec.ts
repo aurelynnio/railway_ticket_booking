@@ -83,6 +83,26 @@ describe('PaymentsService', () => {
     expect(result.status).toBe(PaymentStatus.Pending);
   });
 
+  it('createPayment should preserve an explicit transactionId for provider reconciliation', async () => {
+    prisma.payment.create.mockResolvedValue(
+      buildPaymentRecord({ transactionId: 'vnpay-txn-1' }),
+    );
+
+    await service.createPayment({
+      orderId: 'order-1',
+      userId: 'user-1',
+      amount: '150000',
+      paymentMethod: 'VNPAY',
+      transactionId: ' vnpay-txn-1 ',
+    });
+
+    expect(prisma.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        transactionId: 'vnpay-txn-1',
+      }),
+    });
+  });
+
   it('markPaid should update status and paidAt', async () => {
     const existing = buildPaymentRecord();
     const paidAt = new Date('2026-06-12T09:00:00.000Z');
@@ -156,7 +176,7 @@ describe('PaymentsService', () => {
         orderId: ' order-1 ',
         paymentMethod: ' BANKING ',
         transactionId: ' txn-2 ',
-        status: '0',
+        status: PaymentStatus.Pending,
       },
     );
 

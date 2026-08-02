@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { EventPattern, Payload } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { NotificationService } from './notification.service';
 
 @Controller()
@@ -7,12 +7,16 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @EventPattern('notification.user_registered')
-  async handleUserRegistered(@Payload() data: { userId?: string; email: string; fullName: string }) {
+  async handleUserRegistered(
+    @Payload() data: { userId?: string; email: string; fullName: string },
+  ) {
     await this.notificationService.handleUserRegistered(data);
   }
 
   @EventPattern('notification.password_reset')
-  async handlePasswordReset(@Payload() data: { userId?: string; email: string; token: string }) {
+  async handlePasswordReset(
+    @Payload() data: { userId?: string; email: string; token: string },
+  ) {
     await this.notificationService.handlePasswordReset(data);
   }
 
@@ -43,5 +47,19 @@ export class NotificationController {
     },
   ) {
     await this.notificationService.handlePaymentPaid(data);
+  }
+
+  @MessagePattern({ cmd: 'notifications.list_by_user' })
+  async listByUser(
+    @Payload() data: { userId: string; page?: number; limit?: number },
+  ) {
+    return this.notificationService.listByUser(data);
+  }
+
+  @MessagePattern({ cmd: 'notifications.list_all' })
+  async listAll(
+    @Payload() data: { page?: number; limit?: number; type?: string },
+  ) {
+    return this.notificationService.listAll(data);
   }
 }

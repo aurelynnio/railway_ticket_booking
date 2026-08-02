@@ -1,10 +1,12 @@
 import { Type } from 'class-transformer';
 import {
   IsDate,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min,
   ValidateIf,
   ValidateNested,
@@ -59,11 +61,17 @@ export class CreatePaymentRequest {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d+$/)
   amount: string;
 
   @IsString()
   @IsNotEmpty()
   paymentMethod: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  transactionId?: string;
 }
 
 export class GetPaymentByIdRequest {
@@ -108,8 +116,8 @@ export class ListPaymentsQuery {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  status?: number | string;
+  @IsEnum(PaymentStatus)
+  status?: PaymentStatus;
 
   @IsOptional()
   @IsString()

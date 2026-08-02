@@ -24,6 +24,9 @@ model Ticket {
   updatedAt            DateTime?    @map("updated_at")
   deletedAt            DateTime?    @map("deleted_at")
 
+  @@index([status, dateStart])
+  @@index([departureStationCode, arrivalStationCode])
+  @@index([trainNumber])
   @@map("ticket")
 }
 

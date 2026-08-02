@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Injectable, Inject } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Inject, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient, Ticket, TicketItem } from '@prisma/client';
 import { ClientProxy } from '@nestjs/microservices';
 import type {
@@ -103,7 +103,10 @@ export class TicketsBaseService {
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
     const where: Prisma.TicketWhereInput = {
-      deletedAt: null,
+      OR: [
+        { deletedAt: null },
+        { deletedAt: { isSet: false } },
+      ],
     };
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
@@ -684,7 +687,10 @@ export class TicketsBaseService {
     const ticket = await this.prisma.ticket.findFirst({
       where: {
         id: ticketId,
-        deletedAt: null,
+        OR: [
+          { deletedAt: null },
+          { deletedAt: { isSet: false } },
+        ],
       },
     });
 
@@ -753,7 +759,8 @@ export class TicketsBaseService {
  */
 @Injectable()
 export class TicketsService extends TicketsBaseService {
-  private readonly pendingFetches = new Map<string, Promise<any>>();
+  private readonly logger = new Logger(TicketsService.name);
+  private readonly pendingFetches = new Map<string, Promise<unknown>>();
 
   constructor(
     prisma: PrismaClient,
@@ -766,7 +773,7 @@ export class TicketsService extends TicketsBaseService {
   async create(payload: CreateTicketRequest): Promise<TicketResponse> {
     const result = await super.create(payload);
     await this.invalidateTicketListCache();
-    await this.publishToSearch('ticket.created', result);
+    this.publishToSearch('ticket.created', result);
     return result;
   }
 
@@ -838,12 +845,17 @@ export class TicketsService extends TicketsBaseService {
     ticketItemId: string,
     payload: ReserveSeatRequest,
   ): Promise<TicketItemResponse> {
-    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
-    const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
-      super.reserveSeat(ticketId, ticketItemId, payload),
-    );
-    await this.invalidateTicketCache(ticketId);
-    return result;
+    try {
+      const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+      const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
+        super.reserveSeat(ticketId, ticketItemId, payload),
+      );
+      await this.invalidateTicketCache(ticketId);
+      return result;
+    } catch (err) {
+      this.logger.error(`Error in reserveSeat: ${err}`);
+      throw err;
+    }
   }
 
   async addTicketItem(
@@ -944,26 +956,28 @@ export class TicketsService extends TicketsBaseService {
     void this.publishTicketUpdate(ticketId);
   }
 
-  private async publishToSearch(pattern: string, payload: any) {
+  private publishToSearch(pattern: string, payload: unknown): void {
     try {
       this.searchClient.emit(pattern, payload);
     } catch (error) {
-      console.error(`Failed to publish ${pattern} to search service:`, error);
+      this.logger.error(`Failed to publish ${pattern} to search service: ${error}`);
     }
   }
 
   private async publishTicketUpdate(ticketId: string) {
     try {
-      const ticket = await this.findOne(ticketId);
-      await this.publishToSearch('ticket.updated', ticket);
+      // Use super.findOne to bypass cache layer — we just invalidated the cache,
+      // so re-entering it would refetch+recache unnecessarily.
+      const ticket = await super.findOne(ticketId);
+      this.publishToSearch('ticket.updated', ticket);
     } catch (error) {
       const isNotFound =
         error instanceof HttpException &&
-        error.getStatus() === HttpStatus.NOT_FOUND;
+        error.getStatus() === Number(HttpStatus.NOT_FOUND);
       if (isNotFound) {
-        await this.publishToSearch('ticket.deleted', { ticketId });
+        this.publishToSearch('ticket.deleted', { ticketId });
       } else {
-        console.error(`Failed to publish ticket update for ${ticketId}:`, error);
+        this.logger.error(`Failed to publish ticket update for ${ticketId}: ${error}`);
       }
     }
   }
@@ -980,7 +994,7 @@ export class TicketsService extends TicketsBaseService {
     // Check if there is an ongoing fetch for this key (Request Collapsing)
     const pending = this.pendingFetches.get(cacheKey);
     if (pending) {
-      return await pending;
+      return (await pending) as T;
     }
 
     const fetchPromise = (async () => {
@@ -1007,7 +1021,7 @@ export class TicketsService extends TicketsBaseService {
         return result;
       } finally {
         await this.redisCaching.releaseLock(lock).catch((err) => {
-          console.error(`Failed to release lock for ${lockKey}:`, err);
+          this.logger.error(`Failed to release lock for ${lockKey}: ${err}`);
         });
       }
     })();
@@ -1037,12 +1051,15 @@ export class TicketsService extends TicketsBaseService {
         );
       }
       try {
-        return await this.prisma.$transaction(async () => {
-          return await actionFn();
-        });
+        // Concurrency is guaranteed by:
+        // 1. Redis distributed lock (prevents concurrent access to same ticket)
+        // 2. Optimistic locking via updatedAt check in persistTicketItems
+        // Note: $transaction was removed because actionFn uses this.prisma directly
+        // (not the tx client), making it a no-op wrapper.
+        return await actionFn();
       } finally {
         await this.redisCaching.releaseLock(lock).catch((err) => {
-          console.error(`Failed to release lock for ${lockKey}:`, err);
+          this.logger.error(`Failed to release lock for ${lockKey}: ${err}`);
         });
       }
     }
@@ -1059,7 +1076,7 @@ export class TicketsService extends TicketsBaseService {
           locks.push(lock);
         }),
       );
-    } catch (error) {
+    } catch {
       if (locks.length > 0) {
         await Promise.allSettled(
           locks.map((lock) => this.redisCaching.releaseLock(lock)),
@@ -1072,9 +1089,8 @@ export class TicketsService extends TicketsBaseService {
     }
 
     try {
-      return await this.prisma.$transaction(async () => {
-        return await actionFn();
-      });
+      // See comment above: Redis lock + optimistic locking provide concurrency guarantees.
+      return await actionFn();
     } finally {
       if (locks.length > 0) {
         await Promise.allSettled(

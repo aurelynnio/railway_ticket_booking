@@ -71,7 +71,8 @@ export class RedisCacheService {
       cursor = nextCursor;
 
       if (keys.length) {
-        deletedCount += await this.redis.del(...keys);
+        // UNLINK is non-blocking (Redis 4.0+) — preferable to DEL for large key sets
+        deletedCount += await this.redis.unlink(...keys);
       }
     } while (cursor !== '0');
 
@@ -90,13 +91,19 @@ export class RedisCacheService {
         retryDelay,
         retryJitter: 0,
       });
-    } catch (err) {
+    } catch (error) {
+      this.logger.warn(`Failed to acquire lock for ${key}: ${error}`);
       return null;
     }
   }
 
   async releaseLock(lock: Lock): Promise<void> {
-    await lock.release();
+    try {
+      await lock.release();
+    } catch (error) {
+      // Lock may have already expired — safe to ignore
+      this.logger.warn(`Failed to release lock (may have expired): ${error}`);
+    }
   }
 
   // Expose master & replicas cho ai cần truy cập trực tiếp
@@ -108,4 +115,3 @@ export class RedisCacheService {
     return this.replicaClients;
   }
 }
-

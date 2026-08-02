@@ -2,6 +2,21 @@ import { Controller } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 
+type CreateUserPayload = {
+  username: string;
+  email: string;
+  password: string;
+  name?: string;
+  role?: number;
+};
+
+type UpdateUserPayload = {
+  username?: string;
+  email?: string;
+  name?: string;
+  role?: number;
+};
+
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -23,7 +38,7 @@ export class UsersController {
   }
 
   @MessagePattern({ cmd: 'users.update' })
-  update(@Payload() data: { userId: string; payload: any }) {
+  update(@Payload() data: { userId: string; payload: UpdateUserPayload }) {
     const { userId, payload } = data;
     return this.usersService.update(userId, payload);
   }
@@ -41,8 +56,14 @@ export class UsersController {
   }
 
   @MessagePattern({ cmd: 'users.create' })
-  create(@Payload() data: { payload: any }) {
+  create(@Payload() data: { payload: CreateUserPayload }) {
     const { payload } = data;
     return this.usersService.create(payload);
+  }
+
+  @MessagePattern({ cmd: 'users.delete' })
+  remove(@Payload() data: { userId: string }) {
+    const { userId } = data;
+    return this.usersService.delete(userId);
   }
 }

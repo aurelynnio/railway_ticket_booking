@@ -4,6 +4,8 @@ import {
   PaginatedSearchTripResponse,
   SearchTripResponse,
   SearchTripsQuery,
+  TicketSyncItemPayload,
+  TicketSyncPayload,
 } from './search.dto';
 import {
   getAvailableSeats,
@@ -49,6 +51,7 @@ export class SearchService {
     const tickets = await this.prisma.ticket.findMany({
       where,
       orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
     });
 
     const matchedTrips = tickets
@@ -68,24 +71,25 @@ export class SearchService {
     };
   }
 
-  async suggestStations(query: string): Promise<{ code: string; name: string }[]> {
+  async suggestStations(
+    query: string,
+  ): Promise<{ code: string; name: string }[]> {
     const trimmed = (query || '').trim();
     if (!trimmed) {
       return [];
     }
 
     try {
-      const upper = trimmed.toUpperCase();
-      // Tìm các ticket còn hoạt động có station code/name khớp với query
+      // Case-insensitive matching via mode: 'insensitive' (supported by MongoDB provider)
       const tickets = await this.prisma.ticket.findMany({
         where: {
           deletedAt: null,
           status: 1,
           OR: [
-            { departureStationCode: { contains: upper } },
-            { departureStationName: { contains: trimmed } },
-            { arrivalStationCode: { contains: upper } },
-            { arrivalStationName: { contains: trimmed } },
+            { departureStationCode: { contains: trimmed, mode: 'insensitive' } },
+            { departureStationName: { contains: trimmed, mode: 'insensitive' } },
+            { arrivalStationCode: { contains: trimmed, mode: 'insensitive' } },
+            { arrivalStationName: { contains: trimmed, mode: 'insensitive' } },
           ],
         },
         select: {
@@ -126,7 +130,7 @@ export class SearchService {
     }
   }
 
-  async upsertTicket(data: any) {
+  async upsertTicket(data: TicketSyncPayload): Promise<void> {
     // Ghi vào MongoDB (source of truth)
     await this.prisma.ticket.upsert({
       where: { id: data.id },
@@ -145,27 +149,8 @@ export class SearchService {
         createdAt: data.createdAt ? new Date(data.createdAt) : null,
         updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
         deletedAt: data.deletedAt ? new Date(data.deletedAt) : null,
-        ticketItems: data.ticketItems ? data.ticketItems.map((item: any) => ({
-          id: item.id,
-          ticketId: item.ticketId,
-          name: item.name,
-          description: item.description,
-          coachCode: item.coachCode,
-          seatClass: item.seatClass,
-          seatType: item.seatType,
-          seatLabels: item.seatLabels,
-          availableSeatLabels: item.availableSeatLabels,
-          stockInitial: item.stockInitial,
-          stockAvailable: item.stockAvailable,
-          stockPrepared: item.stockPrepared,
-          priceOriginal: item.priceOriginal ? BigInt(item.priceOriginal) : null,
-          priceFlash: item.priceFlash ? BigInt(item.priceFlash) : null,
-          saleStartTime: item.saleStartTime ? new Date(item.saleStartTime) : null,
-          saleEndTime: item.saleEndTime ? new Date(item.saleEndTime) : null,
-          createdAt: item.createdAt ? new Date(item.createdAt) : null,
-          updatedAt: item.updatedAt ? new Date(item.updatedAt) : null,
-          deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
-        })) : [],
+        ticketItems:
+          data.ticketItems?.map((item) => this.toTicketItem(item)) ?? [],
       },
       update: {
         title: data.title,
@@ -180,28 +165,9 @@ export class SearchService {
         status: data.status,
         updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
         deletedAt: data.deletedAt ? new Date(data.deletedAt) : null,
-        ticketItems: data.ticketItems ? data.ticketItems.map((item: any) => ({
-          id: item.id,
-          ticketId: item.ticketId,
-          name: item.name,
-          description: item.description,
-          coachCode: item.coachCode,
-          seatClass: item.seatClass,
-          seatType: item.seatType,
-          seatLabels: item.seatLabels,
-          availableSeatLabels: item.availableSeatLabels,
-          stockInitial: item.stockInitial,
-          stockAvailable: item.stockAvailable,
-          stockPrepared: item.stockPrepared,
-          priceOriginal: item.priceOriginal ? BigInt(item.priceOriginal) : null,
-          priceFlash: item.priceFlash ? BigInt(item.priceFlash) : null,
-          saleStartTime: item.saleStartTime ? new Date(item.saleStartTime) : null,
-          saleEndTime: item.saleEndTime ? new Date(item.saleEndTime) : null,
-          createdAt: item.createdAt ? new Date(item.createdAt) : null,
-          updatedAt: item.updatedAt ? new Date(item.updatedAt) : null,
-          deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
-        })) : [],
-      }
+        ticketItems:
+          data.ticketItems?.map((item) => this.toTicketItem(item)) ?? [],
+      },
     });
   }
 
@@ -211,6 +177,30 @@ export class SearchService {
       where: { id: ticketId },
       data: { deletedAt: new Date() },
     });
+  }
+
+  private toTicketItem(item: TicketSyncItemPayload) {
+    return {
+      id: item.id,
+      ticketId: item.ticketId ?? null,
+      name: item.name ?? null,
+      description: item.description ?? null,
+      coachCode: item.coachCode ?? null,
+      seatClass: item.seatClass ?? null,
+      seatType: item.seatType ?? null,
+      seatLabels: item.seatLabels,
+      availableSeatLabels: item.availableSeatLabels,
+      stockInitial: item.stockInitial ?? null,
+      stockAvailable: item.stockAvailable ?? null,
+      stockPrepared: item.stockPrepared ?? false,
+      priceOriginal: item.priceOriginal ? BigInt(item.priceOriginal) : null,
+      priceFlash: item.priceFlash ? BigInt(item.priceFlash) : null,
+      saleStartTime: item.saleStartTime ? new Date(item.saleStartTime) : null,
+      saleEndTime: item.saleEndTime ? new Date(item.saleEndTime) : null,
+      createdAt: item.createdAt ? new Date(item.createdAt) : null,
+      updatedAt: item.updatedAt ? new Date(item.updatedAt) : null,
+      deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
+    };
   }
 
   private matchesRoute(ticket: Ticket, query: SearchTripsQuery) {

@@ -3,6 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { TicketsModule } from './tickets.module';
 import { Transport } from '@nestjs/microservices';
 
+import { MicroserviceExceptionFilter } from './common/filter/microservice-exception.filter';
+
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(TicketsModule, {
     transport: Transport.RMQ,
@@ -14,6 +16,7 @@ async function bootstrap() {
       },
     },
   });
+  app.useGlobalFilters(new MicroserviceExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

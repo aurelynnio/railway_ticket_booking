@@ -3,15 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Order {
-  id                   String    @id @default(uuid()) @db.Char(36)
-  userId               String    @map("user_id") @db.Char(36)
-  ticketItemId         String    @map("ticket_item_id") @db.Char(36)
-  ticketId             String    @map("ticket_id") @db.Char(36)
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @map("user_id") @db.Uuid
+  ticketItemId         String    @map("ticket_item_id") @db.Uuid
+  ticketId             String    @map("ticket_id") @db.Uuid
   ticketTitle          String    @map("ticket_title") @db.VarChar(180)
   trainNumber          String?   @map("train_number") @db.VarChar(64)
   departureStationCode String?   @map("departure_station_code") @db.VarChar(24)
@@ -40,11 +40,13 @@ model Order {
   @@index([ticketId])
   @@index([ticketItemId])
   @@index([status])
+  // Supports the expiration worker's predicate and oldest-first batch scan.
+  @@index([status, deletedAt, createdAt, id], map: "orders_status_deleted_at_created_at_id_idx")
   @@map("orders")
 }
 
 model OrderSeatLabel {
-  orderId   String @map("order_id") @db.Char(36)
+  orderId   String @map("order_id") @db.Uuid
   seatLabel String @map("seat_label") @db.VarChar(32)
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -54,7 +56,7 @@ model OrderSeatLabel {
 }
 
 model OrderPassenger {
-  orderId        String  @map("order_id") @db.Char(36)
+  orderId        String  @map("order_id") @db.Uuid
   fullName       String  @map("full_name") @db.VarChar(120)
   passengerType  String  @map("passenger_type") @db.VarChar(40)
   identityNumber String? @map("identity_number") @db.VarChar(40)

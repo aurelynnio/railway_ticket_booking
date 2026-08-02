@@ -1,9 +1,24 @@
 import { HttpException, Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type User } from '@prisma/client';
 
 interface ListUsersQuery {
   page?: number;
   limit?: number;
+}
+
+interface UpdateUserPayload {
+  username?: string;
+  email?: string;
+  name?: string;
+  role?: number;
+}
+
+interface CreateUserPayload {
+  username: string;
+  email: string;
+  password: string;
+  name?: string;
+  role?: number;
 }
 
 @Injectable()
@@ -57,7 +72,7 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
-  async update(userId: string, payload: any) {
+  async update(userId: string, payload: UpdateUserPayload) {
     if (!userId) {
       throw new HttpException('User ID is required', 400);
     }
@@ -68,7 +83,12 @@ export class UsersService {
      */
     return this.prisma.user.update({
       where: { id: userId },
-      data: payload,
+      data: {
+        ...(payload.username !== undefined ? { username: payload.username } : {}),
+        ...(payload.email !== undefined ? { email: payload.email } : {}),
+        ...(payload.name !== undefined ? { name: payload.name } : {}),
+        ...(payload.role !== undefined ? { role: payload.role } : {}),
+      },
     });
   }
 
@@ -80,7 +100,7 @@ export class UsersService {
     return { message: `User with ID ${userId} has been deleted` };
   }
 
-  async create(payload: any) {
+  async create(payload: CreateUserPayload) {
     if (!payload.username || !payload.email || !payload.password) {
       throw new HttpException('Username, email and password are required', 400);
     }
@@ -94,19 +114,20 @@ export class UsersService {
         username: payload.username,
         email: payload.email,
         password: payload.password,
+        ...(payload.name ? { name: payload.name } : {}),
         role: payload.role ?? 0,
       },
     });
   }
 
-  async findByEmail(email: string): Promise<any> {
+  async findByEmail(email: string): Promise<User | null> {
     if (!email) {
       throw new HttpException('Email is required', 400);
     }
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  async getUserById(userId: string): Promise<any> {
+  async getUserById(userId: string): Promise<User | null> {
     if (!userId) {
       throw new HttpException('User ID is required', 400);
     }

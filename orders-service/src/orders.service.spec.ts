@@ -1,5 +1,4 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { ClientProxy } from '@nestjs/microservices';
 import type { PrismaClient } from '@prisma/client';
 import { of, throwError } from 'rxjs';
 import { OrderStatus, type CheckoutOrderRequest } from './orders.dto';
@@ -278,7 +277,7 @@ describe('OrdersService', () => {
     });
 
     paymentClient.send.mockImplementation(
-      (pattern: string, payload: unknown) => {
+      (pattern: string) => {
         if (pattern === 'payments.listByOrderId') {
           return of([
             { id: 'payment-1', status: 0 },
@@ -316,6 +315,36 @@ describe('OrdersService', () => {
     expect(result.warnings).toEqual([
       'inventory release failed',
     ]);
+  });
+
+  it('expires only a bounded, soft-delete-aware batch of oldest pending orders', async () => {
+    prisma.order.findMany.mockResolvedValueOnce([
+      { id: 'expired-order-1' },
+    ] as never);
+    const cancelWorkflow = jest
+      .spyOn(service, 'cancelWorkflow')
+      .mockResolvedValue({} as never);
+
+    await service.handleExpiredOrdersCron();
+
+    expect(prisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: OrderStatus.PendingPayment,
+          deletedAt: null,
+          createdAt: expect.objectContaining({ lt: expect.any(Date) }),
+        }),
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      }),
+    );
+    expect(cancelWorkflow).toHaveBeenCalledWith({
+      orderId: 'expired-order-1',
+      payload: {
+        reason: 'Order expired due to payment timeout (cron fallback)',
+      },
+    });
   });
 
   it('create should reject seat labels that exceed quantity', async () => {

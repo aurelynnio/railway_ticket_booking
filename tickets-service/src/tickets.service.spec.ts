@@ -52,8 +52,8 @@ describe('TicketsService', () => {
     stockPrepared: true,
     priceOriginal: BigInt(150000),
     priceFlash: BigInt(99000),
-    saleStartTime: new Date('2026-06-01T00:00:00.000Z'),
-    saleEndTime: new Date('2026-07-01T00:00:00.000Z'),
+    saleStartTime: new Date(Date.now() - 60 * 60 * 1000),
+    saleEndTime: new Date(Date.now() + 60 * 60 * 1000),
     createdAt: new Date('2026-06-01T00:00:00.000Z'),
     updatedAt: new Date('2026-06-01T00:00:00.000Z'),
     deletedAt: null,
@@ -223,7 +223,7 @@ describe('TicketsService', () => {
 
     expect(prisma.ticket.count).toHaveBeenCalledWith({
       where: {
-        deletedAt: null,
+        OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
         departureStationCode: 'SG',
         arrivalStationCode: 'NT',
         status: TicketStatus.Draft,
@@ -235,7 +235,7 @@ describe('TicketsService', () => {
     });
     expect(prisma.ticket.findMany).toHaveBeenCalledWith({
       where: {
-        deletedAt: null,
+        OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
         departureStationCode: 'SG',
         arrivalStationCode: 'NT',
         status: TicketStatus.Draft,

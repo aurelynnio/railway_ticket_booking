@@ -64,3 +64,43 @@ export interface PaginatedSearchTripResponse {
     totalPages: number;
   };
 }
+
+export interface TicketSyncItemPayload {
+  id: string;
+  ticketId?: string | null;
+  name?: string | null;
+  description?: string | null;
+  coachCode?: string | null;
+  seatClass?: string | null;
+  seatType?: string | null;
+  seatLabels: string[];
+  availableSeatLabels: string[];
+  stockInitial?: number | null;
+  stockAvailable?: number | null;
+  stockPrepared?: boolean;
+  priceOriginal?: string | number | bigint | null;
+  priceFlash?: string | number | bigint | null;
+  saleStartTime?: string | Date | null;
+  saleEndTime?: string | Date | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+  deletedAt?: string | Date | null;
+}
+
+export interface TicketSyncPayload {
+  id: string;
+  title?: string | null;
+  trainNumber?: string | null;
+  departureStationCode?: string | null;
+  departureStationName?: string | null;
+  arrivalStationCode?: string | null;
+  arrivalStationName?: string | null;
+  journeyNote?: string | null;
+  dateStart?: string | Date | null;
+  dateEnd?: string | Date | null;
+  status?: number;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+  deletedAt?: string | Date | null;
+  ticketItems?: TicketSyncItemPayload[];
+}

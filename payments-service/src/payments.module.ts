@@ -19,6 +19,10 @@ import { PaymentsService } from './payments.service';
           queue: 'orders_queue',
           queueOptions: {
             durable: false,
+            arguments: {
+              'x-dead-letter-exchange': 'orders_dead_letter_exchange',
+              'x-dead-letter-routing-key': 'orders_dead_letter_queue',
+            },
           },
         },
       },

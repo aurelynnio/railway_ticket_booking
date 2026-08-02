@@ -83,22 +83,34 @@ describe('UsersService', () => {
 
   it('create should reject incomplete identity payloads', async () => {
     await expect(
-      service.create({ name: 'Alice' }),
+      service.create({
+        username: 'alice',
+        email: 'alice@example.com',
+        password: '',
+        name: 'Alice',
+      }),
     ).rejects.toThrow(HttpException);
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('create should persist valid user payloads', async () => {
     const payload = {
+      username: 'alice',
       name: 'Alice',
       email: 'alice@example.com',
+      password: 'hashed-password',
     };
 
     prisma.user.create.mockResolvedValue({ id: 'user-1', ...payload });
 
     const result = await service.create(payload);
 
-    expect(prisma.user.create).toHaveBeenCalledWith({ data: payload });
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: {
+        ...payload,
+        role: 0,
+      },
+    });
     expect(result).toEqual({ id: 'user-1', ...payload });
   });
 });

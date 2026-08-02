@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { OrdersModule } from './orders.module';
 import { Transport } from '@nestjs/microservices';
@@ -44,6 +44,6 @@ async function bootstrap() {
 
   await app.startAllMicroservices();
   await app.init();
-  console.log('OrdersService microservices started');
+  Logger.log('OrdersService microservices started', 'Bootstrap');
 }
 void bootstrap();

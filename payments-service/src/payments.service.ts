@@ -1,8 +1,7 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Prisma, PrismaClient, type Payment } from '@prisma/client';
-import { lastValueFrom } from 'rxjs';
 import type {
   CreatePaymentRequest,
   ListPaymentsQuery,
@@ -16,20 +15,12 @@ import type {
 } from './payment.dto';
 import { PaymentStatus } from './payment.dto';
 import {
-  normalizePositiveInteger,
   parseAmount,
-  parseDate,
-  requireNonEmptyString,
-  requireObjectPayload,
-  requirePaymentRecord,
-  requirePaymentLookup,
   toPaymentDto,
 } from './utils/payment.utils';
 
 @Injectable()
 export class PaymentsService {
-  private readonly logger = new Logger(PaymentsService.name);
-
   constructor(
     private readonly prisma: PrismaClient,
     @Inject('order_service') private readonly orderClient: ClientProxy,
@@ -48,12 +39,9 @@ export class PaymentsService {
    * with a generated transaction id so provider reconciliation can happen later.
    */
   async createPayment(payload: CreatePaymentRequest): Promise<PaymentDto> {
-    requireObjectPayload(payload, 'payload');
-    const orderId = requireNonEmptyString(payload.orderId, 'orderId');
-    const paymentMethod = requireNonEmptyString(
-      payload.paymentMethod,
-      'paymentMethod',
-    );
+    const orderId = payload.orderId.trim();
+    const paymentMethod = payload.paymentMethod.trim();
+    const transactionId = payload.transactionId?.trim() || randomUUID();
 
     const amount = parseAmount(payload.amount);
 
@@ -64,7 +52,7 @@ export class PaymentsService {
         amount,
         paymentMethod,
         status: PaymentStatus.Pending,
-        transactionId: randomUUID(),
+        transactionId,
       },
     });
 
@@ -72,41 +60,27 @@ export class PaymentsService {
   }
 
   async getPaymentById(paymentId: string): Promise<PaymentDto> {
-    const id = requireNonEmptyString(paymentId, 'id');
-    const payment = await this.getPaymentOrThrow({ id });
+    const payment = await this.getPaymentOrThrow({ id: paymentId.trim() });
     return toPaymentDto(payment);
   }
 
   async getPaymentByTransactionId(transactionId: string): Promise<PaymentDto> {
-    const normalizedTransactionId = requireNonEmptyString(
-      transactionId,
-      'transactionId',
-    );
     const payment = await this.getPaymentOrThrow({
-      transactionId: normalizedTransactionId,
+      transactionId: transactionId.trim(),
     });
     return toPaymentDto(payment);
   }
 
   async listPaymentsByOrderId(orderId: string): Promise<PaymentDto[]> {
-    const normalizedOrderId = requireNonEmptyString(orderId, 'orderId');
-
     const payments = await this.prisma.payment.findMany({
       where: {
-        orderId: normalizedOrderId,
+        orderId: orderId.trim(),
         deletedAt: null,
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
-
-    if (payments.length === 0) {
-      throw new HttpException(
-        'No payments found for the given orderId',
-        HttpStatus.NOT_FOUND,
-      );
-    }
 
     return payments.map(toPaymentDto);
   }
@@ -115,10 +89,7 @@ export class PaymentsService {
     userId: string,
     pagination: PaginationQuery = {},
   ): Promise<PaginatedPaymentsResponse> {
-    const normalizedUserId = requireNonEmptyString(userId, 'userId');
-    requireObjectPayload(pagination, 'pagination');
-
-    return this.listPayments(pagination, { userId: normalizedUserId });
+    return this.listPayments(pagination, { userId: userId.trim() });
   }
 
   /*
@@ -129,10 +100,8 @@ export class PaymentsService {
     pagination: PaginationQuery = {},
     query: ListPaymentsQuery = {},
   ): Promise<PaginatedPaymentsResponse> {
-    requireObjectPayload(pagination, 'pagination');
-    requireObjectPayload(query, 'query');
-    const page = normalizePositiveInteger(pagination.page, 1);
-    const limit = normalizePositiveInteger(pagination.limit, 10);
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 10;
     const where: Prisma.PaymentWhereInput = {
       deletedAt: null,
     };
@@ -153,15 +122,8 @@ export class PaymentsService {
       where.transactionId = query.transactionId.trim();
     }
 
-    if (query.status !== undefined && query.status !== '') {
-      const status = Number(query.status);
-      if (!Number.isInteger(status)) {
-        throw new HttpException(
-          'status must be an integer',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      where.status = status;
+    if (query.status !== undefined) {
+      where.status = Number(query.status);
     }
 
     const [total, payments] = await this.prisma.$transaction([
@@ -188,10 +150,7 @@ export class PaymentsService {
   }
 
   async markProcessing(lookup: PaymentLookupRequest): Promise<PaymentDto> {
-    return this.updatePaymentStatus(
-      requirePaymentLookup(lookup),
-      PaymentStatus.Processing,
-    );
+    return this.updatePaymentStatus(lookup, PaymentStatus.Processing);
   }
 
   /*
@@ -199,15 +158,11 @@ export class PaymentsService {
    * it also records the settlement time and rejects duplicate confirmation.
    */
   async markPaid(payload: MarkPaidRequest): Promise<PaymentDto> {
-    requireObjectPayload(payload, 'payload');
-    const lookup = requirePaymentLookup(payload);
-    const paidAt = payload.paidAt
-      ? parseDate(payload.paidAt, 'paidAt')
-      : new Date();
+    const paidAt = payload.paidAt ?? new Date();
 
-    const payment = await this.getPaymentOrThrow(lookup);
+    const payment = await this.getPaymentOrThrow(payload);
 
-    if (payment.status === PaymentStatus.Paid) {
+    if (payment.status === Number(PaymentStatus.Paid)) {
       throw new HttpException(
         'Payment is already marked as paid',
         HttpStatus.BAD_REQUEST,
@@ -249,28 +204,19 @@ export class PaymentsService {
   }
 
   async markFailed(lookup: PaymentLookupRequest): Promise<PaymentDto> {
-    return this.updatePaymentStatus(
-      requirePaymentLookup(lookup),
-      PaymentStatus.Failed,
-    );
+    return this.updatePaymentStatus(lookup, PaymentStatus.Failed);
   }
 
   async cancelPayment(lookup: PaymentLookupRequest): Promise<PaymentDto> {
-    return this.updatePaymentStatus(
-      requirePaymentLookup(lookup),
-      PaymentStatus.Cancelled,
-    );
+    return this.updatePaymentStatus(lookup, PaymentStatus.Cancelled);
   }
 
   async expirePayment(lookup: PaymentLookupRequest): Promise<PaymentDto> {
-    return this.updatePaymentStatus(
-      requirePaymentLookup(lookup),
-      PaymentStatus.Expired,
-    );
+    return this.updatePaymentStatus(lookup, PaymentStatus.Expired);
   }
 
   async softDeletePayment(lookup: PaymentLookupRequest): Promise<PaymentDto> {
-    const payment = await this.getPaymentOrThrow(requirePaymentLookup(lookup));
+    const payment = await this.getPaymentOrThrow(lookup);
     const updated = await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
@@ -303,17 +249,31 @@ export class PaymentsService {
   ): Promise<Payment> {
     const where = this.buildPaymentLookupWhere(lookup);
     const payment = await this.prisma.payment.findFirst({ where });
-    return requirePaymentRecord(payment);
+
+    if (!payment) {
+      throw new HttpException('payment not found', HttpStatus.NOT_FOUND);
+    }
+
+    return payment;
   }
 
   private buildPaymentLookupWhere(
     lookup: PaymentLookupRequest,
   ): Prisma.PaymentWhereInput {
-    const normalizedLookup = requirePaymentLookup(lookup);
+    const id = lookup.id?.trim();
+    const transactionId = lookup.transactionId?.trim();
+
+    if (!id && !transactionId) {
+      throw new HttpException(
+        'id or transactionId is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     return {
       deletedAt: null,
-      ...normalizedLookup,
+      ...(id ? { id } : {}),
+      ...(transactionId ? { transactionId } : {}),
     };
   }
 
@@ -327,42 +287,5 @@ export class PaymentsService {
         complete: () => resolve(),
       });
     });
-  }
-
-  async handleStripeWebhook(payload: any) {
-    this.logger.log(`Received Stripe Webhook. Type: ${payload?.type}`);
-    if (payload?.type === 'charge.succeeded' || payload?.type === 'payment_intent.succeeded') {
-      const charge = payload.data?.object;
-      const transactionId = charge?.metadata?.transactionId || charge?.id;
-      const orderId = charge?.metadata?.orderId;
-
-      this.logger.log(`Processing successful Stripe payment: transactionId=${transactionId}, orderId=${orderId}`);
-
-      let paymentRecord;
-      if (transactionId) {
-        paymentRecord = await this.prisma.payment.findFirst({
-          where: { transactionId, deletedAt: null },
-        });
-      }
-      if (!paymentRecord && orderId) {
-        paymentRecord = await this.prisma.payment.findFirst({
-          where: { orderId, deletedAt: null, status: PaymentStatus.Pending },
-        });
-      }
-
-      if (!paymentRecord) {
-        this.logger.error(`Could not locate pending payment for transactionId: ${transactionId}, orderId: ${orderId}`);
-        throw new HttpException('Payment record not found', HttpStatus.NOT_FOUND);
-      }
-
-      this.logger.log(`Marking payment ${paymentRecord.id} as Paid via Stripe Webhook`);
-      return this.markPaidWorkflow({
-        id: paymentRecord.id,
-        paidAt: new Date(),
-      });
-    }
-
-    this.logger.log(`Stripe webhook type "${payload?.type}" unhandled.`);
-    return { received: true };
   }
 }
