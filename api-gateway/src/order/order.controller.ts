@@ -36,7 +36,7 @@ export class OrderController {
   }
 
   @Post('checkout')
-  async checkout(
+  checkout(
     @Req() request: { user?: RequestUser },
     @Body() payload: CheckoutOrderRequest,
   ) {
@@ -46,7 +46,7 @@ export class OrderController {
   }
 
   @Post()
-  async create(
+  create(
     @Req() request: { user?: RequestUser },
     @Body() payload: CreateOrderRequest,
   ) {

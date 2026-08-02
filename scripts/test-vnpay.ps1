@@ -83,14 +83,14 @@ Test-Case "Login User B (cookie)" ($null -ne $hasTokenB) "hasAccessToken=$($null
 # 4. VNPay CREATE PAYMENT - No Auth (should 401)
 # =============================================================================
 Write-Host "`n>>> 4. VNPay Create - No Auth (expect 401)" -ForegroundColor Yellow
-$noAuth = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = "fake-order"; amount = 100000; orderInfo = "test" }
+$noAuth = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = "fake-order"; orderInfo = "test" }
 Test-Case "Create payment without token -> 401" ($noAuth.status -eq 401) "status=$($noAuth.status)"
 
 # =============================================================================
 # 5. VNPay CREATE PAYMENT - With User A token (fake order, expect 403 do order không tồn tại)
 # =============================================================================
 Write-Host "`n>>> 5. VNPay Create - User A (fake order -> 403 not found)" -ForegroundColor Yellow
-$createA = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = "fake-order-$ts"; amount = 100000; orderInfo = "Test payment" } $sessionA
+$createA = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = "fake-order-$ts"; orderInfo = "Test payment" } $sessionA
 Test-Case "Create payment with fake order -> 403" ($createA.status -eq 403) "status=$($createA.status)"
 
 # =============================================================================
@@ -166,11 +166,11 @@ if ($orderAId) {
 # =============================================================================
 Write-Host "`n>>> 9. VNPay Create - User B pays User A's order (expect 403)" -ForegroundColor Yellow
 if ($orderAId) {
-    $payB = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = $orderAId; amount = 100000; orderInfo = "Hijack attempt" } $sessionB
+    $payB = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = $orderAId; orderInfo = "Hijack attempt" } $sessionB
     Test-Case "User B pays User A's order -> 403" ($payB.status -eq 403) "status=$($payB.status)"
 
     # Bonus: User A tạo payment cho order của mình -> 201
-    $payA = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = $orderAId; amount = 100000; orderInfo = "My order payment" } $sessionA
+    $payA = Invoke-Api "POST" "/payments/vnpay/create" @{ orderId = $orderAId; orderInfo = "My order payment" } $sessionA
     Test-Case "User A pays own order -> 201" ($payA.status -eq 200 -or $payA.status -eq 201) "status=$($payA.status)"
 } else {
     Test-Case "User B pays User A's order (skipped)" $true "skipped"

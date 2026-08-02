@@ -144,19 +144,27 @@ REDIS_PORT=6379
 
 ## Chay ha tang local
 
+Co 2 cach:
+
+- `infra/docker/docker-compose.dev.yml`: ha tang local toi thieu cho dev hien tai. Sau khi chuyen SQL sang Supabase, cache sang Redis Cloud, va Mongo sang Atlas, stack nay chi can RabbitMQ.
+- `infra/docker/docker-compose.yml`: full stack cu, gom ca backend containers + Redis Sentinel cluster. Nang hon, hop cho smoke test gan production.
+
 Tu root repo:
 
 ```powershell
-docker compose up -d
+docker compose -f infra/docker/docker-compose.dev.yml up -d
 ```
 
-Stack nay se dung:
+Stack dev nhe nay se dung:
 
-- MySQL: `localhost:3306`
-- Redis: `localhost:6379`
 - RabbitMQ: `localhost:5672`
 - RabbitMQ management: `http://localhost:15672`
-- Elasticsearch: `http://localhost:9200`
+
+Neu can full stack Docker:
+
+```powershell
+docker compose -f infra/docker/docker-compose.yml up -d
+```
 
 ## Cai dat dependencies
 
@@ -173,6 +181,30 @@ cd ..\payments-service; npm install
 cd ..\client; npm install
 ```
 
+## Cau hinh env
+
+- Tao `.env` rieng trong tung app bang cach copy tu file `.env.example` cung cap san.
+- Khong commit `.env` that, repo da ignore toan bo `.env` va chi giu lai example templates.
+- Vi cloud credentials da tung bi paste vao chat/local files, hay rotate lai Supabase, MongoDB Atlas, Redis Cloud, JWT, SMTP, VNPay, va Google OAuth secrets truoc khi deploy that.
+
+Danh sach example files:
+
+- `auth-service/.env.example`
+- `users-service/.env.example`
+- `orders-service/.env.example`
+- `payments-service/.env.example`
+- `notification-service/.env.example`
+- `search-service/.env.example`
+- `tickets-service/.env.example`
+- `api-gateway/.env.example`
+- `client/.env.example`
+
+Kiem tra `.env` thuc te co lech voi template khong:
+
+```powershell
+.\scripts\check-env-template.ps1
+```
+
 Neu Prisma client chua duoc tao dung, chay them trong tung service dung Prisma:
 
 ```powershell
@@ -187,9 +219,15 @@ cd ..\tickets-service; npx prisma generate
 
 ## Thu tu chay local de dev
 
-1. Chay ha tang trong `infra/docker`.
-2. Dam bao MongoDB da san sang neu can `search-service` va `tickets-service`.
-3. Start cac microservice backend:
+1. Chay ha tang nhe:
+
+```powershell
+docker compose -f infra/docker/docker-compose.dev.yml up -d
+```
+
+2. `search-service` va `tickets-service` hien dang tro sang MongoDB Atlas qua `DATABASE_URL`.
+3. `tickets-service` hien dung Redis Cloud, khong can Redis local nua.
+4. Start cac microservice backend:
 
 ```powershell
 cd auth-service; npm run start:dev
@@ -201,14 +239,14 @@ cd ..\search-service; npm run start:dev
 cd ..\tickets-service; npm run start:dev
 ```
 
-4. Start gateway:
+5. Start gateway:
 
 ```powershell
 cd api-gateway
 npm run start:dev
 ```
 
-5. Start frontend:
+6. Start frontend:
 
 ```powershell
 cd client
@@ -219,6 +257,17 @@ Sau do mo:
 
 - Frontend: `http://localhost:3000`
 - API gateway: `http://localhost:8080`
+
+## Giam lag khi dev
+
+- Uu tien Docker cho infra toi thieu, con Nest/Next chay native bang `npm run start:dev` va `npm run dev`.
+- Khong can start tat ca service neu ban chi sua 1 flow.
+- Redis Sentinel cluster trong full compose khong can cho dev hang ngay; `tickets-service` da tro sang Redis Cloud.
+- Khi xong, tat stack nhe:
+
+```powershell
+docker compose -f infra/docker/docker-compose.dev.yml down
+```
 
 ## HTTP surface qua `api-gateway`
 

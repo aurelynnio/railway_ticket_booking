@@ -16,6 +16,10 @@ export class UserService {
     @Inject('user_service') private readonly userClient: ClientProxy,
   ) {}
 
+  health() {
+    return this.userClient.send({ cmd: 'users.health' }, {});
+  }
+
   list(query: ListUsersQuery) {
     return this.userClient.send({ cmd: 'users.list' }, query);
   }
