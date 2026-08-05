@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { AnimatedSection } from "@/components/motion/animated-section";
 import {
   EmptyState,
   PaginationBar,
@@ -294,7 +295,10 @@ export default function SearchPage() {
           />
         ) : null}
 
-        <div className="grid gap-3">
+        <AnimatedSection
+          scopeKey={`results-${trips.length}-${deferredPage}-${sort}`}
+          className="grid gap-3"
+        >
           {trips.map((trip) => (
             <article
               key={trip.ticketId}
@@ -391,7 +395,7 @@ export default function SearchPage() {
               </div>
             </article>
           ))}
-        </div>
+        </AnimatedSection>
 
         {pagination ? (
           <PaginationBar

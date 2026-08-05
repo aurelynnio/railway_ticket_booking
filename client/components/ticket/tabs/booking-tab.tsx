@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CreditCard, Lock, ShieldCheck, User2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { FormField } from "@/components/form-field";
+import { SeatMapInteractive, type Seat } from "@/components/motion/seat-map-interactive";
 import {
   NoticeBox,
   StatusBadge,
@@ -49,6 +50,27 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
   const createOrder = useCreateOrder();
   const createVnpayPayment = useCreateVnpayPayment();
   const [submitted, setSubmitted] = useState(false);
+  const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
+
+  const seatList: Seat[] = useMemo(() => {
+    if (!selectedItem) return [];
+    const occupied = new Set(selectedItem.occupiedSeatLabels ?? []);
+    return selectedItem.seatLabels.map((label) => ({
+      id: label,
+      label,
+      status: occupied.has(label) ? "taken" : "available",
+    }));
+  }, [selectedItem]);
+
+  useEffect(() => {
+    setSelectedSeatIds([]);
+  }, [selectedItem?.id]);
+
+  const handleSeatToggle = (seatId: string) => {
+    setSelectedSeatIds((prev) =>
+      prev.includes(seatId) ? prev.filter((id) => id !== seatId) : [...prev, seatId],
+    );
+  };
 
   const form = useForm<z.infer<typeof createOrderSchema>>({
     resolver: zodResolver(createOrderSchema),
@@ -85,10 +107,12 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
       seatType: selectedItem.seatType,
       quantity: Number.isNaN(numericQuantity) ? 1 : numericQuantity,
       unitPrice,
-      seatLabels: values.seatLabels
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean),
+      seatLabels: selectedSeatIds.length > 0
+        ? selectedSeatIds
+        : values.seatLabels
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
       passengers: values.passengerName
         ? [{ fullName: values.passengerName.trim(), passengerType: "ADULT" }]
         : [],
@@ -144,15 +168,36 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
 
             <FormField
               label="Mã ghế (tùy chọn)"
-              hint="Nhập theo định dạng A1,A2 để chọn nhiều ghế."
+              hint="Chọn ghế trên sơ đồ bên dưới hoặc nhập tay theo định dạng A1,A2."
               error={form.formState.errors.seatLabels?.message}
             >
               <Input
                 placeholder="A1, A2, A3"
                 aria-invalid={Boolean(form.formState.errors.seatLabels)}
+                value={
+                  selectedSeatIds.length > 0
+                    ? selectedSeatIds.join(", ")
+                    : form.watch("seatLabels")
+                }
+                readOnly={selectedSeatIds.length > 0}
                 {...form.register("seatLabels")}
               />
             </FormField>
+
+            {seatList.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                  Sơ đồ ghế
+                </p>
+                <SeatMapInteractive
+                  seats={seatList}
+                  selectedIds={selectedSeatIds}
+                  onToggle={handleSeatToggle}
+                  maxSeats={Math.max(1, Number(form.watch("quantity")) || 1)}
+                  cols={4}
+                />
+              </div>
+            ) : null}
 
             <FormField
               label="Số lượng vé"
