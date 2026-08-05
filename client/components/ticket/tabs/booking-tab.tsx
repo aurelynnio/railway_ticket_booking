@@ -222,6 +222,8 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
               type="submit"
               size="lg"
               disabled={!sessionUserId || isPending}
+              aria-busy={isPending}
+              aria-disabled={!sessionUserId || isPending}
             >
               <CreditCard className="size-4" aria-hidden />
               {isPending
