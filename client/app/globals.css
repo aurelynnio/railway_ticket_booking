@@ -14,6 +14,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -30,88 +31,132 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
-  --radius-sm: calc(var(--radius) * 0.5);
-  --radius-md: calc(var(--radius) * 0.75);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border-strong: var(--border-strong);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.85);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 2);
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
+  --shadow-brand: var(--shadow-brand);
 }
 
 /* =========================================================================
-   DESIGN TOKENS - Soft Transit Minimal
+   DESIGN TOKENS - Vietrail Way (JD Red edition)
+   Brand: #C8161D - Vietnamese railway booking
    ========================================================================= */
 :root {
-  --background: #f7f5ef;
-  --foreground: #111c1a;
+  /* Brand */
+  --brand: #c8161d;
+  --brand-hover: #a61118;
+  --brand-soft: #fff5f5;
 
-  --card: #fcfbf7;
-  --card-foreground: #111c1a;
+  /* Ink (typography scale) */
+  --ink: #1a1a1a;
+  --ink-muted: #5c5c5c;
 
-  --popover: #fffef9;
-  --popover-foreground: #111c1a;
+  /* Surfaces (cool cream, no gradient) */
+  --background: #fafaf7;
+  --foreground: #1a1a1a;
 
-  --primary: #0f8f83;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  --primary: #c8161d;
   --primary-foreground: #ffffff;
 
-  --secondary: #eff2eb;
-  --secondary-foreground: #17211f;
+  --secondary: #f4f4f0;
+  --secondary-foreground: #1a1a1a;
 
-  --muted: #f1eee7;
-  --muted-foreground: #6f746d;
+  --muted: #ecece6;
+  --muted-foreground: #5c5c5c;
 
-  --accent: #e7f6f2;
-  --accent-foreground: #0d756d;
+  --accent: #fff5f5;
+  --accent-foreground: #c8161d;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --success: #25875a;
+  --success: #16a34a;
   --success-foreground: #ffffff;
 
-  --warning: #c27a1f;
+  --warning: #d97706;
   --warning-foreground: #fffaf0;
 
-  --border: #ddd9cf;
-  --input: #d6d2c8;
-  --ring: #0f8f83;
+  --info: #2563eb;
+  --info-foreground: #ffffff;
 
-  --radius: 0.5rem;
+  /* Surfaces */
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f0;
+  --surface-3: #ecece6;
 
-  --shadow-xs: 0 1px 2px 0 rgb(32 39 34 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(32 39 34 / 0.04);
-  --shadow-md: 0 8px 24px -18px rgb(32 39 34 / 0.18);
-  --track: #d7eee9;
-  --track-strong: #0f8f83;
-  --sun: #f0b35a;
+  /* Borders - WCAG AA 3:1 */
+  --border: #d4d4d0;
+  --border-strong: #a8a8a2;
+  --input: #e5e5df;
+  --ring: #c8161d;
+
+  /* Geometry */
+  --radius: 0.625rem;
+
+  /* Shadow - subtle, brand-tinted */
+  --shadow-xs: 0 1px 2px 0 rgb(26 26 26 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(26 26 26 / 0.05), 0 1px 1px rgb(26 26 26 / 0.03);
+  --shadow-md: 0 4px 12px -2px rgb(26 26 26 / 0.08), 0 2px 4px -2px rgb(26 26 26 / 0.04);
+  --shadow-brand: 0 4px 16px -4px rgb(200 22 29 / 0.18);
+
+  /* Track (kept for backward compat with existing route-pill) */
+  --track: #ffe0e1;
+  --track-strong: #c8161d;
 }
 
 .dark {
-  --background: #0c0a09;
-  --foreground: #fafaf9;
+  --brand: #ef4444;
+  --brand-hover: #f87171;
+  --brand-soft: #2a0f0f;
 
-  --card: #1c1917;
-  --card-foreground: #fafaf9;
+  --ink: #f5f5f5;
+  --ink-muted: #a1a1a1;
 
-  --popover: #1c1917;
-  --popover-foreground: #fafaf9;
+  --background: #0a0a0a;
+  --foreground: #f5f5f5;
 
-  --primary: #2dd4bf;
-  --primary-foreground: #042f2e;
+  --card: #141414;
+  --card-foreground: #f5f5f5;
 
-  --secondary: #292524;
-  --secondary-foreground: #fafaf9;
+  --popover: #141414;
+  --popover-foreground: #f5f5f5;
 
-  --muted: #292524;
-  --muted-foreground: #a8a29e;
+  --primary: #ef4444;
+  --primary-foreground: #0a0a0a;
 
-  --accent: #042f2e;
-  --accent-foreground: #5eead4;
+  --secondary: #1f1f1f;
+  --secondary-foreground: #f5f5f5;
+
+  --muted: #2a2a2a;
+  --muted-foreground: #a1a1a1;
+
+  --accent: #2a0f0f;
+  --accent-foreground: #fca5a5;
 
   --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: #0a0a0a;
 
   --success: #22c55e;
   --success-foreground: #052e16;
@@ -119,13 +164,25 @@
   --warning: #f59e0b;
   --warning-foreground: #1c1917;
 
-  --border: #292524;
-  --input: #292524;
-  --ring: #2dd4bf;
+  --info: #3b82f6;
+  --info-foreground: #0a0a0a;
 
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.2);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 2px 6px -2px rgb(0 0 0 / 0.3);
+  --surface-1: #141414;
+  --surface-2: #1f1f1f;
+  --surface-3: #2a2a2a;
+
+  --border: #2a2a2a;
+  --border-strong: #404040;
+  --input: #2a2a2a;
+  --ring: #ef4444;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-brand: 0 4px 16px -4px rgb(239 68 68 / 0.25);
+
+  --track: #3a1818;
+  --track-strong: #ef4444;
 }
 
 @layer base {
@@ -144,23 +201,14 @@
     @apply min-h-screen bg-background text-foreground;
   }
 
-  :root:not(.dark) body {
-    background:
-      linear-gradient(180deg, #fbfaf6 0%, #f7f5ef 55%, #f2f3ee 100%);
-  }
-
-  .dark body {
-    background: var(--background);
-  }
-
   ::selection {
-    background: color-mix(in oklch, var(--primary) 18%, transparent);
+    background: color-mix(in oklch, var(--brand) 18%, transparent);
     color: var(--foreground);
   }
 
   /* Typography hierarchy — heading dùng tracking tight + weight rõ */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading tracking-tight;
+    @apply font-heading tracking-tight text-ink;
     text-wrap: balance;
   }
 
@@ -179,51 +227,52 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
   }
+
+  /* Focus ring rõ cho keyboard navigation */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
 }
 
 @layer components {
-  /* Core soft surfaces */
+  /* Surfaces - thin gọn 1 component với variant */
   .surface-panel {
-    @apply rounded-lg border border-border/90 bg-card text-card-foreground;
+    @apply rounded-lg border border-border bg-card text-card-foreground;
   }
 
   .surface-panel-strong {
-    @apply rounded-lg border border-border/90 bg-card text-card-foreground;
+    @apply rounded-lg border border-border bg-card text-card-foreground;
     box-shadow: var(--shadow-md);
   }
 
   .quiet-panel {
-    @apply rounded-lg bg-secondary/80;
+    @apply rounded-lg bg-secondary;
   }
 
   .soft-divider {
-    @apply h-px w-full bg-border/70;
+    @apply h-px w-full bg-border;
   }
 
+  /* Pill dùng cho route, station, tag */
   .route-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground;
+    @apply inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand;
   }
 
   .page-band {
-    @apply rounded-lg border border-border/90 bg-card;
+    @apply rounded-lg border border-border bg-card;
   }
 
+  /* Transit line (decorative cho hero) - dùng solid color, không gradient */
   .transit-line {
-    background:
-      linear-gradient(90deg, transparent 0 8%, var(--track) 8% 100%),
-      repeating-linear-gradient(90deg, transparent 0 28px, rgb(15 143 131 / 0.18) 28px 30px);
+    background-color: var(--track);
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 28px,
+      color-mix(in oklch, var(--track-strong) 50%, transparent) 28px,
+      color-mix(in oklch, var(--track-strong) 50%, transparent) 30px
+    );
   }
-
-  .soft-wash {
-    background:
-      linear-gradient(135deg, rgb(231 246 242 / 0.75), rgb(252 251 247 / 0.94) 52%, rgb(240 179 90 / 0.1));
-  }
-
-  .dark .soft-wash {
-    background:
-      linear-gradient(135deg, rgba(15, 143, 131, 0.15), rgba(28, 25, 23, 0.95) 52%, rgba(240, 179, 90, 0.05));
-  }
-
 
   .text-balance {
     text-wrap: balance;
@@ -234,7 +283,7 @@
   }
 
   .page-header-compact {
-    @apply border-b border-border/75 pb-5;
+    @apply border-b border-border pb-5;
   }
 
   .page-section {

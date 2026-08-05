@@ -70,11 +70,13 @@ export function AppShell({
   description,
   children,
   actions,
+  heroVariant = "simple",
 }: {
   title: string;
   description: string;
   children: ReactNode;
   actions?: ReactNode;
+  heroVariant?: "simple" | "rich";
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -266,42 +268,97 @@ export function AppShell({
 
       <div className="app-container flex flex-col gap-8 py-8">
         {isHome ? (
-          <section className="page-band soft-wash overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
-            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div className="space-y-2">
-                <div className="route-pill w-fit">
-                  <MapPinned className="size-3" />
-                  Bắc - Trung - Nam
-                </div>
-                <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                  {title}
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                  {description}
-                </p>
-              </div>
-              <div className="hidden min-w-72 rounded-lg border border-border/80 bg-card/70 px-4 py-3 lg:block">
-                <div className="transit-line h-1.5 rounded-full" />
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {bookingFlow.map((item) => {
-                    const Icon = item.icon;
-
-                    return (
-                      <div key={item.label} className="space-y-1">
-                        <div className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
-                          <Icon className="size-3.5" />
+          heroVariant === "rich" ? (
+            <section className="overflow-hidden rounded-lg border border-border bg-card">
+              <div className="grid gap-0 lg:grid-cols-[1.3fr_1fr]">
+                <div className="flex flex-col gap-5 border-b border-border p-6 sm:p-8 lg:border-b-0 lg:border-r">
+                  <div className="space-y-4">
+                    <div className="route-pill w-fit">
+                      <MapPinned className="size-3" />
+                      Bắc · Trung · Nam
+                    </div>
+                    <h1 className="max-w-2xl font-heading text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
+                      {title}
+                    </h1>
+                    <p className="max-w-2xl text-sm leading-6 text-ink-muted sm:text-base">
+                      {description}
+                    </p>
+                  </div>
+                  {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+                  <div className="mt-2 grid grid-cols-3 gap-3 border-t border-border pt-5">
+                    {bookingFlow.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={item.label} className="flex flex-col gap-2">
+                          <span className="flex size-8 items-center justify-center rounded-md bg-brand-soft text-brand">
+                            <Icon className="size-4" />
+                          </span>
+                          <p className="text-xs font-medium text-ink">
+                            {item.label}
+                          </p>
                         </div>
-                        <p className="text-xs font-medium text-foreground">
-                          {item.label}
-                        </p>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4 bg-secondary p-6 sm:p-8">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                    Tuyến phủ sóng
+                  </p>
+                  <div className="transit-line h-1.5 rounded-full" />
+                  <ul className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm font-medium text-ink">
+                    {["Hà Nội", "Huế", "Đà Nẵng", "Nha Trang", "Sài Gòn", "..."].map(
+                      (city) => (
+                        <li
+                          key={city}
+                          className="flex items-center gap-2 border-b border-border/60 pb-2 last:border-b-0"
+                        >
+                          <span className="size-1.5 shrink-0 rounded-full bg-brand" />
+                          {city}
+                        </li>
+                      ),
+                    )}
+                  </ul>
                 </div>
               </div>
-            </div>
-            {actions ? <div className="mt-5">{actions}</div> : null}
-          </section>
+            </section>
+          ) : (
+            <section className="page-band overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
+              <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+                <div className="space-y-2">
+                  <div className="route-pill w-fit">
+                    <MapPinned className="size-3" />
+                    Bắc - Trung - Nam
+                  </div>
+                  <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                    {title}
+                  </h1>
+                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                    {description}
+                  </p>
+                </div>
+                <div className="hidden min-w-72 rounded-lg border border-border/80 bg-card/70 px-4 py-3 lg:block">
+                  <div className="transit-line h-1.5 rounded-full" />
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {bookingFlow.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={item.label} className="space-y-1">
+                          <div className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                            <Icon className="size-3.5" />
+                          </div>
+                          <p className="text-xs font-medium text-foreground">
+                            {item.label}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {actions ? <div className="mt-5">{actions}</div> : null}
+            </section>
+          )
         ) : (
           <section className="page-header-compact">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -375,24 +432,29 @@ export function AppShell({
 export function Panel({
   title,
   description,
+  action,
   children,
 }: {
   title: string;
   description?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="surface-panel px-6 py-5">
       <div className="flex flex-col gap-5">
-        <div className="space-y-1">
-          <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
-            {title}
-          </h2>
-          {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
-          ) : null}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="font-heading text-lg font-semibold tracking-tight text-ink">
+              {title}
+            </h2>
+            {description ? (
+              <p className="max-w-3xl text-sm leading-6 text-ink-muted">
+                {description}
+              </p>
+            ) : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
         </div>
         <div>{children}</div>
       </div>

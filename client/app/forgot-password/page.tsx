@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import { AuthShell } from "@/components/auth-shell";
 import { FormField } from "@/components/form-field";
-import { NoticeBox, StatusBadge } from "@/components/railway-ui";
+import { NoticeBox } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useForgotPassword } from "@/hooks/auth.hook";
@@ -54,11 +54,14 @@ export default function ForgotPasswordPage() {
       <form onSubmit={handleSubmit} className="grid gap-4">
         <FormField
           label="Email"
+          required
           error={form.formState.errors.email?.message}
+          hint="Dùng email đã đăng ký. Mã khôi phục có hiệu lực trong 15 phút."
         >
           <Input
             type="email"
             placeholder="ban@railway.test"
+            autoComplete="email"
             aria-invalid={Boolean(form.formState.errors.email)}
             {...form.register("email")}
           />
@@ -73,19 +76,28 @@ export default function ForgotPasswordPage() {
           <ArrowRight />
         </Button>
 
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge label="Khôi phục bảo mật" tone="brand" />
-          <StatusBadge label="Email xác minh" tone="warning" />
-        </div>
-
         {tokenPreview ? (
-          <div className="space-y-3 rounded-lg border border-border/80 bg-secondary/45 px-4 py-4">
-            <p className="text-xs font-medium text-muted-foreground">Mã khôi phục</p>
-            <p className="break-all font-mono text-xs text-foreground">{tokenPreview}</p>
-            <Link href="/reset-password" className="inline-flex font-semibold text-primary">
-              Đi tới màn reset
-            </Link>
-          </div>
+          <NoticeBox
+            title="Yêu cầu đã được tạo"
+            description={
+              <>
+                <p className="text-sm leading-6">
+                  Trong môi trường dev, dùng mã bên dưới để đặt lại mật khẩu.
+                  Trên production, mã chỉ gửi qua email.
+                </p>
+                <code className="mt-2 block break-all rounded-md border border-border/60 bg-card px-3 py-2 font-mono text-xs text-foreground">
+                  {tokenPreview}
+                </code>
+                <Link
+                  href="/reset-password"
+                  className="mt-3 inline-flex font-semibold text-primary hover:text-primary/80"
+                >
+                  Đi tới màn reset <ArrowRight className="ml-0.5 size-3.5" />
+                </Link>
+              </>
+            }
+            tone="positive"
+          />
         ) : null}
 
         {forgotPassword.isError ? (

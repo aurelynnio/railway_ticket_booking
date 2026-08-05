@@ -56,10 +56,13 @@ export default function ResetPasswordPage() {
       <form onSubmit={handleSubmit} className="grid gap-4">
         <FormField
           label="Mã khôi phục"
+          required
           error={form.formState.errors.token?.message}
+          hint="Dán mã nhận được từ email hoặc từ màn forgot-password trong môi trường dev."
         >
           <Input
             placeholder="Dán mã khôi phục"
+            autoComplete="one-time-code"
             aria-invalid={Boolean(form.formState.errors.token)}
             {...form.register("token")}
           />
@@ -67,11 +70,14 @@ export default function ResetPasswordPage() {
 
         <FormField
           label="Mật khẩu mới"
+          required
           error={form.formState.errors.newPassword?.message}
+          hint="Tối thiểu 6 ký tự. Nên dùng chữ hoa, số và ký tự đặc biệt."
         >
           <Input
             type="password"
             placeholder="Nhập mật khẩu mới"
+            autoComplete="new-password"
             aria-invalid={Boolean(form.formState.errors.newPassword)}
             {...form.register("newPassword")}
           />

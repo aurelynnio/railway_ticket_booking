@@ -68,6 +68,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="grid gap-4">
         <FormField
           label="Email"
+          required
           error={form.formState.errors.email?.message}
         >
           <Input
@@ -80,11 +81,12 @@ export default function LoginPage() {
 
         <FormField
           label="Mật khẩu"
+          required
           error={form.formState.errors.password?.message}
           aside={(
             <Link
               href="/forgot-password"
-              className="text-sm font-medium text-primary"
+              className="text-xs font-medium text-brand hover:text-brand-hover"
             >
               Quên mật khẩu?
             </Link>

@@ -58,10 +58,13 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit} className="grid gap-4">
         <FormField
           label="Username"
+          required
           error={form.formState.errors.username?.message}
+          hint="3-32 ký tự, chỉ gồm chữ cái, số, dấu gạch dưới và gạch ngang."
         >
           <Input
             placeholder="nguyen-van-a"
+            autoComplete="username"
             aria-invalid={Boolean(form.formState.errors.username)}
             {...form.register("username")}
           />
@@ -69,11 +72,13 @@ export default function RegisterPage() {
 
         <FormField
           label="Email"
+          required
           error={form.formState.errors.email?.message}
         >
           <Input
             type="email"
             placeholder="ban@railway.test"
+            autoComplete="email"
             aria-invalid={Boolean(form.formState.errors.email)}
             {...form.register("email")}
           />
@@ -81,11 +86,14 @@ export default function RegisterPage() {
 
         <FormField
           label="Mật khẩu"
+          required
           error={form.formState.errors.password?.message}
+          hint="Tối thiểu 6 ký tự. Nên dùng chữ hoa, số và ký tự đặc biệt."
         >
           <Input
             type="password"
             placeholder="Tạo mật khẩu mới"
+            autoComplete="new-password"
             aria-invalid={Boolean(form.formState.errors.password)}
             {...form.register("password")}
           />
