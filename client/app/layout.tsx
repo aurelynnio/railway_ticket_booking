@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { PageTransition } from "@/components/motion/page-transition";
 import { Providers } from "./providers";
 
 const bodyFont = Be_Vietnam_Pro({

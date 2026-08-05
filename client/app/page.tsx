@@ -15,6 +15,8 @@ import {
 
 import { AppShell, Panel } from "@/components/app-shell";
 import { BrandLogo } from "@/components/brand-logo";
+import { AnimatedSection } from "@/components/motion/animated-section";
+import { CountUp } from "@/components/motion/count-up";
 import {
   EmptyState,
   StatusBadge,
@@ -93,23 +95,20 @@ export default function RootPage() {
       }
     >
       <main id="main-content" className="page-section">
-        <section
-          aria-label="Thống kê nhanh"
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        >
+        <AnimatedSection as="section" variant="fadeUp" stagger aria-label="Thống kê nhanh" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile
             label="Chuyến đang mở"
-            value={tripsQuery.isLoading ? "—" : String(trips.length)}
+            value={tripsQuery.isLoading ? "—" : <CountUp to={trips.length} />}
             accent="brand"
           />
           <StatTile
             label="Chỗ còn lại"
-            value={tripsQuery.isLoading ? "—" : String(totalSeats)}
+            value={tripsQuery.isLoading ? "—" : <CountUp to={totalSeats} />}
             accent="muted"
           />
           <StatTile
             label="Giá từ"
-            value={tripsQuery.isLoading ? "—" : formatCurrency(lowestPrice)}
+            value={tripsQuery.isLoading ? "—" : lowestPrice ? formatCurrency(lowestPrice) : "—"}
             accent="muted"
           />
           <StatTile
@@ -118,12 +117,9 @@ export default function RootPage() {
             helper="Bắc · Trung · Nam"
             accent="muted"
           />
-        </section>
+        </AnimatedSection>
 
-        <section
-          aria-label="Hành trình 4 bước"
-          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-        >
+        <AnimatedSection as="section" variant="fadeUp" stagger delay={0.1} aria-label="Hành trình 4 bước" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {journeySteps.map((step, index) => (
             <article
               key={step.label}
@@ -140,7 +136,7 @@ export default function RootPage() {
               <p className="text-xs leading-5 text-ink-muted">{step.helper}</p>
             </article>
           ))}
-        </section>
+        </AnimatedSection>
 
         {featuredTrip ? (
           <section
@@ -343,7 +339,7 @@ function StatTile({
   accent = "muted",
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   helper?: string;
   accent?: "muted" | "brand";
 }) {
