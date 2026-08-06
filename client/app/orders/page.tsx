@@ -179,6 +179,8 @@ export default function OrdersPage() {
             <EmptyState
               title="Chưa có đơn hàng phù hợp"
               description="Thử bỏ lọc user hoặc đổi trạng thái để mở rộng kết quả."
+              illustration="order-empty"
+              illustrationTone="muted"
             />
           ) : null}
 

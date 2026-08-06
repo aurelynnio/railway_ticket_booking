@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <!-- Warning triangle -->
+  <path d="M60 20 L 102 92 H 18 Z" stroke-width="1.8" />
+  <!-- Inner stroke for depth -->
+  <path d="M60 30 L 92 86 H 28 Z" opacity="0.25" />
+  <!-- Exclamation mark -->
+  <line x1="60" y1="48" x2="60" y2="70" stroke-width="3" />
+  <circle cx="60" cy="80" r="2.4" fill="currentColor" stroke="none" />
+  <!-- Subtle shake for error feel -->
+  <animateTransform attributeName="transform" type="translate" values="0 0; -0.6 0; 0.6 0; 0 0" dur="3s" repeatCount="indefinite" />
+</svg>

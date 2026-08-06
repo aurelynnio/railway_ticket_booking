@@ -4,6 +4,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 
+import {
+  Illustration,
+  type IllustrationName,
+  type IllustrationTone,
+} from "@/components/illustrations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -95,17 +100,30 @@ export function EmptyState({
   description,
   href,
   cta,
+  illustration,
+  illustrationTone = "muted",
 }: {
   title: string;
   description: string;
   href?: string;
   cta?: string;
+  illustration?: IllustrationName;
+  illustrationTone?: IllustrationTone;
 }) {
   return (
     <div className="quiet-panel flex flex-col items-start gap-3 border border-border/70 px-5 py-6">
-      <div className="inline-flex size-9 items-center justify-center rounded-md border border-border/80 bg-card text-primary">
-        <Sparkles className="size-4" />
-      </div>
+      {illustration ? (
+        <Illustration
+          name={illustration}
+          size="md"
+          tone={illustrationTone}
+          label={`Minh hoạ cho ${title}`}
+        />
+      ) : (
+        <div className="inline-flex size-9 items-center justify-center rounded-md border border-border/80 bg-card text-primary">
+          <Sparkles className="size-4" />
+        </div>
+      )}
       <div className="space-y-1">
         <h3 className="font-heading text-base font-semibold tracking-tight">
           {title}

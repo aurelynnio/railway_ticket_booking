@@ -63,6 +63,10 @@ export default function ProfileTicketsPage() {
             <EmptyState
               title="Chưa có vé nào được phát hành"
               description="Khi đơn hàng được phát hành vé, vé sẽ xuất hiện tại đây."
+              href="/search"
+              cta="Tìm chuyến ngay"
+              illustration="train-empty"
+              illustrationTone="muted"
             />
           ) : null}
 

@@ -185,6 +185,8 @@ export default function PaymentsPage() {
             <EmptyState
               title="Không có thanh toán phù hợp"
               description="Thử bỏ transactionId hoặc orderId để xem nhiều bản ghi hơn."
+              illustration="payment-empty"
+              illustrationTone="muted"
             />
           ) : null}
 

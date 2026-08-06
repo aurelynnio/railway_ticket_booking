@@ -292,6 +292,8 @@ export default function SearchPage() {
             description="Thử đổi ga đi, ga đến hoặc bỏ ngày khởi hành để mở rộng tồn vé."
             href="/tickets"
             cta="Mở danh mục vé"
+            illustration="search-empty"
+            illustrationTone="muted"
           />
         ) : null}
 

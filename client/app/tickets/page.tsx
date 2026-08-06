@@ -216,6 +216,8 @@ export default function TicketsPage() {
                 <EmptyState
                   title="Chưa có vé nào khớp bộ lọc"
                   description="Thử đổi mã ga, ngày khởi hành hoặc xóa bộ lọc để xem toàn bộ tồn vé."
+                  illustration="train-empty"
+                  illustrationTone="muted"
                 />
               ) : null}
 
@@ -393,6 +395,8 @@ export default function TicketsPage() {
                 <EmptyState
                   title="Chưa có vé nào khớp bộ lọc"
                   description="Thử đổi mã ga, ngày khởi hành hoặc xóa bộ lọc để xem toàn bộ tồn vé."
+                  illustration="train-empty"
+                  illustrationTone="muted"
                 />
               ) : null}
 

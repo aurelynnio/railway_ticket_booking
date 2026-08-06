@@ -262,6 +262,8 @@ export default function RootPage() {
             description="Thử tìm theo ga đi, ga đến hoặc ngày khởi hành để xem lựa chọn phù hợp."
             href="/search"
             cta="Mở trang search"
+            illustration="train-empty"
+            illustrationTone="muted"
           />
         ) : null}
 
