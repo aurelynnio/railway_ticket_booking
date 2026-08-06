@@ -15,6 +15,7 @@ import {
   StatusBadge,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
@@ -402,9 +403,9 @@ export default function TicketsPage() {
 
               <div className="grid gap-4">
                 {tickets.map((ticket) => (
-                  <article
+                  <Card
                     key={ticket.id}
-                    className="surface-panel grid gap-5 rounded-lg px-5 py-5 xl:grid-cols-[minmax(0,1fr)_240px]"
+                    className="grid gap-5 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_240px]"
                   >
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -487,7 +488,7 @@ export default function TicketsPage() {
                         </Link>
                       </Button>
                     </div>
-                  </article>
+                  </Card>
                 ))}
               </div>
 
@@ -535,7 +536,7 @@ function CatalogStat({
   icon: ReactNode;
 }) {
   return (
-    <section className="surface-panel rounded-lg px-5 py-5">
+    <Card className="px-5 py-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -547,6 +548,6 @@ function CatalogStat({
           {icon}
         </div>
       </div>
-    </section>
+    </Card>
   );
 }

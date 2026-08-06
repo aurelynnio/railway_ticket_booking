@@ -22,6 +22,7 @@ import {
   StatusBadge,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchTrips } from "@/hooks/search.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
@@ -121,9 +122,9 @@ export default function RootPage() {
 
         <AnimatedSection as="section" variant="fadeUp" stagger delay={0.1} aria-label="Hành trình 4 bước" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {journeySteps.map((step, index) => (
-            <article
+            <Card
               key={step.label}
-              className="surface-panel flex flex-col gap-2 px-4 py-4"
+              className="flex flex-col gap-2 px-4 py-4"
             >
               <div className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded-md border border-border bg-brand-soft text-xs font-semibold text-brand">
@@ -134,14 +135,15 @@ export default function RootPage() {
                 </h3>
               </div>
               <p className="text-xs leading-5 text-ink-muted">{step.helper}</p>
-            </article>
+            </Card>
           ))}
         </AnimatedSection>
 
         {featuredTrip ? (
-          <section
+          <Card
+            variant="elevated"
             aria-label="Tuyến nổi bật"
-            className="surface-panel-strong flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+            className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
           >
             <div className="flex items-start gap-4">
               <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-foreground">
@@ -176,7 +178,7 @@ export default function RootPage() {
                 <ArrowRight />
               </Link>
             </Button>
-          </section>
+          </Card>
         ) : null}
 
         {tripsQuery.isLoading ? (

@@ -22,6 +22,7 @@ import {
   StatusBadge,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
@@ -302,9 +303,10 @@ export default function SearchPage() {
           className="grid gap-3"
         >
           {trips.map((trip) => (
-            <article
+            <Card
               key={trip.ticketId}
-              className="surface-panel grid gap-4 px-5 py-5 transition-colors hover:border-ink-muted lg:grid-cols-[minmax(0,1fr)_220px] lg:items-stretch"
+              interactive
+              className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-stretch"
             >
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -395,7 +397,7 @@ export default function SearchPage() {
                   </Button>
                 </div>
               </div>
-            </article>
+            </Card>
           ))}
         </AnimatedSection>
 
@@ -530,20 +532,19 @@ function SupportCard({
   href: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="surface-panel group block rounded-lg px-5 py-5 transition-colors hover:border-ink-muted"
-    >
-      <div className="flex size-11 items-center justify-center rounded-lg bg-brand-soft text-brand">
-        {icon}
-      </div>
-      <h3 className="mt-5 font-heading text-base font-semibold tracking-tight text-ink">
-        {title}
-      </h3>
-      <p className="mt-2 text-sm leading-6 text-ink-muted">{description}</p>
-      <div className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100">
-        Mở <ArrowRight className="size-3" />
-      </div>
+    <Link href={href} className="block">
+      <Card interactive className="px-5 py-5">
+        <div className="flex size-11 items-center justify-center rounded-lg bg-brand-soft text-brand">
+          {icon}
+        </div>
+        <h3 className="mt-5 font-heading text-base font-semibold tracking-tight text-ink">
+          {title}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-ink-muted">{description}</p>
+        <div className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100">
+          Mở <ArrowRight className="size-3" />
+        </div>
+      </Card>
     </Link>
   );
 }

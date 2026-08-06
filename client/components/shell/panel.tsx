@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export function Panel({
@@ -16,7 +17,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("surface-panel px-6 py-5", className)}>
+    <Card className={cn("px-6 py-5", className)}>
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
@@ -33,6 +34,6 @@ export function Panel({
         </div>
         <div>{children}</div>
       </div>
-    </section>
+    </Card>
   );
 }

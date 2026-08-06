@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { startTransition, type ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
 import { adminNavGroups, isActivePath } from "@/components/shell/nav-config";
@@ -29,13 +30,13 @@ export function AdminShell({
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto grid min-h-screen w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 xl:grid-cols-[260px_minmax(0,1fr)] xl:px-8">
-        <aside className="surface-panel flex flex-col gap-6 px-4 py-5 xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
+        <Card className="flex flex-col gap-6 px-4 py-5 xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
           <div className="space-y-4">
             <BrandLogo sublabel="Admin" />
             <div className="flex justify-end">
               <ThemeToggle />
             </div>
-            <div className="quiet-panel px-3 py-3">
+            <Card variant="flat" className="px-3 py-3">
               <p className="text-xs font-medium text-muted-foreground">
                 Tài khoản
               </p>
@@ -61,7 +62,7 @@ export function AdminShell({
                   {logout.isPending ? "Đang đăng xuất..." : "Đăng xuất"}
                 </button>
               ) : null}
-            </div>
+            </Card>
           </div>
 
           <div className="soft-divider" />
@@ -95,7 +96,7 @@ export function AdminShell({
               </div>
             ))}
           </nav>
-        </aside>
+        </Card>
 
         <div className="flex min-w-0 flex-col gap-6">
           <header className="space-y-4">

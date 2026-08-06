@@ -15,6 +15,7 @@ import { AppShell } from "@/components/app-shell";
 import { RouteMap } from "@/components/route-map";
 import { StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Tabs,
   TabsContent,
@@ -147,7 +148,7 @@ export default function TicketDetailPage() {
             <div className="grid gap-5">
               <SeatMapTab seatMap={seatMapQuery.data} />
               {isAdminView && selectedItem ? (
-                <div className="surface-panel flex flex-col gap-3 px-5 py-4">
+                <Card className="flex flex-col gap-3 px-5 py-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
                     Thao tác nhanh (admin)
                   </p>
@@ -204,7 +205,7 @@ export default function TicketDetailPage() {
                       Hoàn chỗ
                     </Button>
                   </div>
-                </div>
+                </Card>
               ) : null}
             </div>
           ) : null}

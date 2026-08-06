@@ -14,6 +14,7 @@ import {
   compactId,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Download } from "lucide-react";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useOrders } from "@/hooks/order.hook";
@@ -99,9 +100,9 @@ export default function ProfileOrdersPage() {
 
           <div className="grid gap-4">
             {orders.map((order) => (
-              <article
+              <Card
                 key={order.id}
-                className="surface-panel grid gap-4 rounded-lg px-5 py-5 lg:grid-cols-[1.15fr_0.85fr]"
+                className="grid gap-4 px-5 py-5 lg:grid-cols-[1.15fr_0.85fr]"
               >
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -139,7 +140,7 @@ export default function ProfileOrdersPage() {
                     </Button>
                   </div>
                 </div>
-              </article>
+              </Card>
             ))}
           </div>
 

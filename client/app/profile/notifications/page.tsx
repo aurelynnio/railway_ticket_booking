@@ -11,6 +11,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/components/railway-ui";
+import { Card } from "@/components/ui/card";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useMyNotifications } from "@/hooks/notification.hook";
 import { formatDateTime } from "@/lib/formatters";
@@ -137,9 +138,9 @@ export default function NotificationsPage() {
 
           <div className="grid gap-3">
             {notifications.map((notification) => (
-              <article
+              <Card
                 key={notification.id}
-                className="surface-panel grid gap-4 px-5 py-4 sm:grid-cols-[auto_1fr_auto]"
+                className="grid gap-4 px-5 py-4 sm:grid-cols-[auto_1fr_auto]"
                 id={`notification-${notification.id}`}
               >
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent">
@@ -169,7 +170,7 @@ export default function NotificationsPage() {
                     tone={getStatusTone(notification.status)}
                   />
                 </div>
-              </article>
+              </Card>
             ))}
           </div>
 

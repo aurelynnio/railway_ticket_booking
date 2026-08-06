@@ -8,6 +8,7 @@ import {
   SeatCloud,
   StatusBadge,
 } from "@/components/railway-ui";
+import { Card } from "@/components/ui/card";
 import { useAuthSession } from "@/hooks/auth.hook";
 import { useOrders } from "@/hooks/order.hook";
 import { OrderStatus } from "@/lib/api-types";
@@ -72,9 +73,9 @@ export default function ProfileTicketsPage() {
 
           <div className="grid gap-4">
             {tickets.map((order) => (
-              <article
+              <Card
                 key={order.id}
-                className="surface-panel grid gap-5 rounded-lg px-5 py-5 lg:grid-cols-[1.05fr_0.95fr]"
+                className="grid gap-5 px-5 py-5 lg:grid-cols-[1.05fr_0.95fr]"
               >
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -109,7 +110,7 @@ export default function ProfileTicketsPage() {
                     value={<span className="break-all">{order.qrPayload ?? "Đang cập nhật"}</span>}
                   />
                 </div>
-              </article>
+              </Card>
             ))}
           </div>
         </div>

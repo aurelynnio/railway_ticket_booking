@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { Card } from "@/components/ui/card";
 
 export interface RouteScaffoldLink {
   href: string;
@@ -45,14 +46,14 @@ export function RouteScaffold({
               Bạn vẫn có thể điều hướng sang các khu vực liên quan bên dưới.
             </p>
             {notes.length > 0 ? (
-              <div className="quiet-panel p-4">
+              <Card variant="flat" className="p-4">
                 <p className="font-medium text-foreground">Ghi chú</p>
                 <ul className="mt-2 grid gap-2">
                   {notes.map((note) => (
                     <li key={note}>- {note}</li>
                   ))}
                 </ul>
-              </div>
+              </Card>
             ) : null}
           </div>
         </Panel>
@@ -70,16 +71,22 @@ export function RouteScaffold({
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="quiet-panel px-4 py-3 transition-colors hover:bg-muted"
+                  className="block"
                 >
-                  <p className="text-sm font-medium text-foreground">
-                    {link.label}
-                  </p>
-                  {link.description ? (
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {link.description}
+                  <Card
+                    variant="flat"
+                    interactive
+                    className="px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-foreground">
+                      {link.label}
                     </p>
-                  ) : null}
+                    {link.description ? (
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {link.description}
+                      </p>
+                    ) : null}
+                  </Card>
                 </Link>
               ))
             )}

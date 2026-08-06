@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Shield } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { Card } from "@/components/ui/card";
 import { useAuthSession } from "@/hooks/auth.hook";
 
 const ADMIN_ROLE = 1;
@@ -57,7 +58,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 function AdminGateMessage({ title }: { title: string }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <section className="surface-panel-strong w-full max-w-md px-6 py-6">
+      <Card variant="elevated" className="w-full max-w-md px-6 py-6">
         <BrandLogo sublabel="Admin" />
         <div className="mt-6 flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
@@ -72,7 +73,7 @@ function AdminGateMessage({ title }: { title: string }) {
             </p>
           </div>
         </div>
-      </section>
+      </Card>
     </main>
   );
 }

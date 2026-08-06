@@ -15,6 +15,7 @@ import {
   SurfaceLink,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   useAuthSession,
@@ -111,7 +112,7 @@ export default function ProfilePage() {
           />
           <button
             type="button"
-            className="surface-panel block rounded-lg px-5 py-5 text-left transition-colors hover:bg-muted/20"
+            className="block w-full text-left disabled:cursor-not-allowed disabled:opacity-60"
             disabled={logout.isPending}
             onClick={() =>
               logout.mutate(undefined, {
@@ -121,15 +122,17 @@ export default function ProfilePage() {
               })
             }
           >
-            <p className="text-xs font-medium text-muted-foreground">
-              Phiên
-            </p>
-            <p className="mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
-              {logout.isPending ? "Đang đăng xuất..." : "Đăng xuất"}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Xoá cookie phiên hiện tại và quay về đăng nhập.
-            </p>
+            <Card interactive className="px-5 py-5 text-left">
+              <p className="text-xs font-medium text-muted-foreground">
+                Phiên
+              </p>
+              <p className="mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
+                {logout.isPending ? "Đang đăng xuất..." : "Đăng xuất"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Xoá cookie phiên hiện tại và quay về đăng nhập.
+              </p>
+            </Card>
           </button>
         </div>
       }

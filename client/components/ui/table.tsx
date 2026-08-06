@@ -2,20 +2,22 @@
 
 import * as React from "react"
 
+import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div
+    <Card
       data-slot="table-container"
-      className="surface-panel relative w-full overflow-x-auto"
+      padding="none"
+      className="relative w-full overflow-x-auto"
     >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}
       />
-    </div>
+    </Card>
   )
 }
 

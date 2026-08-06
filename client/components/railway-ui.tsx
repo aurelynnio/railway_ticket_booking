@@ -11,6 +11,7 @@ import {
 } from "@/components/illustrations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export type Tone = "brand" | "positive" | "warning" | "danger" | "muted";
@@ -81,7 +82,7 @@ export function StatCard({
   helper?: string;
 }) {
   return (
-    <div className="surface-panel px-5 py-4">
+    <Card className="px-5 py-4">
       <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
@@ -91,7 +92,7 @@ export function StatCard({
       {helper ? (
         <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{helper}</p>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -111,7 +112,10 @@ export function EmptyState({
   illustrationTone?: IllustrationTone;
 }) {
   return (
-    <div className="quiet-panel flex flex-col items-start gap-3 border border-border/70 px-5 py-6">
+    <Card
+      variant="flat"
+      className="flex flex-col items-start gap-3 border border-border/70 px-5 py-6"
+    >
       {illustration ? (
         <Illustration
           name={illustration}
@@ -140,7 +144,7 @@ export function EmptyState({
           </Link>
         </Button>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -159,15 +163,16 @@ export function MetaGrid({
       )}
     >
       {items.map((item) => (
-        <div
+        <Card
           key={item.label}
-          className="quiet-panel px-3.5 py-3"
+          variant="flat"
+          className="px-3.5 py-3"
         >
           <p className="text-xs font-medium text-muted-foreground">
             {item.label}
           </p>
           <div className="mt-1.5 text-sm leading-6 text-foreground">{item.value}</div>
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -179,9 +184,9 @@ export function FilterBar({
   children: ReactNode;
 }) {
   return (
-    <div className="surface-panel px-4 py-3">
+    <Card className="px-4 py-3">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{children}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -199,7 +204,10 @@ export function PaginationBar({
   onNext: () => void;
 }) {
   return (
-    <div className="quiet-panel flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <Card
+      variant="flat"
+      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
       <p className="text-sm text-muted-foreground">
         Trang {page}/{Math.max(1, totalPages)}. Tổng {total} bản ghi.
       </p>
@@ -216,7 +224,7 @@ export function PaginationBar({
           Sau
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -240,21 +248,23 @@ export function SurfaceLink({
   return (
     <Link
       href={href}
-      className="surface-panel block px-5 py-4 transition-colors hover:bg-muted/20"
+      className="block"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-heading text-base font-semibold tracking-tight text-foreground">
-            {title}
-          </p>
-          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
+      <Card interactive className="px-5 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="font-heading text-base font-semibold tracking-tight text-foreground">
+              {title}
+            </p>
+            <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+              {description}
+            </p>
+          </div>
+          <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
+            <ArrowRight className="size-3.5" />
+          </div>
         </div>
-        <div className="mt-1 inline-flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
-          <ArrowRight className="size-3.5" />
-        </div>
-      </div>
+      </Card>
     </Link>
   );
 }
