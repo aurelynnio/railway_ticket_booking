@@ -284,6 +284,8 @@ export default function SearchPage() {
           <EmptyState
             title="Không tải được kết quả"
             description="Không thể tải kết quả lúc này. Vui lòng thử lại sau."
+            illustration="error-state"
+            illustrationTone="danger"
           />
         ) : null}
 

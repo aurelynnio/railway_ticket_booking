@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AppShell, Panel } from "@/components/app-shell";
-import { DetailBlock, NoticeBox } from "@/components/railway-ui";
+import { Illustration } from "@/components/illustrations";
+import { DetailBlock } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
 
 function VnpaySuccessContent() {
@@ -21,11 +23,25 @@ function VnpaySuccessContent() {
     >
       <Panel title="Kết quả giao dịch">
         <div className="grid gap-4">
-          <NoticeBox
-            title="Thanh toán thành công"
-            description="Giao dịch VNPay đã hoàn tất và có thể tiếp tục sang trang đơn hàng."
-            tone="positive"
-          />
+          <Card
+            variant="flat"
+            className="flex flex-col items-start gap-3 border border-success/30 bg-success/5 px-5 py-6"
+          >
+            <Illustration
+              name="success-state"
+              size="md"
+              tone="positive"
+              label="Thanh toán thành công"
+            />
+            <div className="space-y-1">
+              <h3 className="font-heading text-base font-semibold tracking-tight text-foreground">
+                Thanh toán thành công
+              </h3>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                Giao dịch VNPay đã hoàn tất và có thể tiếp tục sang trang đơn hàng.
+              </p>
+            </div>
+          </Card>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <DetailBlock label="Mã giao dịch" value={txnRef || "N/A"} />

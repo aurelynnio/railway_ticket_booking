@@ -172,6 +172,8 @@ export default function OrdersPage() {
             <EmptyState
               title="Không tải được đơn hàng"
               description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
+              illustration="error-state"
+              illustrationTone="danger"
             />
           ) : null}
 

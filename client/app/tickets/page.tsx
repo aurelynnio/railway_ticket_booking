@@ -388,7 +388,9 @@ export default function TicketsPage() {
               {query.isError ? (
                 <EmptyState
                   title="Không tải được tồn vé"
-                description="Không thể tải danh sách vé lúc này. Vui lòng thử lại sau."
+                  description="Không thể tải danh sách vé lúc này. Vui lòng thử lại sau."
+                  illustration="error-state"
+                  illustrationTone="danger"
                 />
               ) : null}
 

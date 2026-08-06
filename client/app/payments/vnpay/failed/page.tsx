@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AppShell, Panel } from "@/components/app-shell";
-import { DetailBlock, NoticeBox } from "@/components/railway-ui";
+import { Illustration } from "@/components/illustrations";
+import { DetailBlock } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 function VnpayFailedContent() {
   const searchParams = useSearchParams();
@@ -20,11 +22,26 @@ function VnpayFailedContent() {
     >
       <Panel title="Kết quả giao dịch">
         <div className="grid gap-4">
-          <NoticeBox
-            title="Thanh toán thất bại"
-            description="Giao dịch chưa hoàn tất. Bạn có thể quay lại đơn hàng để thử lại hoặc kiểm tra nguyên nhân."
-            tone="danger"
-          />
+          <Card
+            variant="flat"
+            className="flex flex-col items-start gap-3 border border-destructive/30 bg-destructive/5 px-5 py-6"
+          >
+            <Illustration
+              name="error-state"
+              size="md"
+              tone="danger"
+              label="Thanh toán thất bại"
+            />
+            <div className="space-y-1">
+              <h3 className="font-heading text-base font-semibold tracking-tight text-foreground">
+                Thanh toán thất bại
+              </h3>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                Giao dịch chưa hoàn tất. Bạn có thể quay lại đơn hàng để thử lại
+                hoặc kiểm tra nguyên nhân.
+              </p>
+            </div>
+          </Card>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <DetailBlock label="Mã giao dịch" value={txnRef || "N/A"} />

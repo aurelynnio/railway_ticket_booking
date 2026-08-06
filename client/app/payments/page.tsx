@@ -178,6 +178,8 @@ export default function PaymentsPage() {
             <EmptyState
               title="Không tải được thanh toán"
               description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
+              illustration="error-state"
+              illustrationTone="danger"
             />
           ) : null}
 

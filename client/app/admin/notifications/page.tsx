@@ -149,6 +149,8 @@ export default function AdminNotificationsPage() {
             <EmptyState
               title="Không tải được thông báo"
               description="Không thể kết nối tới dịch vụ thông báo. Vui lòng thử lại sau."
+              illustration="error-state"
+              illustrationTone="danger"
             />
           ) : null}
 
