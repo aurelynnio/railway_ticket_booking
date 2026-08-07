@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, ShieldCheck, Sparkles, Ticket } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { Card } from "@/components/ui/card";
 
 const benefits = [
   {
@@ -55,9 +56,10 @@ export function AuthShell({
           </div>
           <ul className="grid gap-3 border-t border-border pt-6">
             {benefits.map(({ icon: Icon, title: t, description: d }) => (
-              <li
+              <Card
                 key={t}
-                className="flex items-start gap-3 rounded-lg border border-border bg-secondary/40 p-3"
+                variant="flat"
+                className="flex items-start gap-3 bg-secondary/40 p-3"
               >
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand">
                   <Icon className="size-4" />
@@ -68,7 +70,7 @@ export function AuthShell({
                   </p>
                   <p className="text-xs leading-5 text-ink-muted">{d}</p>
                 </div>
-              </li>
+              </Card>
             ))}
           </ul>
         </section>

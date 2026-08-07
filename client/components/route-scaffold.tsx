@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export interface RouteScaffoldLink {
@@ -26,14 +27,9 @@ export function RouteScaffold({
       title={title}
       description={description}
       actions={
-        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-          <Link
-            href="/route-map"
-            className="rounded-md border border-border bg-background px-3 py-1.5 hover:bg-muted"
-          >
-            Sơ đồ trang
-          </Link>
-        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/route-map">Sơ đồ trang</Link>
+        </Button>
       }
     >
       <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">

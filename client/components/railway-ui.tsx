@@ -280,18 +280,50 @@ export function NoticeBox({
 }) {
   const toneClass =
     tone === "positive"
-      ? "border-success/20 bg-success/8"
+      ? "border-success/30 bg-success/5"
       : tone === "warning"
-        ? "border-warning/25 bg-warning/8"
+        ? "border-warning/30 bg-warning/5"
         : tone === "danger"
-          ? "border-destructive/20 bg-destructive/8"
+          ? "border-destructive/30 bg-destructive/5"
           : "border-border/80 bg-secondary/45";
 
+  const illustrationName =
+    tone === "positive"
+      ? "success-state"
+      : tone === "danger"
+        ? "error-state"
+        : null;
+
+  const illustrationTone =
+    tone === "positive"
+      ? "positive"
+      : tone === "danger"
+        ? "danger"
+        : tone === "warning"
+          ? "warning"
+          : "muted";
+
   return (
-    <div className={cn("rounded-lg border px-4 py-4", toneClass)}>
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <div className="mt-1 text-sm leading-6 text-muted-foreground">{description}</div>
-    </div>
+    <Card
+      variant="flat"
+      className={cn(
+        "flex flex-row items-start gap-3 px-4 py-4",
+        toneClass,
+      )}
+    >
+      {illustrationName ? (
+        <Illustration
+          name={illustrationName}
+          size="sm"
+          tone={illustrationTone}
+          label={title}
+        />
+      ) : null}
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <div className="text-sm leading-6 text-muted-foreground">{description}</div>
+      </div>
+    </Card>
   );
 }
 
@@ -305,11 +337,11 @@ export function DetailBlock({
   hint?: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border/80 bg-background px-4 py-4">
+    <Card variant="flat" className="px-4 py-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <div className="mt-2 text-sm font-medium leading-6 text-foreground">{value}</div>
       {hint ? <div className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</div> : null}
-    </div>
+    </Card>
   );
 }
 

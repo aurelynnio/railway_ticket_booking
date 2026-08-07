@@ -269,14 +269,14 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
             <Row label="Giá gốc" value={formatCurrency(selectedItem.priceOriginal)} />
             <Row label="Chỗ còn" value={String(selectedItem.availableSeatLabels.length)} />
           </div>
-          <div className="rounded-md border border-border/70 bg-card p-3">
+          <Card variant="flat" className="p-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               Mã ghế còn trống
             </p>
             <div className="mt-2">
               <SeatCloud labels={selectedItem.availableSeatLabels} />
             </div>
-          </div>
+          </Card>
           <div className="border-t border-border/70 pt-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               Lưu ý

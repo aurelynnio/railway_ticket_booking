@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface CountdownTimerProps {
@@ -52,9 +53,10 @@ export function CountdownTimer({
   const isUrgent = remainingMs < 2 * 60 * 1000; // less than 2 minutes
 
   return (
-    <div
+    <Card
+      variant="flat"
       className={cn(
-        "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium",
+        "flex items-center gap-2 px-4 py-3 text-sm font-medium",
         isExpired
           ? "border-destructive/20 bg-destructive/8 text-destructive"
           : isUrgent
@@ -81,6 +83,6 @@ export function CountdownTimer({
           để hoàn tất thanh toán
         </span>
       )}
-    </div>
+    </Card>
   );
 }

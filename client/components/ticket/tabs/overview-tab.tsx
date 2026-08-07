@@ -94,7 +94,7 @@ export function TicketOverviewTab({ ticket, selectedTicketItemId, onSelectItem }
                     onClick={() => onSelectItem(item.id)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "rounded-lg border px-4 py-4 text-left transition-colors",
+                      "block w-full rounded-lg border px-4 py-4 text-left transition-colors",
                       isSelected
                         ? "border-brand/50 bg-brand-soft"
                         : "border-border bg-background hover:border-ink-muted hover:bg-muted/30",

@@ -15,6 +15,7 @@ import { useGSAP } from "@gsap/react";
 import { Armchair } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { Card } from "@/components/ui/card";
 import { useReducedMotion } from "@/lib/motion/use-reduced-motion";
 import { cn } from "@/lib/utils";
 
@@ -70,9 +71,15 @@ export function SeatMapInteractive({
 
   if (seats.length === 0) {
     return (
-      <div className={cn("rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground", className)}>
+      <Card
+        variant="flat"
+        className={cn(
+          "border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground",
+          className,
+        )}
+      >
         {emptyMessage}
-      </div>
+      </Card>
     );
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { TrainFront } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const STATIONS = [
@@ -27,9 +28,10 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
   const routeEnd = hasRoute ? Math.max(fromIndex, toIndex) : -1;
 
   return (
-    <div
+    <Card
+      variant="flat"
       className={cn(
-        "relative overflow-hidden rounded-lg border border-border/80 bg-secondary/45",
+        "relative overflow-hidden",
         compact ? "px-4 py-4" : "px-5 py-6",
         className,
       )}
@@ -142,6 +144,6 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
           </p>
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }
