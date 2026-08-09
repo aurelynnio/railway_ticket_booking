@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   AuthSessionResponse,
@@ -28,6 +28,23 @@ export const useLogin = () => {
     mutationFn: async (data: LoginRequest) => {
       const res = await instance.post("/auth/login", data);
       return res.data;
+    },
+  });
+};
+
+export const useGoogleCallback = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const res = await instance.get("/auth/google/callback", {
+        params: { code },
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth-session"] });
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
     },
   });
 };
