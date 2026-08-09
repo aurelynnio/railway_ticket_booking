@@ -63,14 +63,3 @@ export function useAllNotifications(
     },
   });
 }
-
-export function useNotificationById(id: string, enabled = true) {
-  return useQuery({
-    queryKey: ["notification", id],
-    enabled,
-    queryFn: async () => {
-      const res = await instance.get(`/notifications/${id}`);
-      return res.data;
-    },
-  });
-}
