@@ -90,6 +90,8 @@ type HealthResult = {
 };
 
 const healthTargets = [
+  { key: "auth", label: "Xác thực", path: "/auth/health" },
+  { key: "users", label: "Người dùng", path: "/users/health" },
   { key: "tickets", label: "Vé", path: "/tickets/health" },
   { key: "orders", label: "Đơn hàng", path: "/orders/health" },
   { key: "payments", label: "Thanh toán", path: "/payments/health" },
