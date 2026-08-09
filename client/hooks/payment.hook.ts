@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   CancelPaymentRequest,
+  CreatePaymentRequest,
   ExpirePaymentRequest,
   ListPaymentsByUserIdRequest,
   ListPaymentsQuery,
@@ -56,6 +57,20 @@ export function usePayments(query: ListPaymentsQuery, enabled = true) {
         params: query,
       });
       return res.data;
+    },
+  });
+}
+
+export function useCreatePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreatePaymentRequest) => {
+      const res = await instance.post<PaymentDto>("/payments", payload);
+      return res.data;
+    },
+    onSuccess: (payment) => {
+      invalidatePaymentQueries(queryClient, payment);
     },
   });
 }

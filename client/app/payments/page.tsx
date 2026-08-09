@@ -16,6 +16,7 @@ import {
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ManualPaymentForm } from "@/components/payment/manual-payment-form";
 import { Select } from "@/components/ui/select";
 import {
   Table,
@@ -145,6 +146,7 @@ export default function PaymentsPage() {
         </FilterBar>
       }
     >
+      {isAdminView ? <ManualPaymentForm /> : null}
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
           label="Thanh toán hiển thị"
