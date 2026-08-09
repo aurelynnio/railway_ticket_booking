@@ -1,14 +1,8 @@
 "use client";
 
-import { Armchair, ArmchairIcon } from "lucide-react";
+import { Armchair } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/railway-ui";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +23,7 @@ export function SeatMapTab({ seatMap }: Props) {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       {seatMap.items.map((item) => {
         const total = item.seatLabels.length;
         const available = item.availableSeatLabels.length;
@@ -37,37 +31,43 @@ export function SeatMapTab({ seatMap }: Props) {
         const ratio = total > 0 ? Math.round((occupied / total) * 100) : 0;
 
         return (
-          <Card key={item.ticketItemId} variant="outlined" padding="md">
-            <CardHeader>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                    Toa {item.coachCode ?? "—"}
+          <Card key={item.ticketItemId} variant="outlined" padding="lg">
+            <CardHeader className="px-0 pt-0">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-primary">
+                    Toa <span className="font-mono tabular-nums">{item.coachCode ?? "—"}</span>
                   </p>
                   <CardTitle>
                     {item.seatClass ?? "Chưa rõ hạng"} · {item.seatType ?? "Chưa rõ loại"}
                   </CardTitle>
-                  <CardDescription>
-                    {available} chỗ trống / {total} chỗ
-                  </CardDescription>
+                  <p className="text-sm text-ink-muted">
+                    <span className="font-mono font-semibold tabular-nums text-success">{available}</span>
+                    <span className="text-ink-muted"> chỗ trống / </span>
+                    <span className="font-mono tabular-nums text-ink">{total}</span>
+                    <span className="text-ink-muted"> tổng số ghế</span>
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-heading text-2xl font-semibold tracking-tight text-ink">
+                  <p className="font-mono text-2xl font-bold tracking-tight text-ink tabular-nums">
                     {ratio}%
                   </p>
-                  <p className="text-xs text-ink-muted">Đã đặt</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                    Đã đặt
+                  </p>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+            <CardContent className="px-0 pb-0 space-y-5">
+              <div className="h-1.5 w-full overflow-hidden bg-secondary">
                 <div
-                  className="h-full bg-brand"
+                  className="h-full bg-primary transition-[width] duration-500"
                   style={{ width: `${Math.min(100, Math.max(0, ratio))}%` }}
                   aria-hidden
                 />
               </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
                 <div className="flex flex-wrap gap-1.5">
                   {item.seatLabels.map((label) => {
                     const isAvailable = item.availableSeatLabels.includes(label);
@@ -76,29 +76,26 @@ export function SeatMapTab({ seatMap }: Props) {
                         key={label}
                         title={isAvailable ? `Ghế ${label} - còn trống` : `Ghế ${label} - đã đặt`}
                         className={cn(
-                          "inline-flex h-8 min-w-10 items-center justify-center rounded-md border px-2 text-[11px] font-medium",
+                          "inline-flex h-8 min-w-10 items-center justify-center gap-1 border px-2 font-mono text-[11px] font-semibold tabular-nums transition-colors",
                           isAvailable
-                            ? "border-border bg-card text-ink"
-                            : "border-brand/30 bg-brand-soft text-brand",
+                            ? "border-border bg-card text-ink hover:border-primary hover:bg-primary-soft"
+                            : "border-primary/30 bg-primary-soft text-primary",
                         )}
                       >
-                        {isAvailable ? (
-                          <Armchair className="size-3" aria-hidden />
-                        ) : (
-                          <ArmchairIcon className="size-3" aria-hidden />
-                        )}
-                        <span className="ml-1">{label}</span>
+                        <Armchair className="size-3" aria-hidden />
+                        {label}
                       </span>
                     );
                   })}
                 </div>
-                <div className="flex flex-col gap-1 text-xs text-ink-muted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2 rounded-sm border border-border bg-card" aria-hidden />
+
+                <div className="flex sm:flex-col gap-3 text-xs text-ink-muted">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-4 w-6 border border-border bg-card" aria-hidden />
                     Còn trống
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2 rounded-sm bg-brand" aria-hidden />
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-4 w-6 border border-primary/30 bg-primary-soft" aria-hidden />
                     Đã đặt
                   </span>
                 </div>

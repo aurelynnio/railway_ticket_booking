@@ -16,6 +16,7 @@ import { RouteMap } from "@/components/route-map";
 import { StatusBadge } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Tabs,
   TabsContent,
@@ -76,7 +77,7 @@ export default function TicketDetailPage() {
       description="Xem hành trình, hạng ghế, tình trạng chỗ và thao tác đặt vé trong cùng một màn hình."
       actions={
         <div className="flex flex-wrap items-center gap-3">
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm">
             <Link href={isAdminView ? "/admin/tickets" : "/tickets"}>
               <ChevronLeft className="size-3.5" aria-hidden />
               Quay lại danh sách
@@ -91,8 +92,8 @@ export default function TicketDetailPage() {
         </div>
       }
     >
-      <Tabs defaultValue="overview" className="gap-5">
-        <TabsList className="w-full overflow-x-auto sm:w-auto">
+      <Tabs defaultValue="overview" className="gap-6">
+        <TabsList>
           <TabsTrigger value="overview">
             <MapPinned className="size-3.5" aria-hidden />
             Hành trình
@@ -148,23 +149,21 @@ export default function TicketDetailPage() {
             <div className="grid gap-5">
               <SeatMapTab seatMap={seatMapQuery.data} />
               {isAdminView && selectedItem ? (
-                <Card className="flex flex-col gap-3 px-5 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                <Card variant="outlined" padding="md">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-primary mb-3">
                     Thao tác nhanh (admin)
                   </p>
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_auto_auto]">
-                    <input
-                      className="h-10 rounded-md border border-border bg-card px-3.5 text-sm text-foreground"
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_92px_auto_auto]">
+                    <Input
                       placeholder="Mã ghế (tùy chọn)"
                       value={reservationSeatLabel}
                       onChange={(event) =>
                         setReservationSeatLabel(event.target.value)
                       }
                     />
-                    <input
+                    <Input
                       type="number"
                       min="1"
-                      className="h-10 rounded-md border border-border bg-card px-3.5 text-sm text-foreground"
                       value={reservationQuantity}
                       onChange={(event) =>
                         setReservationQuantity(event.target.value)
@@ -173,6 +172,7 @@ export default function TicketDetailPage() {
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
                       disabled={reserveTicket.isPending}
                       onClick={() =>
                         reserveTicket.mutate({
@@ -190,6 +190,7 @@ export default function TicketDetailPage() {
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
                       disabled={releaseTicket.isPending}
                       onClick={() =>
                         releaseTicket.mutate({
@@ -231,7 +232,7 @@ export default function TicketDetailPage() {
       </Tabs>
 
       {availabilityQuery.data ? (
-        <p className="mt-2 text-xs text-ink-muted">
+        <p className="mt-3 text-xs text-ink-muted">
           Tình trạng bán:{" "}
           <span className="font-semibold text-ink">
             {availabilityQuery.data.saleOpen ? "Đang mở bán" : "Tạm đóng bán"}

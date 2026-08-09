@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { RouteLine } from "@/components/route-line";
 import { DetailBlock, SectionHeading, SurfaceLink } from "@/components/railway-ui";
 
 const routeGroups = [
@@ -38,6 +39,7 @@ export default function RouteMapPage() {
       title="Bản đồ màn hình"
       description="Tổng hợp các khu vực chính của hệ thống để chuyển nhanh giữa đặt vé, tài khoản và điều phối."
     >
+      <RouteLine compact className="-my-1" aria-hidden />
       <section className="grid gap-4 md:grid-cols-3">
         {routeGroups.map((group) => (
           <DetailBlock

@@ -1,6 +1,7 @@
 "use client";
 
 import { TrainFront } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -31,31 +32,27 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
     <Card
       variant="flat"
       className={cn(
-        "relative overflow-hidden",
+        "relative overflow-hidden border border-border/70 bg-secondary/40",
         compact ? "px-4 py-4" : "px-5 py-6",
         className,
       )}
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
         Bản đồ tuyến đường
       </p>
 
       <div className="mt-4 flex items-stretch gap-4">
-        {/* The line */}
         <div className="relative flex flex-col items-center" style={{ minHeight: compact ? 180 : 260 }}>
-          {/* Full track */}
-          <div className="absolute inset-x-[50%] top-3 bottom-3 w-0.5 -translate-x-1/2 rounded-full bg-border/60" />
-          {/* Active route highlight */}
+          <div className="absolute inset-x-[50%] top-3 bottom-3 w-0.5 -translate-x-1/2 bg-border" />
           {hasRoute ? (
             <div
-              className="absolute inset-x-[50%] w-0.5 -translate-x-1/2 rounded-full bg-primary transition-all duration-500"
+              className="absolute inset-x-[50%] w-0.5 -translate-x-1/2 bg-primary transition-[height] duration-500"
               style={{
                 top: `calc(${STATIONS[routeStart]?.y ?? 0}% + 0.25rem)`,
                 height: `calc(${(STATIONS[routeEnd]?.y ?? 0) - (STATIONS[routeStart]?.y ?? 0)}% - 0.25rem)`,
               }}
             />
           ) : null}
-          {/* Stations */}
           {STATIONS.map((station, index) => {
             const isFrom = station.code === from;
             const isTo = station.code === to;
@@ -71,7 +68,7 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
               >
                 <div
                   className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300",
+                    "flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-[background-color,border-color,box-shadow,transform] duration-300",
                     isEndpoint
                       ? "border-primary bg-primary"
                       : isActive
@@ -88,7 +85,6 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
           })}
         </div>
 
-        {/* Station labels */}
         <div className="relative flex-1" style={{ minHeight: compact ? 180 : 260 }}>
           {STATIONS.map((station) => {
             const isFrom = station.code === from;
@@ -104,8 +100,8 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
                 <div>
                   <span
                     className={cn(
-                      "text-xs font-medium font-mono",
-                      isEndpoint ? "text-primary" : "text-muted-foreground",
+                      "text-xs font-semibold font-mono tabular-nums",
+                      isEndpoint ? "text-primary" : "text-ink-muted",
                     )}
                   >
                     {station.code}
@@ -114,7 +110,7 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
                     <p
                       className={cn(
                         "text-xs",
-                        isEndpoint ? "font-medium text-foreground" : "text-muted-foreground",
+                        isEndpoint ? "font-medium text-ink" : "text-ink-muted",
                       )}
                     >
                       {station.name}
@@ -122,13 +118,9 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
                   ) : null}
                 </div>
                 {isFrom ? (
-                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
-                    Khởi hành
-                  </span>
+                  <Badge variant="default" className="text-[10px]">Khởi hành</Badge>
                 ) : isTo ? (
-                  <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-xs text-success">
-                    Đến nơi
-                  </span>
+                  <Badge variant="success" className="text-[10px]">Đến nơi</Badge>
                 ) : null}
               </div>
             );
@@ -137,9 +129,9 @@ export function RouteMap({ from, to, className, compact = false }: RouteMapProps
       </div>
 
       {hasRoute ? (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent/50 px-3 py-2">
+        <div className="mt-4 flex items-center gap-2 border border-primary/20 bg-primary-soft px-3 py-2">
           <TrainFront className="size-3.5 text-primary" />
-          <p className="text-xs font-medium text-foreground">
+          <p className="text-xs font-medium text-ink">
             {STATIONS[fromIndex]?.name} → {STATIONS[toIndex]?.name}
           </p>
         </div>

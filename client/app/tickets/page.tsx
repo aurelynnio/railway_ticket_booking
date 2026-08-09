@@ -3,19 +3,30 @@
 import Link from "next/link";
 import { type ReactNode, useDeferredValue, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowRight, Layers3, Sparkles, TrainFront } from "lucide-react";
+import { ArrowRight, Layers3, MoreHorizontal, Sparkles, TrainFront, MapPin, Calendar } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { TicketNotch } from "@/components/ticket-notch";
 import {
   EmptyState,
   FilterBar,
   PaginationBar,
   SectionHeading,
-  StatCard,
   StatusBadge,
 } from "@/components/railway-ui";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
@@ -90,80 +101,76 @@ export default function TicketsPage() {
 
   return (
     <AppShell
-      title={
-        isAdminView
-          ? "Điều phối vé"
-          : "Duyệt vé tàu đang mở bán theo dạng danh mục"
-      }
+      title={isAdminView ? "Quản lý vé tàu" : "Danh mục vé tàu"}
       description={
         isAdminView
-          ? "Kho tồn vé chính cho bộ phận điều hành theo dõi hành trình, toa, hạng ghế và khả năng mở bán."
-          : "Duyệt vé đang mở bán theo tuyến, lịch chạy và hạng ghế trước khi mở chi tiết để giữ chỗ."
-      }
-      actions={
-        <FilterBar>
-          <Select
-            value={departureStationCode}
-            onChange={(event) => {
-              setPage(1);
-              setDepartureStationCode(event.target.value);
-            }}
-          >
-            <option value="">Tất cả ga đi</option>
-            {STATIONS.map((station) => (
-              <option key={station.code} value={station.code}>
-                {station.name} ({station.code})
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={arrivalStationCode}
-            onChange={(event) => {
-              setPage(1);
-              setArrivalStationCode(event.target.value);
-            }}
-          >
-            <option value="">Tất cả ga đến</option>
-            {STATIONS.map((station) => (
-              <option key={station.code} value={station.code}>
-                {station.name} ({station.code})
-              </option>
-            ))}
-          </Select>
-          <Input
-            type="date"
-            value={dateStart}
-            onChange={(event) => {
-              setPage(1);
-              setDateStart(event.target.value);
-            }}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant={isAdminView ? "outline" : "default"}
-              onClick={() => {
-                setPage(1);
-              }}
-            >
-              {isAdminView ? "Làm mới" : "Làm mới bộ lọc"}
-            </Button>
-            {isAdminView ? (
-              <Button asChild>
-                <Link href="/admin/tickets/new">Tạo vé</Link>
-              </Button>
-            ) : (
-              <Button asChild variant="outline">
-                <Link href="/search">
-                  Tìm chuyến
-                  <ArrowRight />
-                </Link>
-              </Button>
-            )}
-          </div>
-        </FilterBar>
+          ? "Theo dõi tồn vé, trạng thái công bố và lịch mở bán của từng hành trình."
+          : "Khám phá các tuyến đang mở bán, so sánh lịch trình và chọn hạng ghế phù hợp."
       }
     >
+      <div className="space-y-6">
+      <FilterBar>
+        <Select
+          value={departureStationCode}
+          onChange={(event) => {
+            setPage(1);
+            setDepartureStationCode(event.target.value);
+          }}
+        >
+          <option value="">Tất cả ga đi</option>
+          {STATIONS.map((station) => (
+            <option key={station.code} value={station.code}>
+              {station.name} ({station.code})
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={arrivalStationCode}
+          onChange={(event) => {
+            setPage(1);
+            setArrivalStationCode(event.target.value);
+          }}
+        >
+          <option value="">Tất cả ga đến</option>
+          {STATIONS.map((station) => (
+            <option key={station.code} value={station.code}>
+              {station.name} ({station.code})
+            </option>
+          ))}
+        </Select>
+        <Input
+          type="date"
+          value={dateStart}
+          onChange={(event) => {
+            setPage(1);
+            setDateStart(event.target.value);
+          }}
+        />
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={isAdminView ? "outline" : "default"}
+            onClick={() => {
+              setPage(1);
+            }}
+          >
+            {isAdminView ? "Làm mới" : "Làm mới bộ lọc"}
+          </Button>
+          {isAdminView ? (
+            <Button asChild>
+              <Link href="/admin/tickets/new">Tạo vé</Link>
+            </Button>
+          ) : (
+            <Button asChild variant="outline">
+              <Link href="/search">
+                Tìm chuyến
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          )}
+        </div>
+      </FilterBar>
+
       {isAdminView ? (
         <>
           <div className="grid gap-4 lg:grid-cols-3">
@@ -176,6 +183,7 @@ export default function TicketsPage() {
               label="Đang mở bán"
               value={String(published)}
               helper="Hành trình có thể bán ngay."
+              tone="success"
             />
             <StatCard
               label="Hạng vé"
@@ -185,22 +193,17 @@ export default function TicketsPage() {
           </div>
 
           <Panel
+            eyebrow="Điều phối"
             title="Bảng tồn vé"
             description="Theo dõi nhanh trạng thái mở bán, thời gian chạy và số hạng ghế trên từng hành trình."
           >
             <div className="space-y-5">
-              <SectionHeading
-                eyebrow="Điều phối"
-                title="Theo dõi tồn vé đang bán"
-                description="Ưu tiên mở chi tiết khi cần xử lý tồn chỗ, trạng thái bán hoặc hạng ghế."
-              />
-
               {query.isLoading ? (
                 <div className="grid gap-3">
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div
                       key={index}
-                      className="h-44 animate-pulse rounded-lg bg-background"
+                      className="h-44 animate-pulse rounded-sm border border-border bg-muted/40"
                     />
                   ))}
                 </div>
@@ -217,8 +220,6 @@ export default function TicketsPage() {
                 <EmptyState
                   title="Chưa có vé nào khớp bộ lọc"
                   description="Thử đổi mã ga, ngày khởi hành hoặc xóa bộ lọc để xem toàn bộ tồn vé."
-                  illustration="train-empty"
-                  illustrationTone="muted"
                 />
               ) : null}
 
@@ -237,36 +238,39 @@ export default function TicketsPage() {
                     <TableRow key={ticket.id}>
                       <TableCell>
                         <div className="space-y-1">
-                          <p className="font-medium text-foreground">
+                          <p className="font-medium text-ink">
                             {ticket.title ?? "Vé chưa đặt tên"}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {ticket.trainNumber ?? "Chưa có mã tàu"} •{" "}
-                            {ticket.departureStationName ?? ticket.departureStationCode ?? "?"} đến{" "}
+                          <p className="text-xs text-ink-muted">
+                            <span className="mono font-medium text-ink">{ticket.trainNumber ?? "Chưa có mã tàu"}</span>
+                            {" • "}
+                            {ticket.departureStationName ?? ticket.departureStationCode ?? "?"}
+                            {" → "}
                             {ticket.arrivalStationName ?? ticket.arrivalStationCode ?? "?"}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <div className="space-y-1 text-sm text-muted-foreground">
-                          <p>{formatDateTime(ticket.dateStart)}</p>
-                          <p className="text-xs">{formatDateTime(ticket.dateEnd)}</p>
+                        <div className="space-y-1 text-sm text-ink-muted">
+                          <p className="mono tabular-nums">{formatDateTime(ticket.dateStart)}</p>
+                          <p className="mono tabular-nums text-xs">{formatDateTime(ticket.dateEnd)}</p>
                         </div>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1.5">
                           {ticket.ticketItems.slice(0, 3).map((item) => (
-                            <span
+                            <Badge
                               key={item.id}
-                              className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground"
+                              variant="secondary"
+                              className="mono text-[10px]"
                             >
                               {item.coachCode ?? item.name ?? "Toa"} • {item.seatClass ?? "N/A"}
-                            </span>
+                            </Badge>
                           ))}
                           {ticket.ticketItems.length > 3 ? (
-                            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="text-[10px]">
                               +{ticket.ticketItems.length - 3}
-                            </span>
+                            </Badge>
                           ) : null}
                         </div>
                       </TableCell>
@@ -278,50 +282,49 @@ export default function TicketsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-wrap justify-end gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => publishTicket.mutate({ ticketId: ticket.id })}
-                          >
-                            Công bố
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() =>
-                              openSale.mutate({
-                                ticketId: ticket.id,
-                                payload: { ticketItemId: ticket.ticketItems[0]?.id },
-                              })
-                            }
-                          >
-                            Mở bán
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => unpublishTicket.mutate({ ticketId: ticket.id })}
-                          >
-                            Gỡ
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={isAdminActionPending}
-                            onClick={() => closeSale.mutate({ ticketId: ticket.id })}
-                          >
-                            Đóng
-                          </Button>
                           <Button asChild size="sm" variant="outline">
                             <Link href={`/admin/tickets/${ticket.id}`}>Chi tiết</Link>
                           </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" size="sm" variant="outline">
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => publishTicket.mutate({ ticketId: ticket.id })}
+                              >
+                                Công bố
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() =>
+                                  openSale.mutate({
+                                    ticketId: ticket.id,
+                                    payload: { ticketItemId: ticket.ticketItems[0]?.id },
+                                  })
+                                }
+                              >
+                                Mở bán
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => unpublishTicket.mutate({ ticketId: ticket.id })}
+                              >
+                                Gỡ công bố
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isAdminActionPending}
+                                onSelect={() => closeSale.mutate({ ticketId: ticket.id })}
+                              >
+                                Đóng bán
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -350,25 +353,26 @@ export default function TicketsPage() {
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-3">
-            <CatalogStat label="Tuyến hiển thị" value={String(tickets.length)} icon={<TrainFront className="size-5" />} />
-            <CatalogStat label="Khoang ghế" value={String(ticketItems)} icon={<Layers3 className="size-5" />} />
-            <CatalogStat label="Ga xuất hiện" value={String(stations)} icon={<Sparkles className="size-5" />} />
+            <CatalogStat label="Tuyến hiển thị" value={String(tickets.length)} icon={<TrainFront className="size-5" strokeWidth={1.75} />} />
+            <CatalogStat label="Khoang ghế" value={String(ticketItems)} icon={<Layers3 className="size-5" strokeWidth={1.75} />} />
+            <CatalogStat label="Ga xuất hiện" value={String(stations)} icon={<Sparkles className="size-5" strokeWidth={1.75} />} />
           </div>
 
           <Panel
-            title="Vé tàu nổi bật"
+            eyebrow="Danh mục"
+            title="Vé tàu đang mở bán"
             description="Chọn tuyến, xem thời gian chạy và mở chi tiết để kiểm tra từng lựa chọn ghế."
           >
             <div className="space-y-5">
               <SectionHeading
-                eyebrow="Danh mục hành khách"
+                eyebrow="Hành khách"
                 title="Chọn tuyến trước, rồi đi sâu vào từng lựa chọn ghế"
                 description="Danh sách này giúp bạn quét nhanh tuyến đang bán trước khi vào màn chọn ghế."
                 action={
                   <Button asChild variant="outline">
                     <Link href="/search">
                       Tìm theo chuyến
-                      <ArrowRight />
+                      <ArrowRight className="size-3.5" />
                     </Link>
                   </Button>
                 }
@@ -379,7 +383,7 @@ export default function TicketsPage() {
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div
                       key={index}
-                      className="h-44 animate-pulse rounded-lg bg-background"
+                      className="h-44 animate-pulse rounded-sm border border-border bg-muted/40"
                     />
                   ))}
                 </div>
@@ -389,8 +393,6 @@ export default function TicketsPage() {
                 <EmptyState
                   title="Không tải được tồn vé"
                   description="Không thể tải danh sách vé lúc này. Vui lòng thử lại sau."
-                  illustration="error-state"
-                  illustrationTone="danger"
                 />
               ) : null}
 
@@ -398,99 +400,119 @@ export default function TicketsPage() {
                 <EmptyState
                   title="Chưa có vé nào khớp bộ lọc"
                   description="Thử đổi mã ga, ngày khởi hành hoặc xóa bộ lọc để xem toàn bộ tồn vé."
-                  illustration="train-empty"
-                  illustrationTone="muted"
                 />
               ) : null}
 
               <div className="grid gap-4">
                 {tickets.map((ticket) => (
-                  <Card
-                    key={ticket.id}
-                    className="grid gap-5 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_240px]"
-                  >
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-heading text-2xl font-semibold tracking-tight text-foreground">
-                            {ticket.title ?? "Vé chưa đặt tên"}
-                          </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {ticket.trainNumber ?? "Chưa có mã tàu"} •{" "}
-                            {ticket.departureStationName ?? ticket.departureStationCode ?? "?"} đến{" "}
-                            {ticket.arrivalStationName ?? ticket.arrivalStationCode ?? "?"}
-                          </p>
-                        </div>
-                        <StatusBadge
-                          label={
-                            ticket.status === 1
-                              ? "Đang mở bán"
-                              : formatTicketStatus(ticket.status)
-                          }
-                          tone={
-                            ticket.status === 1
-                              ? "positive"
-                              : getTicketStatusTone(ticket.status)
-                          }
-                        />
-                      </div>
+                  <TicketNotch key={ticket.id} dashed>
+                    <Card variant="outlined" padding="none" className="overflow-hidden">
+                      <CardContent className="p-0">
+                        <div className="grid xl:grid-cols-[minmax(0,1fr)_240px]">
+                          <div className="p-5 md:p-6 space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <TrainFront className="size-3.5 text-primary" strokeWidth={2} />
+                                  <span className="mono text-xs font-medium text-ink-muted">
+                                    {ticket.trainNumber ?? "Chưa có mã tàu"}
+                                  </span>
+                                </div>
+                                <h3 className="font-display text-xl font-semibold tracking-tight text-ink">
+                                  {ticket.title ?? "Vé chưa đặt tên"}
+                                </h3>
+                                <p className="text-sm text-ink-muted flex items-center gap-1.5">
+                                  <MapPin className="size-3 text-primary" />
+                                  {ticket.departureStationName ?? ticket.departureStationCode ?? "?"}
+                                  <span className="text-ink-subtle">→</span>
+                                  {ticket.arrivalStationName ?? ticket.arrivalStationCode ?? "?"}
+                                </p>
+                              </div>
+                              <StatusBadge
+                                label={
+                                  ticket.status === 1
+                                    ? "Đang mở bán"
+                                    : formatTicketStatus(ticket.status)
+                                }
+                                tone={
+                                  ticket.status === 1
+                                    ? "success"
+                                    : getTicketStatusTone(ticket.status)
+                                }
+                              />
+                            </div>
 
-                      <div className="grid gap-3 md:grid-cols-[0.95fr_0.1fr_0.95fr]">
-                        <TicketFact label="Khởi hành" value={formatDateTime(ticket.dateStart)} />
-                        <div className="hidden items-center justify-center md:flex">
-                          <div className="flex size-11 items-center justify-center rounded-full border border-border/80 bg-background">
-                            <ArrowRight className="size-4 text-primary" />
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="border border-border bg-muted/20 p-4 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                                  <Calendar className="size-3" />
+                                  Khởi hành
+                                </div>
+                                <p className="mono text-sm font-medium tabular-nums text-ink">
+                                  {formatDateTime(ticket.dateStart)}
+                                </p>
+                              </div>
+                              <div className="border border-border bg-muted/20 p-4 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                                  <MapPin className="size-3" />
+                                  Đến nơi
+                                </div>
+                                <p className="mono text-sm font-medium tabular-nums text-ink">
+                                  {formatDateTime(ticket.dateEnd)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {ticket.ticketItems.slice(0, 4).map((item) => (
+                                <Badge
+                                  key={item.id}
+                                  variant="secondary"
+                                  className="mono text-[10px]"
+                                >
+                                  {item.coachCode ?? item.name ?? "Toa"} • {item.seatClass ?? "N/A"}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="border-t border-border xl:border-t-0 xl:border-l bg-muted/30 p-5 md:p-6 flex flex-col justify-between gap-4">
+                            <div className="space-y-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                                Tóm tắt
+                              </p>
+                              <p className="text-sm leading-relaxed text-ink-muted">
+                                {ticket.journeyNote ??
+                                  "Tuyến, thời gian và các hạng ghế được gom lại để bạn chọn hành trình phù hợp nhanh hơn."}
+                              </p>
+                              <div className="space-y-2 text-sm text-ink-muted pt-1">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span>Trạng thái</span>
+                                  <span className="font-medium text-ink">
+                                    {ticket.status === 1
+                                      ? "Đang mở bán"
+                                      : formatTicketStatus(ticket.status)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span>Lựa chọn ghế</span>
+                                  <span className="font-medium text-ink tabular-nums">
+                                    {ticket.ticketItems.length}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button asChild className="w-full gap-1.5">
+                              <Link href={`/tickets/${ticket.id}`}>
+                                Xem chi tiết
+                                <ArrowRight className="size-3.5" />
+                              </Link>
+                            </Button>
                           </div>
                         </div>
-                        <TicketFact label="Đến nơi" value={formatDateTime(ticket.dateEnd)} />
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {ticket.ticketItems.slice(0, 4).map((item) => (
-                          <span
-                            key={item.id}
-                            className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground"
-                          >
-                            {item.coachCode ?? item.name ?? "Toa"} • {item.seatClass ?? "N/A"}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col justify-between gap-4 rounded-lg border border-border/80 bg-secondary/45 px-5 py-5">
-                      <div className="space-y-3">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Tóm tắt
-                        </p>
-                        <p className="text-sm leading-6 text-muted-foreground">
-                          {ticket.journeyNote ??
-                            "Tuyến, thời gian và các hạng ghế được gom lại để bạn chọn hành trình phù hợp nhanh hơn."}
-                        </p>
-                        <div className="space-y-2 text-sm text-muted-foreground">
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Trạng thái</span>
-                            <span className="font-medium text-foreground">
-                              {ticket.status === 1
-                                ? "Đang mở bán"
-                                : formatTicketStatus(ticket.status)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Lựa chọn ghế</span>
-                            <span className="font-medium text-foreground">
-                              {ticket.ticketItems.length}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <Button asChild>
-                        <Link href={`/tickets/${ticket.id}`}>
-                          Xem chi tiết
-                          <ArrowRight />
-                        </Link>
-                      </Button>
-                    </div>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  </TicketNotch>
                 ))}
               </div>
 
@@ -513,18 +535,8 @@ export default function TicketsPage() {
           </Panel>
         </>
       )}
+      </div>
     </AppShell>
-  );
-}
-
-function TicketFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border/80 bg-background px-4 py-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-2 text-sm leading-6 text-foreground">{value}</p>
-    </div>
   );
 }
 
@@ -538,18 +550,52 @@ function CatalogStat({
   icon: ReactNode;
 }) {
   return (
-    <Card className="px-5 py-5">
+    <Card variant="outlined" padding="lg" className="gap-2">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</p>
+          <p className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink tabular-nums">
             {value}
           </p>
         </div>
-        <div className="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground">
+        <div className="flex size-10 items-center justify-center rounded-sm border border-border bg-primary-soft/50 text-primary">
           {icon}
         </div>
       </div>
+    </Card>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  tone?: "success" | "warning" | "destructive";
+}) {
+  const valueColor =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "destructive"
+          ? "text-destructive"
+          : "text-ink";
+  return (
+    <Card variant="outlined" padding="lg" className="gap-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+        {label}
+      </p>
+      <p className={`font-display text-3xl font-semibold tracking-tight tabular-nums ${valueColor}`}>
+        {value}
+      </p>
+      {helper ? (
+        <p className="text-sm leading-relaxed text-ink-muted">{helper}</p>
+      ) : null}
     </Card>
   );
 }
