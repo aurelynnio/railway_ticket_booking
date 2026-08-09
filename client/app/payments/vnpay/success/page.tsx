@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { AppShell, Panel } from "@/components/app-shell";
-import { Illustration } from "@/components/illustrations";
-import { DetailBlock } from "@/components/railway-ui";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, CheckCircle2, Ticket } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 
 function VnpaySuccessContent() {
@@ -21,43 +20,63 @@ function VnpaySuccessContent() {
       title="Thanh toán thành công"
       description="Giao dịch thanh toán VNPay đã hoàn tất."
     >
-      <Panel title="Kết quả giao dịch">
-        <div className="grid gap-4">
-          <Card
-            variant="flat"
-            className="flex flex-col items-start gap-3 border border-success/30 bg-success/5 px-5 py-6"
-          >
-            <Illustration
-              name="success-state"
-              size="md"
-              tone="positive"
-              label="Thanh toán thành công"
-            />
-            <div className="space-y-1">
-              <h3 className="font-heading text-base font-semibold tracking-tight text-foreground">
+      <div className="mx-auto max-w-xl">
+        <Card padding="none" className="overflow-hidden">
+          <div className="flex flex-col items-center px-6 py-10 text-center sm:px-10">
+            <div className="flex size-16 items-center justify-center border-2 border-success/30 bg-success/10 text-success">
+              <CheckCircle2 className="size-8" strokeWidth={1.5} />
+            </div>
+
+            <div className="mt-6 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-primary">
+                Xác nhận thanh toán
+              </p>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
                 Thanh toán thành công
-              </h3>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                Giao dịch VNPay đã hoàn tất và có thể tiếp tục sang trang đơn hàng.
+              </h1>
+              <p className="max-w-sm text-sm leading-relaxed text-ink-muted">
+                Giao dịch của bạn đã hoàn tất. Vé điện tử sẽ được phát hành và có thể xem trong chi tiết đơn hàng.
               </p>
             </div>
-          </Card>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <DetailBlock label="Mã giao dịch" value={txnRef || "N/A"} />
-            <DetailBlock label="Số tiền" value={formatCurrency(Number(amount))} />
           </div>
 
-          <div className="flex gap-2">
-            <Link href={orderId ? `/orders/${orderId}` : "/profile/orders"}>
-              <Button variant="outline">Xem đơn hàng</Button>
-            </Link>
-            <Link href="/">
-              <Button>Về trang chủ</Button>
-            </Link>
+          <div className="border-t border-border bg-muted/30 px-6 py-6 sm:px-10">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                  Mã giao dịch
+                </p>
+                <p className="font-mono text-sm font-medium text-ink tabular-nums">
+                  {txnRef || "N/A"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                  Số tiền
+                </p>
+                <p className="font-mono text-base font-semibold text-ink tabular-nums">
+                  {formatCurrency(Number(amount))}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </Panel>
+
+          <div className="flex flex-col gap-3 border-t border-border px-6 py-6 sm:flex-row sm:px-10">
+            <Button asChild size="lg" className="flex-1">
+              <Link href={orderId ? `/orders/${orderId}` : "/profile/orders"}>
+                <Ticket className="size-4" />
+                Xem vé điện tử
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button asChild type="button" variant="outline" size="lg" className="flex-1">
+              <Link href="/">
+                Về trang chủ
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
     </AppShell>
   );
 }

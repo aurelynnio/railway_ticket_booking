@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { MoreHorizontal } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -10,13 +11,21 @@ import { z } from "zod";
 import { AppShell, Panel } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
 import {
+  EmptyState,
   NoticeBox,
   PaginationBar,
   SectionHeading,
-  StatCard,
   compactId,
 } from "@/components/railway-ui";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   useCreateUser,
@@ -65,9 +74,14 @@ export default function UsersPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "Quản lý người dùng" : "Danh bạ người dùng"}
-      description="Theo dõi tài khoản, thông tin liên hệ và các hoạt động liên quan."
+      title={isAdminView ? "Quản lý người dùng" : "Danh sách người dùng"}
+      description={
+        isAdminView
+          ? "Tra cứu, tạo và quản lý tài khoản trong hệ thống."
+          : "Tra cứu thông tin người dùng đang có trong hệ thống."
+      }
     >
+      <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
           label="Người dùng"
@@ -87,6 +101,7 @@ export default function UsersPage() {
       </div>
 
       <Panel
+        eyebrow={isAdminView ? "Tài khoản" : "Danh bạ"}
         title="Danh sách người dùng"
         description="Mở từng tài khoản để xem chi tiết và dữ liệu liên quan."
       >
@@ -98,9 +113,14 @@ export default function UsersPage() {
           />
 
           {isAdminView ? (
-            <div className="grid gap-3 rounded-lg border border-border/80 bg-secondary/45 p-4">
+            <div className="space-y-4 border border-border bg-secondary/50 p-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-primary">
+                  Tạo người dùng
+                </p>
+              </div>
               <form
-                className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]"
+                className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
                 onSubmit={createUserForm.handleSubmit((values) =>
                   createUser.mutate(values, {
                     onSuccess: () => {
@@ -143,29 +163,36 @@ export default function UsersPage() {
                 <div className="flex items-end">
                   <Button
                     type="submit"
+                    size="sm"
                     disabled={createUser.isPending}
                   >
                     {createUser.isPending ? "Đang tạo..." : "Tạo người dùng"}
                   </Button>
                 </div>
               </form>
-              <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-                <Input
-                  placeholder="Tìm theo email"
-                  value={lookupEmail}
-                  onChange={(event) => setLookupEmail(event.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!lookupEmail}
-                  onClick={() => setSubmittedLookupEmail(lookupEmail)}
-                >
-                  Tìm email
-                </Button>
+              <div className="border-t border-border pt-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted mb-3">
+                  Tìm kiếm nhanh
+                </p>
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <Input
+                    placeholder="Tìm theo email"
+                    value={lookupEmail}
+                    onChange={(event) => setLookupEmail(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!lookupEmail}
+                    onClick={() => setSubmittedLookupEmail(lookupEmail)}
+                  >
+                    Tìm email
+                  </Button>
+                </div>
               </div>
               {lookupQuery.data ? (
-                <Button asChild variant="ghost" className="justify-self-start">
+                <Button asChild variant="ghost" size="sm" className="justify-self-start">
                   <Link href={`/admin/users/${lookupQuery.data.id}`}>
                     Mở {lookupQuery.data.email ?? compactId(lookupQuery.data.id)}
                   </Link>
@@ -181,62 +208,121 @@ export default function UsersPage() {
             </div>
           ) : null}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mã người dùng</TableHead>
-                <TableHead>Tên</TableHead>
-                <TableHead className="hidden md:table-cell">Email</TableHead>
-                <TableHead className="hidden lg:table-cell">Cập nhật</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{compactId(user.id)}</TableCell>
-                  <TableCell>{user.name ?? user.username ?? "N/A"}</TableCell>
-                  <TableCell className="hidden md:table-cell">{user.email ?? "N/A"}</TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {formatDateTime(
-                      typeof user.updatedAt === "string" ? user.updatedAt : null,
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`${isAdminView ? "/admin/users" : "/users"}/${user.id}`}>
-                          Chi tiết
-                        </Link>
-                      </Button>
-                      {isAdminView ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={deleteUser.isPending}
-                          onClick={() => {
-                            if (
-                              typeof window !== "undefined" &&
-                              !window.confirm(
-                                `Xóa người dùng ${user.email ?? compactId(user.id)}?`,
-                              )
-                            ) {
-                              return;
-                            }
+          {query.isError ? (
+            <EmptyState
+              title="Không tải được người dùng"
+              description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
+            />
+          ) : null}
 
-                            deleteUser.mutate({ userId: user.id });
-                          }}
-                        >
-                          Xóa
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
+          {!query.isLoading && !query.isError && users.length === 0 ? (
+            <EmptyState
+              title="Chưa có người dùng nào"
+              description="Tạo người dùng mới hoặc kiểm tra bộ lọc."
+            />
+          ) : null}
+
+          {query.isLoading ? (
+            <div className="grid gap-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-12 animate-pulse rounded-sm border border-border bg-muted/40"
+                />
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ) : null}
+
+          {!query.isLoading && users.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã người dùng</TableHead>
+                  <TableHead>Tên</TableHead>
+                  <TableHead className="hidden md:table-cell">Email</TableHead>
+                  <TableHead className="hidden lg:table-cell">Vai trò</TableHead>
+                  <TableHead className="hidden lg:table-cell">Cập nhật</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <span className="mono text-xs font-medium text-ink">
+                        {compactId(user.id)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        <p className="font-medium text-ink">{user.name ?? user.username ?? "N/A"}</p>
+                        <p className="text-xs text-ink-muted mono">{user.username ?? ""}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="mono text-xs text-ink-muted">
+                        {user.email ?? "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <Badge
+                        variant={user.role === 1 ? "default" : "secondary"}
+                        className="text-[10px]"
+                      >
+                        {user.role === 1 ? "Admin" : "User"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <span className="mono text-xs tabular-nums text-ink-muted">
+                        {formatDateTime(
+                          typeof user.updatedAt === "string" ? user.updatedAt : null,
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`${isAdminView ? "/admin/users" : "/users"}/${user.id}`}>
+                            Chi tiết
+                          </Link>
+                        </Button>
+                        {isAdminView ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" size="sm" variant="outline">
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={deleteUser.isPending}
+                                onSelect={() => {
+                                  if (
+                                    typeof window !== "undefined" &&
+                                    !window.confirm(
+                                      `Xóa người dùng ${user.email ?? compactId(user.id)}?`,
+                                    )
+                                  ) {
+                                    return;
+                                  }
+
+                                  deleteUser.mutate({ userId: user.id });
+                                }}
+                              >
+                                Xóa người dùng
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
 
           {pagination ? (
             <PaginationBar
@@ -255,6 +341,41 @@ export default function UsersPage() {
           ) : null}
         </div>
       </Panel>
+      </div>
     </AppShell>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  tone?: "success" | "warning" | "destructive";
+}) {
+  const valueColor =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "destructive"
+          ? "text-destructive"
+          : "text-ink";
+  return (
+    <div className="space-y-2 border border-border bg-card p-6">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+        {label}
+      </p>
+      <p className={`font-display text-2xl font-semibold tracking-tight tabular-nums ${valueColor}`}>
+        {value}
+      </p>
+      {helper ? (
+        <p className="text-sm leading-relaxed text-ink-muted">{helper}</p>
+      ) : null}
+    </div>
   );
 }

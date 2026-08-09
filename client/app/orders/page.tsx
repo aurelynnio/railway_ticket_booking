@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -14,11 +15,20 @@ import {
   FilterBar,
   PaginationBar,
   SectionHeading,
-  StatCard,
   StatusBadge,
   compactId,
 } from "@/components/railway-ui";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
@@ -96,75 +106,92 @@ export default function OrdersPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "Điều phối đơn hàng" : "Danh sách đơn hàng"}
+      title={isAdminView ? "Quản lý đơn hàng" : "Đơn hàng của tôi"}
       description={
         isAdminView
-          ? "Theo dõi tuyến, trạng thái thanh toán, phát hành vé và ghế đã chọn trong từng đơn."
-          : "Tra cứu đơn hàng, kiểm tra trạng thái và mở chi tiết từng đơn khi cần."
+          ? "Theo dõi, đối soát và xử lý các đơn đặt vé trong hệ thống."
+          : "Theo dõi tuyến đi, ghế đã chọn và trạng thái xử lý của từng đơn."
       }
-      actions={
-        <FilterBar>
-          <Input
-            placeholder="Lọc theo userId"
-            value={userId}
-            onChange={(event) => {
-              setPage(1);
-              setUserId(event.target.value);
-            }}
-          />
-          <Select
-            value={status}
-            onChange={(event) => {
-              setPage(1);
-              setStatus(event.target.value);
-            }}
-          >
-            <option value="">Tất cả trạng thái</option>
-            {Object.entries(OrderStatus)
-              .filter(([, value]) => typeof value === "number")
-              .map(([label, value]) => (
-                <option key={label} value={String(value)}>
-                  {formatOrderStatus(value as number)}
-                </option>
-              ))}
-          </Select>
-          <div className="md:col-span-2 xl:col-span-2 flex gap-2">
-            <Button type="button" variant="outline" onClick={() => setPage(1)}>
-              Làm mới
-            </Button>
+    >
+      <div className="space-y-6">
+      <FilterBar>
+        <Input
+          placeholder="Lọc theo userId"
+          value={userId}
+          onChange={(event) => {
+            setPage(1);
+            setUserId(event.target.value);
+          }}
+        />
+        <Select
+          value={status}
+          onChange={(event) => {
+            setPage(1);
+            setStatus(event.target.value);
+          }}
+        >
+          <option value="">Tất cả trạng thái</option>
+          {Object.entries(OrderStatus)
+            .filter(([, value]) => typeof value === "number")
+            .map(([label, value]) => (
+              <option key={label} value={String(value)}>
+                {formatOrderStatus(value as number)}
+              </option>
+            ))}
+        </Select>
+        <div className="md:col-span-2 xl:col-span-2 flex gap-2">
+          <Button type="button" variant="outline" onClick={() => setPage(1)}>
+            Làm mới
+          </Button>
+          {!isAdminView ? (
             <Button asChild variant="ghost">
               <Link href="/profile/orders">Mở đơn của tôi</Link>
             </Button>
-          </div>
-        </FilterBar>
-      }
-    >
+          ) : null}
+        </div>
+      </FilterBar>
+
       <div className="grid gap-4 lg:grid-cols-3">
-        <StatCard
-          label="Đơn hiển thị"
-          value={String(orders.length)}
-          helper="Số đơn trong trang hiện tại."
-        />
-        <StatCard
-          label="Đã phát hành vé"
-          value={String(issued)}
-          helper="Số đơn đã hoàn tất phát hành vé."
-        />
-        <StatCard
-          label="Tổng tiền trang"
-          value={formatCurrency(totalAmount)}
-          helper={`${pending} đơn đang chờ thanh toán.`}
-        />
+        <Card variant="outlined" padding="lg" className="gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+            Đơn hiển thị
+          </p>
+          <p className="font-display text-3xl font-semibold tracking-tight text-ink tabular-nums">
+            {orders.length}
+          </p>
+          <p className="text-sm leading-relaxed text-ink-muted">Số đơn trong trang hiện tại.</p>
+        </Card>
+        <Card variant="outlined" padding="lg" className="gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+            Đã phát hành vé
+          </p>
+          <p className="font-display text-3xl font-semibold tracking-tight text-success tabular-nums">
+            {issued}
+          </p>
+          <p className="text-sm leading-relaxed text-ink-muted">Số đơn đã hoàn tất phát hành vé.</p>
+        </Card>
+        <Card variant="outlined" padding="lg" className="gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+            Tổng tiền trang
+          </p>
+          <p className="font-display text-3xl font-semibold tracking-tight text-ink tabular-nums mono">
+            {formatCurrency(totalAmount)}
+          </p>
+          <p className="text-sm leading-relaxed text-ink-muted">
+            <span className="text-warning font-medium">{pending}</span> đơn đang chờ thanh toán.
+          </p>
+        </Card>
       </div>
 
       <Panel
-        title="Bảng đơn hàng"
+        eyebrow={isAdminView ? "Điều phối" : "Đơn hàng"}
+        title="Danh sách đơn"
         description="Theo dõi tuyến, ghế, trạng thái và tổng tiền của từng đơn."
       >
         <div className="space-y-5">
           <SectionHeading
-            eyebrow={isAdminView ? "Điều phối" : "Đơn hàng"}
-            title="Danh sách đơn"
+            eyebrow={isAdminView ? "Vận hành" : "Tra cứu"}
+            title="Đơn hàng"
             description="Mở chi tiết để xem hành khách, thanh toán và các thao tác trạng thái."
           />
 
@@ -172,8 +199,6 @@ export default function OrdersPage() {
             <EmptyState
               title="Không tải được đơn hàng"
               description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
-              illustration="error-state"
-              illustrationTone="danger"
             />
           ) : null}
 
@@ -181,96 +206,123 @@ export default function OrdersPage() {
             <EmptyState
               title="Chưa có đơn hàng phù hợp"
               description="Thử bỏ lọc user hoặc đổi trạng thái để mở rộng kết quả."
-              illustration="order-empty"
-              illustrationTone="muted"
             />
           ) : null}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Đơn hàng</TableHead>
-                <TableHead>Tuyến</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="hidden md:table-cell">Tổng tiền</TableHead>
-                <TableHead className="hidden lg:table-cell">Cập nhật</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <p className="font-medium text-foreground">{order.ticketTitle}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {compactId(order.id)} • {order.ticketCode ?? "Chưa có mã vé"}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      <p>
-                        {order.departureStationName ?? order.departureStationCode ?? "?"} đến{" "}
-                        {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
-                      </p>
-                      <p className="text-xs">
-                        {order.seatLabels.join(", ") || "Chưa chọn ghế"}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={formatOrderStatus(order.status)}
-                      tone={getOrderStatusTone(order.status)}
-                    />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">{formatCurrency(order.totalPrice)}</TableCell>
-                  <TableCell className="hidden lg:table-cell">{formatDateTime(order.updatedAt)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {isAdminView ? (
-                        <>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => markOrderPaid.mutate({ orderId: order.id })}
-                          >
-                            Trả
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => confirmOrder.mutate({ orderId: order.id })}
-                          >
-                            Xác nhận
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => issueTicket.mutate({ orderId: order.id })}
-                          >
-                            Phát hành
-                          </Button>
-                        </>
-                      ) : null}
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`${isAdminView ? "/admin/orders" : "/orders"}/${order.id}`}>
-                          Chi tiết
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
+          {query.isLoading ? (
+            <Card variant="outlined" padding="none">
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-12 animate-pulse rounded-sm bg-muted/40" />
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {!query.isLoading && orders.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Đơn hàng</TableHead>
+                  <TableHead>Tuyến</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="hidden md:table-cell">Tổng tiền</TableHead>
+                  <TableHead className="hidden lg:table-cell">Cập nhật</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {orders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="font-medium text-ink">{order.ticketTitle}</p>
+                        <p className="text-xs text-ink-muted">
+                          <span className="mono font-medium text-ink">{compactId(order.id)}</span>
+                          {" • "}
+                          <span className="mono">{order.ticketCode ?? "Chưa có mã vé"}</span>
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm text-ink-muted">
+                        <p>
+                          {order.departureStationName ?? order.departureStationCode ?? "?"}
+                          {" → "}
+                          {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {order.seatLabels.length > 0 ? (
+                            order.seatLabels.map((seat) => (
+                              <Badge key={seat} variant="outline" className="mono text-[10px] h-5">
+                                {seat}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs">Chưa chọn ghế</span>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        label={formatOrderStatus(order.status)}
+                        tone={getOrderStatusTone(order.status)}
+                      />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="mono text-sm font-medium tabular-nums text-ink">
+                        {formatCurrency(order.totalPrice)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <span className="mono text-xs tabular-nums text-ink-muted">
+                        {formatDateTime(order.updatedAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {isAdminView ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" size="sm" variant="outline">
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => markOrderPaid.mutate({ orderId: order.id })}
+                              >
+                                Đã thanh toán
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => confirmOrder.mutate({ orderId: order.id })}
+                              >
+                                Xác nhận
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => issueTicket.mutate({ orderId: order.id })}
+                              >
+                                Phát hành
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`${isAdminView ? "/admin/orders" : "/orders"}/${order.id}`}>
+                            Chi tiết
+                          </Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
 
           {pagination ? (
             <PaginationBar
@@ -292,11 +344,12 @@ export default function OrdersPage() {
 
       {isAdminView ? (
         <Panel
+          eyebrow="Vận hành"
           title="Tạo order thủ công"
           description="Tạo nhanh một đơn thủ công để hỗ trợ vận hành hoặc kiểm thử."
         >
           <form
-            className="grid gap-3 lg:grid-cols-3"
+            className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
             onSubmit={createOrderForm.handleSubmit((values) =>
               createOrderRecord.mutate(
                 {
@@ -328,21 +381,23 @@ export default function OrdersPage() {
               <Input aria-invalid={Boolean(createOrderForm.formState.errors.ticketTitle)} {...createOrderForm.register("ticketTitle")} />
             </FormField>
             <FormField label="Số lượng" error={createOrderForm.formState.errors.quantity?.message}>
-              <Input aria-invalid={Boolean(createOrderForm.formState.errors.quantity)} {...createOrderForm.register("quantity")} />
+              <Input aria-invalid={Boolean(createOrderForm.formState.errors.quantity)} {...createOrderForm.register("quantity")} className="mono" />
             </FormField>
             <FormField label="Đơn giá" error={createOrderForm.formState.errors.unitPrice?.message}>
-              <Input aria-invalid={Boolean(createOrderForm.formState.errors.unitPrice)} {...createOrderForm.register("unitPrice")} />
+              <Input aria-invalid={Boolean(createOrderForm.formState.errors.unitPrice)} {...createOrderForm.register("unitPrice")} className="mono" />
             </FormField>
             <Button
               type="submit"
-              className="lg:col-span-3"
+              className="md:col-span-2 lg:col-span-3 gap-2"
               disabled={createOrderRecord.isPending}
             >
+              <Plus className="size-4" />
               {createOrderRecord.isPending ? "Đang tạo..." : "Tạo đơn"}
             </Button>
           </form>
         </Panel>
       ) : null}
+      </div>
     </AppShell>
   );
 }

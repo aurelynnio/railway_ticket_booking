@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePathname, useParams } from "next/navigation";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -71,10 +73,21 @@ export default function UserDetailPage() {
     <AppShell
       title={isAdminView ? "Chi tiết người dùng" : "Thông tin người dùng"}
       description="Xem hồ sơ tài khoản cùng đơn hàng và thanh toán gần đây để hỗ trợ đối soát."
+      actions={
+        isAdminView ? (
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/admin/users">
+              <ChevronLeft className="size-3.5" aria-hidden />
+              Quay lại danh sách
+            </Link>
+          </Button>
+        ) : null
+      }
     >
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="grid gap-6">
           <Panel
+            eyebrow="Hồ sơ"
             title={user?.name ?? user?.username ?? "User profile"}
             description="Thông tin cơ bản của tài khoản và các mốc cập nhật gần nhất."
           >
@@ -88,31 +101,50 @@ export default function UserDetailPage() {
               {user ? (
                 <MetaGrid
                   items={[
-                    { label: "User ID", value: compactId(user.id) },
+                    { label: "User ID", value: <span className="mono">{compactId(user.id)}</span> },
                     { label: "Username", value: user.username ?? "N/A" },
                     { label: "Name", value: user.name ?? "N/A" },
-                    { label: "Email", value: user.email ?? "N/A" },
+                    { label: "Email", value: <span className="mono text-xs">{user.email ?? "N/A"}</span> },
+                    { label: "Vai trò", value: user.role === 1 ? "Admin" : "User" },
                     {
                       label: "Created",
-                      value: formatDateTime(
-                        typeof user.createdAt === "string" ? user.createdAt : null,
+                      value: (
+                        <span className="mono tabular-nums">
+                          {formatDateTime(
+                            typeof user.createdAt === "string" ? user.createdAt : null,
+                          )}
+                        </span>
                       ),
                     },
                     {
                       label: "Updated",
-                      value: formatDateTime(
-                        typeof user.updatedAt === "string" ? user.updatedAt : null,
+                      value: (
+                        <span className="mono tabular-nums">
+                          {formatDateTime(
+                            typeof user.updatedAt === "string" ? user.updatedAt : null,
+                          )}
+                        </span>
                       ),
                     },
                   ]}
                   columns={3}
                 />
               ) : null}
+
+              {userQuery.isLoading ? (
+                <p className="text-sm text-ink-muted">Đang tải người dùng...</p>
+              ) : null}
+              {userQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  Không tải được người dùng. Vui lòng thử lại sau.
+                </p>
+              ) : null}
             </div>
           </Panel>
 
           {isAdminView ? (
             <Panel
+              eyebrow="Cập nhật"
               title="Cập nhật người dùng"
               description="Chỉnh sửa thông tin cơ bản của tài khoản."
             >
@@ -159,6 +191,7 @@ export default function UserDetailPage() {
                 <Button
                   type="submit"
                   variant="outline"
+                  size="sm"
                   disabled={!userId || updateUser.isPending}
                 >
                   {updateUser.isPending ? "Đang cập nhật..." : "Cập nhật"}
@@ -167,19 +200,20 @@ export default function UserDetailPage() {
                   <NoticeBox
                     title="Cập nhật thành công"
                     description="Thông tin người dùng đã được lưu."
-                    tone="positive"
+                    tone="success"
                   />
                 ) : null}
                 {updateUser.isError ? (
                   <NoticeBox
                     title="Cập nhật thất bại"
                     description="Vui lòng thử lại."
-                    tone="danger"
+                    tone="destructive"
                   />
                 ) : null}
                 <Button
                   type="button"
                   variant="destructive"
+                  size="sm"
                   disabled={!userId || deleteUser.isPending}
                   onClick={() => {
                     if (
@@ -210,6 +244,7 @@ export default function UserDetailPage() {
 
         <div className="grid gap-6">
           <Panel
+            eyebrow="Lịch sử"
             title="Đơn gần đây"
             description="Các đơn gần nhất của người dùng để hỗ trợ kiểm tra nhanh."
           >
@@ -223,7 +258,7 @@ export default function UserDetailPage() {
                 />
               ))}
               {orders.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-ink-muted">
                   Người dùng này chưa có đơn nào trong truy vấn hiện tại.
                 </p>
               ) : null}
@@ -231,6 +266,7 @@ export default function UserDetailPage() {
           </Panel>
 
           <Panel
+            eyebrow="Lịch sử"
             title="Thanh toán gần đây"
             description="Các khoản thanh toán gần nhất gắn với người dùng."
           >
@@ -244,7 +280,7 @@ export default function UserDetailPage() {
                 />
               ))}
               {payments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-ink-muted">
                   Chưa có thanh toán nào gắn với người dùng này.
                 </p>
               ) : null}
@@ -252,6 +288,7 @@ export default function UserDetailPage() {
           </Panel>
 
           <Panel
+            eyebrow="Điều hướng"
             title="Đi nhanh"
             description="Đường dẫn tới các màn hình liên quan."
           >

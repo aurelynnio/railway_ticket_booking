@@ -2,9 +2,12 @@
 
 import { usePathname, useParams } from "next/navigation";
 import { useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
 import { QrCode } from "@/components/qr-code";
+import { RouteLine } from "@/components/route-line";
 import {
   DetailBlock,
   MetaGrid,
@@ -15,6 +18,13 @@ import {
   compactId,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   useCancelOrder,
   useConfirmOrder,
@@ -86,6 +96,7 @@ export default function OrderDetailPage() {
 
   return (
     <AppShell
+      embedded={isProfileView}
       title={
         isProfileView
           ? "Chi tiết đơn của tôi"
@@ -95,70 +106,57 @@ export default function OrderDetailPage() {
       }
       description="Theo dõi hành trình, hành khách, ghế đã chọn, tổng tiền và trạng thái xử lý."
       actions={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={isAdminView ? "/admin/orders" : isProfileView ? "/profile/orders" : "/orders"}>
+              <ChevronLeft className="size-3.5" aria-hidden />
+              Quay lại
+            </Link>
+          </Button>
           {isAdminView ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!orderId || isMutating}
-                onClick={() => markPendingPayment.mutate({ orderId })}
-              >
-                Chờ thanh toán
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!orderId || isMutating}
-                onClick={() => markPaid.mutate({ orderId })}
-              >
-                Đánh dấu đã thanh toán
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!orderId || isMutating}
-                onClick={() => confirm.mutate({ orderId })}
-              >
-                Xác nhận
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!orderId || isMutating}
-                onClick={() => issueTicket.mutate({ orderId })}
-              >
-                Phát hành vé
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!orderId || isMutating}
-                onClick={() => expireOrder.mutate({ orderId })}
-              >
-                Hết hạn
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!orderId || isMutating}
-                onClick={() => refundOrder.mutate({ orderId })}
-              >
-                Hoàn tiền
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={!orderId || isMutating}
-                onClick={() => removeOrder.mutate({ orderId })}
-              >
-                Xoá
-              </Button>
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm" disabled={!orderId || isMutating}>
+                  <MoreHorizontal className="size-4" aria-hidden />
+                  Thao tác
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onSelect={() => markPendingPayment.mutate({ orderId })}>
+                  Chờ thanh toán
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => markPaid.mutate({ orderId })}>
+                  Đánh dấu đã thanh toán
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => confirm.mutate({ orderId })}>
+                  Xác nhận đơn
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => issueTicket.mutate({ orderId })}>
+                  Phát hành vé
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => expireOrder.mutate({ orderId })}>
+                  Đánh dấu hết hạn
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => refundOrder.mutate({ orderId })}>
+                  Hoàn tiền
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => cancelOrder.mutate({ orderId, payload: { reason: "Cancelled from UI" } })}
+                >
+                  Huỷ đơn
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onSelect={() => removeOrder.mutate({ orderId })}>
+                  Xoá đơn
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
           {!isAdminView && order && (order.status === 0 || order.status === 1) ? (
             <Button
               type="button"
+              size="sm"
               disabled={!orderId || createVnpayPayment.isPending}
               onClick={() => {
                 createVnpayPayment.mutate(
@@ -179,25 +177,27 @@ export default function OrderDetailPage() {
                 : "Thanh toán qua VNPay"}
             </Button>
           ) : null}
-          <Button
+          {!isAdminView ? <Button
             type="button"
-            variant="destructive"
+            variant="outline"
+            size="sm"
             disabled={!orderId || isMutating}
             onClick={() =>
               cancelOrder.mutate({ orderId, payload: { reason: "Cancelled from UI" } })
             }
           >
             Huỷ đơn
-          </Button>
+          </Button> : null}
         </div>
       }
     >
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel
+          eyebrow="Chi tiết đơn"
           title={order?.ticketTitle ?? "Thông tin đơn hàng"}
           description="Thông tin hành trình, hành khách và ghế đã chọn."
         >
-          <div className="space-y-5">
+          <div className="space-y-8">
             <SectionHeading
               eyebrow="Đơn hàng"
               title={order?.trainNumber ?? "Đang tải đơn"}
@@ -216,50 +216,61 @@ export default function OrderDetailPage() {
               <>
                 <MetaGrid
                   items={[
-                    { label: "Mã đơn", value: compactId(order.id) },
-                    { label: "Người dùng", value: compactId(order.userId) },
+                    { label: "Mã đơn", value: <span className="mono tabular-nums">{compactId(order.id)}</span> },
+                    { label: "Mã người dùng", value: <span className="mono tabular-nums">{compactId(order.userId)}</span> },
                     {
-                      label: "Tuyến",
-                      value: `${order.departureStationName ?? order.departureStationCode ?? "?"} đến ${order.arrivalStationName ?? order.arrivalStationCode ?? "?"}`,
+                      label: "Tuyến đường",
+                      value: `${order.departureStationName ?? order.departureStationCode ?? "?"} → ${order.arrivalStationName ?? order.arrivalStationCode ?? "?"}`,
                     },
-                    { label: "Khởi hành", value: formatDateTime(order.departureTime) },
-                    { label: "Đến nơi", value: formatDateTime(order.arrivalTime) },
-                    { label: "Ngày tạo", value: formatDateTime(order.createdAt) },
+                    { label: "Giờ khởi hành", value: <span className="mono tabular-nums">{formatDateTime(order.departureTime)}</span> },
+                    { label: "Giờ đến nơi", value: <span className="mono tabular-nums">{formatDateTime(order.arrivalTime)}</span> },
+                    { label: "Ngày tạo", value: <span className="mono tabular-nums">{formatDateTime(order.createdAt)}</span> },
                   ]}
                 />
 
-                <div className="rounded-lg border border-border/80 bg-background px-5 py-5">
-                  <p className="text-xs font-medium text-muted-foreground">
+                <div className="py-1">
+                  <RouteLine compact aria-hidden />
+                </div>
+
+                <div className="border border-border bg-card px-5 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
                     Ghế đã chọn
                   </p>
-                  <div className="mt-3">
+                  <div className="mt-4">
                     <SeatCloud labels={order.seatLabels} />
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border/80 bg-secondary/45 px-5 py-5">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Hành khách
+                <div className="border border-border bg-secondary/40 px-5 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                    Danh sách hành khách
                   </p>
-                  <div className="mt-4 grid gap-3">
+                  <div className="mt-4 space-y-3">
                     {order.passengers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-ink-muted">
                         Chưa có hành khách trong đơn này.
                       </p>
                     ) : (
                       order.passengers.map((passenger, index) => (
                         <div
                           key={`${passenger.fullName}-${index}`}
-                          className="rounded-lg border border-border/80 bg-background px-4 py-4"
+                          className="border border-border bg-card px-4 py-4"
                         >
-                          <p className="font-medium text-foreground">
-                            {passenger.fullName}
-                          </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {passenger.passengerType} •{" "}
-                            {passenger.phoneNumber ?? "Chưa có số điện thoại"} •{" "}
-                            {passenger.identityNumber ?? "Chưa có giấy tờ"}
-                          </p>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-display text-base font-semibold text-ink">
+                                {passenger.fullName}
+                              </p>
+                              <p className="mt-1 text-sm text-ink-muted">
+                                {passenger.passengerType}
+                                {passenger.phoneNumber ? ` · ${passenger.phoneNumber}` : ""}
+                                {passenger.identityNumber ? ` · ${passenger.identityNumber}` : ""}
+                              </p>
+                            </div>
+                            <span className="text-[11px] mono text-ink-subtle">
+                              #{index + 1}
+                            </span>
+                          </div>
                         </div>
                       ))
                     )}
@@ -269,10 +280,10 @@ export default function OrderDetailPage() {
             ) : null}
 
             {orderQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Đang tải đơn hàng...</p>
+              <p className="text-sm text-ink-muted">Đang tải đơn hàng...</p>
             ) : null}
             {orderQuery.isError ? (
-              <p className="text-sm text-rose-700">
+              <p className="text-sm text-destructive">
                 Không tải được đơn hàng. Vui lòng thử lại sau.
               </p>
             ) : null}
@@ -281,24 +292,25 @@ export default function OrderDetailPage() {
 
         <div className="grid gap-6">
           <Panel
+            eyebrow="Tổng kết"
             title="Tổng thanh toán"
             description="Số lượng, giá vé và trạng thái phát hành."
           >
             {summary ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                <DetailBlock label="Số lượng" value={String(summary.quantity)} />
-                <DetailBlock label="Số ghế" value={String(summary.seatCount)} />
-                <DetailBlock label="Hành khách" value={String(summary.passengerCount)} />
-                <DetailBlock label="Đơn giá" value={formatCurrency(summary.unitPrice)} />
-                <DetailBlock label="Tổng tiền" value={formatCurrency(summary.totalPrice)} />
-                <DetailBlock label="Đã phát hành" value={summary.ticketIssued ? "Có" : "Chưa"} />
+                <DetailBlock label="Số lượng" value={<span className="mono tabular-nums">{String(summary.quantity)}</span>} />
+                <DetailBlock label="Số ghế" value={<span className="mono tabular-nums">{String(summary.seatCount)}</span>} />
+                <DetailBlock label="Hành khách" value={<span className="mono tabular-nums">{String(summary.passengerCount)}</span>} />
+                <DetailBlock label="Đơn giá" value={<span className="mono tabular-nums">{formatCurrency(summary.unitPrice)}</span>} />
+                <DetailBlock label="Tổng tiền" value={<span className="mono tabular-nums text-base font-semibold text-ink">{formatCurrency(summary.totalPrice)}</span>} />
+                <DetailBlock label="Phát hành vé" value={summary.ticketIssued ? "Đã phát hành" : "Chưa phát hành"} />
               </div>
             ) : null}
             {summaryQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Đang tải tổng thanh toán...</p>
+              <p className="text-sm text-ink-muted">Đang tải tổng thanh toán...</p>
             ) : null}
             {!isAdminView && order && (order.status === 0 || order.status === 1) ? (
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 <CountdownTimer createdAt={order.createdAt} expiryMinutes={10} />
                 <NoticeBox
                   title="Đơn đang chờ hoàn tất thanh toán"
@@ -310,26 +322,29 @@ export default function OrderDetailPage() {
           </Panel>
 
           <Panel
-            title="Thanh toán liên quan"
+            eyebrow="Lịch sử"
+            title="Lịch sử thanh toán"
             description="Các giao dịch thanh toán gắn với đơn hàng này."
           >
-            <div className="grid gap-3">
+            <div className="space-y-3">
               {payments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-ink-muted">
                   Chưa có thanh toán nào cho đơn này.
                 </p>
               ) : (
                 payments.map((payment) => (
                   <div
                     key={payment.id}
-                    className="flex items-center justify-between rounded-lg border border-border/80 bg-background px-4 py-3"
+                    className="flex items-center justify-between border border-border bg-card px-4 py-3.5"
                   >
-                    <div className="space-y-1">
-                      <p className="font-medium text-foreground">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="mono text-sm font-medium text-ink tabular-nums truncate">
                         {compactId(payment.transactionId)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatCurrency(Number(payment.amount))} • {formatDateTime(payment.updatedAt)}
+                      <p className="text-xs text-ink-muted">
+                        <span className="mono tabular-nums">{formatCurrency(Number(payment.amount))}</span>
+                        <span className="mx-1.5 text-ink-subtle">·</span>
+                        <span className="mono tabular-nums">{formatDateTime(payment.updatedAt)}</span>
                       </p>
                     </div>
                     <StatusBadge
@@ -340,41 +355,42 @@ export default function OrderDetailPage() {
                 ))
               )}
               {paymentsQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">Đang tải thanh toán...</p>
+                <p className="text-sm text-ink-muted">Đang tải thanh toán...</p>
               ) : null}
             </div>
           </Panel>
 
           {order ? (
             <Panel
-              title="Thông tin phát hành"
+              eyebrow="Vé điện tử"
+              title="Thông tin vé điện tử"
               description="Mã vé, QR và thông tin toa ghế dùng sau khi hoàn tất đơn."
             >
               <div className="space-y-5">
                 {order.ticketCode && order.qrPayload ? (
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
                     <div className="flex shrink-0 flex-col items-center gap-3">
-                      <div className="rounded-xl border border-border/80 bg-white p-3 shadow-sm">
+                      <div className="border border-border bg-card p-4">
                         <QrCode value={order.qrPayload} size={160} />
                       </div>
-                      <p className="text-center text-xs font-medium text-muted-foreground">
-                        Quét để xác nhận vé
+                      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                        Quét để xác nhận
                       </p>
                     </div>
-                    <div className="min-w-0 flex-1 space-y-3">
-                      <div className="rounded-lg bg-accent/50 px-4 py-4">
-                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <div className="min-w-0 flex-1 space-y-4">
+                      <div className="border-l-2 border-primary bg-primary-soft/50 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-primary">
                           Mã vé
                         </p>
-                        <p className="mt-1.5 break-all font-mono text-base font-semibold text-foreground">
+                        <p className="mt-1.5 break-all mono text-base font-semibold text-ink tabular-nums">
                           {order.ticketCode}
                         </p>
                       </div>
                       <MetaGrid
                         items={[
-                          { label: "Toa", value: order.coachCode ?? "Chưa có" },
-                          { label: "Hạng ghế", value: order.seatClass ?? "Chưa có" },
-                          { label: "Loại ghế", value: order.seatType ?? "Chưa có" },
+                          { label: "Toa", value: order.coachCode ?? "—" },
+                          { label: "Hạng ghế", value: order.seatClass ?? "—" },
+                          { label: "Loại ghế", value: order.seatType ?? "—" },
                           { label: "Lý do huỷ", value: order.cancelReason ?? "Không có" },
                         ]}
                         columns={2}
@@ -382,24 +398,26 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-3 py-6 text-center">
-                    <div className="flex size-14 items-center justify-center rounded-full bg-muted">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="size-7 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h6v6H3V3zm0 12h6v6H3v-6zm12-12h6v6h-6V3zm0 12h6v6h-6v-6zM9 9h1v1H9V9zm0 6h1v1H9v-1zm6 0h1v1h-1v-1zm0-6h1v1h-1V9z" />
+                  <div className="flex flex-col items-center gap-4 py-6 text-center">
+                    <div className="flex size-14 items-center justify-center border border-border bg-muted text-ink-muted">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h6v6H3V3zm0 12h6v6H3v-6zm12-12h6v6h-6V3zm0 12h6v6h-6v-6zM9 9h1v1H9V9zm0 6h1v1H9v-1zm6 0h1v1h-1v-1zm0-6h1v1h-1V9z" />
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">Vé chưa được phát hành</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="font-display text-base font-semibold text-ink">Vé chưa được phát hành</p>
+                      <p className="mt-1 text-sm text-ink-muted leading-relaxed">
                         QR code sẽ xuất hiện sau khi thanh toán hoàn tất và vé được phát hành.
                       </p>
                     </div>
-                    <MetaGrid
-                      items={[
-                        { label: "Toa", value: order.coachCode ?? "Chưa có" },
-                        { label: "Hạng ghế", value: order.seatClass ?? "Chưa có" },
-                      ]}
-                    />
+                    <div className="w-full">
+                      <MetaGrid
+                        items={[
+                          { label: "Toa", value: order.coachCode ?? "—" },
+                          { label: "Hạng ghế", value: order.seatClass ?? "—" },
+                        ]}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -408,18 +426,20 @@ export default function OrderDetailPage() {
 
           {order ? (
             <Panel
+              eyebrow="Vận hành"
               title="Điều chỉnh đơn"
               description="Cập nhật nhanh hành khách hoặc ghế khi cần hỗ trợ."
             >
-              <div className="grid gap-3">
+              <div className="space-y-3">
                 <Input
-                  placeholder="Seat labels CSV"
+                  placeholder="Seat labels CSV (vd: A1,A2)"
                   value={seatLabelsInput}
                   onChange={(event) => setSeatLabelsInput(event.target.value)}
                 />
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full"
                   disabled={!orderId || updateSeatLabels.isPending}
                   onClick={() =>
                     updateSeatLabels.mutate({
@@ -435,6 +455,7 @@ export default function OrderDetailPage() {
                 >
                   {updateSeatLabels.isPending ? "Đang cập nhật..." : "Cập nhật ghế"}
                 </Button>
+                <div className="soft-divider" />
                 <Input
                   placeholder="Tên hành khách"
                   value={passengerNameInput}
@@ -448,6 +469,7 @@ export default function OrderDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full"
                   disabled={!orderId || !passengerNameInput || updatePassengers.isPending}
                   onClick={() =>
                     updatePassengers.mutate({

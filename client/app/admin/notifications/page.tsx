@@ -4,14 +4,8 @@ import { useState } from "react";
 import { Bell, BellRing, CheckCircle, Mail } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
-import {
-  EmptyState,
-  FilterBar,
-  PaginationBar,
-  SectionHeading,
-  StatCard,
-  StatusBadge,
-} from "@/components/railway-ui";
+import { EmptyState, PaginationBar, StatCard, StatusBadge } from "@/components/railway-ui";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { useAllNotifications } from "@/hooks/notification.hook";
@@ -28,7 +22,7 @@ function getNotificationIcon(type: string) {
     case "user_registered":
       return <Bell className="size-4 text-primary" />;
     default:
-      return <Bell className="size-4 text-muted-foreground" />;
+      return <Bell className="size-4 text-ink-muted" />;
   }
 }
 
@@ -45,12 +39,6 @@ function formatNotificationType(type: string): string {
     default:
       return type;
   }
-}
-
-function getStatusTone(status: string): "positive" | "danger" | "muted" {
-  if (status === "sent") return "positive";
-  if (status === "failed") return "danger";
-  return "muted";
 }
 
 const typeOptions = [
@@ -77,40 +65,36 @@ export default function AdminNotificationsPage() {
     <AppShell
       title="Lịch sử thông báo"
       description="Toàn bộ nhật ký email đã được hệ thống gửi ra từ tất cả các sự kiện vận hành."
-      actions={
-        <div className="grid gap-3 md:grid-cols-3">
-          <StatCard
-            label="Tổng thông báo"
-            value={String(pagination?.total ?? 0)}
-            helper="Tổng số thông báo trong hệ thống."
-          />
-          <StatCard
-            label="Đã gửi"
-            value={String(sent)}
-            helper="Thông báo gửi thành công trong trang này."
-          />
-          <StatCard
-            label="Thất bại"
-            value={String(failed)}
-            helper="Thông báo gặp lỗi trong trang này."
-          />
-        </div>
-      }
     >
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          label="Tổng thông báo"
+          value={String(pagination?.total ?? 0)}
+          helper="Tổng số thông báo trong hệ thống."
+        />
+        <StatCard
+          label="Đã gửi"
+          value={String(sent)}
+          helper="Thông báo gửi thành công trong trang này."
+        />
+        <StatCard
+          label="Thất bại"
+          value={String(failed)}
+          helper="Thông báo gặp lỗi trong trang này."
+        />
+      </div>
+
       <Panel
-        title="Nhật ký thông báo"
+        eyebrow="Nhật ký"
+        title="Thông báo hệ thống"
         description="Tất cả thông báo email từ hệ thống, bao gồm đặt vé, thanh toán và tài khoản."
       >
         <div className="space-y-5">
-          <SectionHeading
-            eyebrow="Admin view"
-            title="Nhật ký thông báo hệ thống"
-            description="Tìm kiếm và lọc theo loại thông báo để kiểm tra tình trạng gửi email."
-          />
-
-          <FilterBar>
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Loại thông báo</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                Lọc theo loại
+              </p>
               <Select
                 value={type}
                 onChange={(e) => {
@@ -125,14 +109,24 @@ export default function AdminNotificationsPage() {
                 ))}
               </Select>
             </div>
-          </FilterBar>
+            <div className="flex-1" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void query.refetch()}
+              disabled={query.isFetching}
+            >
+              Làm mới
+            </Button>
+          </div>
 
           {query.isLoading ? (
             <div className="grid gap-3">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-20 animate-pulse rounded-lg bg-muted/60"
+                  className="h-20 animate-pulse border border-border bg-secondary/50"
                 />
               ))}
             </div>
@@ -154,43 +148,49 @@ export default function AdminNotificationsPage() {
             />
           ) : null}
 
-          <div className="grid gap-3">
+          <div className="space-y-0">
             {notifications.map((notification) => (
               <Card
                 key={notification.id}
-                className="grid gap-4 px-5 py-4 sm:grid-cols-[auto_1fr_auto]"
+                variant="outlined"
+                padding="md"
+                className="rounded-none border-x-0 border-t-0 last:border-b first:border-t"
                 id={`admin-notification-${notification.id}`}
               >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent">
-                  {getNotificationIcon(notification.type)}
-                </div>
-
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">
-                      {notification.subject}
-                    </p>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {formatNotificationType(notification.type)}
-                    </span>
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    {getNotificationIcon(notification.type)}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    To: {notification.recipientEmail} •{" "}
-                    {notification.userId ? `User: ${notification.userId.slice(0, 8)}...` : "No user"}
-                  </p>
-                  <p className="line-clamp-1 text-sm text-muted-foreground">
-                    {notification.body}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(notification.createdAt)}
-                  </p>
-                </div>
 
-                <div className="flex items-start">
-                  <StatusBadge
-                    label={notification.status === "sent" ? "Đã gửi" : "Thất bại"}
-                    tone={getStatusTone(notification.status)}
-                  />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-ink">
+                        {notification.subject}
+                      </p>
+                      <span className="border border-border bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                        {formatNotificationType(notification.type)}
+                      </span>
+                    </div>
+                    <p className="font-mono text-xs text-ink-muted">
+                      To: {notification.recipientEmail} •{" "}
+                      {notification.userId
+                        ? `User: ${notification.userId.slice(0, 8)}...`
+                        : "No user"}
+                    </p>
+                    <p className="line-clamp-1 text-sm text-ink-muted">
+                      {notification.body}
+                    </p>
+                    <p className="font-mono text-xs tabular-nums text-ink-subtle">
+                      {formatDateTime(notification.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-start shrink-0">
+                    <StatusBadge
+                      label={notification.status === "sent" ? "Đã gửi" : "Thất bại"}
+                      tone={notification.status === "sent" ? "success" : "destructive"}
+                    />
+                  </div>
                 </div>
               </Card>
             ))}

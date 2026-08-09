@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { MoreHorizontal } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
 import {
@@ -10,11 +11,17 @@ import {
   FilterBar,
   PaginationBar,
   SectionHeading,
-  StatCard,
   StatusBadge,
   compactId,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ManualPaymentForm } from "@/components/payment/manual-payment-form";
 import { Select } from "@/components/ui/select";
@@ -57,7 +64,6 @@ export default function PaymentsPage() {
   const markFailed = useMarkPaymentFailed();
   const cancelPayment = useCancelPayment();
 
-  // Admin: xem tất cả payments. Non-admin: chỉ xem payment của mình
   const adminQuery = usePayments(
     {
       page,
@@ -92,6 +98,9 @@ export default function PaymentsPage() {
       payment.status === PaymentStatus.Failed ||
       payment.status === PaymentStatus.Cancelled,
   ).length;
+  const processingCount = payments.filter(
+    (payment) => payment.status === PaymentStatus.Processing,
+  ).length;
   const isAdminActionPending =
     markProcessing.isPending ||
     markPaid.isPending ||
@@ -100,53 +109,56 @@ export default function PaymentsPage() {
 
   return (
     <AppShell
-      title={isAdminView ? "Đối soát thanh toán" : "Danh sách thanh toán"}
+      title={isAdminView ? "Quản lý thanh toán" : "Thanh toán của tôi"}
       description={
         isAdminView
-          ? "Theo dõi giao dịch, đơn hàng, người dùng và trạng thái xử lý sau thanh toán."
-          : "Tổng hợp các bản ghi thanh toán để truy vết theo đơn hàng hoặc mã giao dịch."
-      }
-      actions={
-        <FilterBar>
-          <Input
-            placeholder="Order ID"
-            value={orderId}
-            onChange={(event) => {
-              setPage(1);
-              setOrderId(event.target.value);
-            }}
-          />
-          <Input
-            placeholder="Transaction ID"
-            value={transactionId}
-            onChange={(event) => {
-              setPage(1);
-              setTransactionId(event.target.value);
-            }}
-          />
-          <Select
-            value={status}
-            onChange={(event) => {
-              setPage(1);
-              setStatus(event.target.value);
-            }}
-          >
-            <option value="">Tất cả trạng thái</option>
-            {Object.entries(PaymentStatus)
-              .filter(([, value]) => typeof value === "number")
-              .map(([label, value]) => (
-                <option key={label} value={String(value)}>
-                  {formatPaymentStatus(value as number)}
-                </option>
-              ))}
-          </Select>
-          <Button type="button" variant="outline" onClick={() => setPage(1)}>
-            Làm mới
-          </Button>
-        </FilterBar>
+          ? "Đối soát giao dịch, trạng thái thanh toán và mã tham chiếu."
+          : "Theo dõi các giao dịch gắn với đơn đặt vé của bạn."
       }
     >
-      {isAdminView ? <ManualPaymentForm /> : null}
+      <div className="space-y-6">
+      <FilterBar>
+        <Input
+          placeholder="Order ID"
+          value={orderId}
+          onChange={(event) => {
+            setPage(1);
+            setOrderId(event.target.value);
+          }}
+        />
+        <Input
+          placeholder="Transaction ID"
+          value={transactionId}
+          onChange={(event) => {
+            setPage(1);
+            setTransactionId(event.target.value);
+          }}
+        />
+        <Select
+          value={status}
+          onChange={(event) => {
+            setPage(1);
+            setStatus(event.target.value);
+          }}
+        >
+          <option value="">Tất cả trạng thái</option>
+          {Object.entries(PaymentStatus)
+            .filter(([, value]) => typeof value === "number")
+            .map(([label, value]) => (
+              <option key={label} value={String(value)}>
+                {formatPaymentStatus(value as number)}
+              </option>
+            ))}
+        </Select>
+        <Button type="button" variant="outline" onClick={() => setPage(1)}>
+          Làm mới
+        </Button>
+      </FilterBar>
+
+      {isAdminView ? (
+        <ManualPaymentForm />
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
           label="Thanh toán hiển thị"
@@ -156,16 +168,18 @@ export default function PaymentsPage() {
         <StatCard
           label="Đã thanh toán"
           value={String(paidCount)}
-          helper={`${failedCount} bản ghi lỗi hoặc bị hủy trong trang hiện tại.`}
+          helper={`${failedCount} bản ghi lỗi hoặc bị hủy.`}
+          tone="success"
         />
         <StatCard
           label="Tổng tiền trang"
           value={formatCurrency(totalAmount)}
-          helper="Tổng số tiền đang được bộ lọc hiện tại trả về."
+          helper={`${processingCount} giao dịch đang xử lý.`}
         />
       </div>
 
       <Panel
+        eyebrow={isAdminView ? "Đối soát" : "Giao dịch"}
         title="Bảng thanh toán"
         description="Đối chiếu orderId, transactionId, userId, số tiền và trạng thái thanh toán."
       >
@@ -180,8 +194,6 @@ export default function PaymentsPage() {
             <EmptyState
               title="Không tải được thanh toán"
               description="Vui lòng kiểm tra kết nối dịch vụ và thử lại."
-              illustration="error-state"
-              illustrationTone="danger"
             />
           ) : null}
 
@@ -189,102 +201,118 @@ export default function PaymentsPage() {
             <EmptyState
               title="Không có thanh toán phù hợp"
               description="Thử bỏ transactionId hoặc orderId để xem nhiều bản ghi hơn."
-              illustration="payment-empty"
-              illustrationTone="muted"
             />
           ) : null}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Thanh toán</TableHead>
-                <TableHead>Đơn / Người dùng</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="hidden md:table-cell">Số tiền</TableHead>
-                <TableHead className="hidden lg:table-cell">Thanh toán lúc</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.map((payment) => (
-                <TableRow key={payment.id}>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <p className="font-medium text-foreground">
-                        {compactId(payment.id)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {compactId(payment.transactionId)}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      <p>Order {compactId(payment.orderId)}</p>
-                      <p className="text-xs">User {compactId(payment.userId)}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={formatPaymentStatus(payment.status)}
-                      tone={getPaymentStatusTone(payment.status)}
-                    />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">{formatCurrency(Number(payment.amount))}</TableCell>
-                  <TableCell className="hidden lg:table-cell">{formatDateTime(payment.paidAt)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {isAdminView ? (
-                        <>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => markProcessing.mutate({ id: payment.id })}
-                          >
-                            Xử lý
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => markPaid.mutate({ id: payment.id })}
-                          >
-                            Đã trả
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isAdminActionPending}
-                            onClick={() => markFailed.mutate({ id: payment.id })}
-                          >
-                            Lỗi
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={isAdminActionPending}
-                            onClick={() => cancelPayment.mutate({ id: payment.id })}
-                          >
-                            Hủy
-                          </Button>
-                        </>
-                      ) : null}
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`${isAdminView ? "/admin/payments" : "/payments"}/${payment.id}`}>
-                          Chi tiết
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+          {query.isLoading ? (
+            <div className="grid gap-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-12 animate-pulse rounded-sm border border-border bg-muted/40"
+                />
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ) : null}
+
+          {!query.isLoading && payments.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Thanh toán</TableHead>
+                  <TableHead>Đơn / Người dùng</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="hidden md:table-cell">Số tiền</TableHead>
+                  <TableHead className="hidden lg:table-cell">Thanh toán lúc</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="font-medium text-ink mono">
+                          {compactId(payment.id)}
+                        </p>
+                        <p className="mono text-xs text-ink-muted">
+                          {compactId(payment.transactionId)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm text-ink-muted">
+                        <p className="mono">Order {compactId(payment.orderId)}</p>
+                        <p className="mono text-xs">User {compactId(payment.userId)}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        label={formatPaymentStatus(payment.status)}
+                        tone={getPaymentStatusTone(payment.status)}
+                      />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="mono text-sm font-medium tabular-nums text-ink">
+                        {formatCurrency(Number(payment.amount))}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <span className="mono text-xs tabular-nums text-ink-muted">
+                        {formatDateTime(payment.paidAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {isAdminView ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" size="xs" variant="outline">
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => markProcessing.mutate({ id: payment.id })}
+                              >
+                                Xử lý
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => markPaid.mutate({ id: payment.id })}
+                              >
+                                Đã trả
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdminActionPending}
+                                onSelect={() => markFailed.mutate({ id: payment.id })}
+                              >
+                                Lỗi
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isAdminActionPending}
+                                onSelect={() => cancelPayment.mutate({ id: payment.id })}
+                              >
+                                Hủy
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`${isAdminView ? "/admin/payments" : "/payments"}/${payment.id}`}>
+                            Chi tiết
+                          </Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
 
           {pagination ? (
             <PaginationBar
@@ -303,6 +331,41 @@ export default function PaymentsPage() {
           ) : null}
         </div>
       </Panel>
+      </div>
     </AppShell>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  tone?: "success" | "warning" | "destructive";
+}) {
+  const valueColor =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "destructive"
+          ? "text-destructive"
+          : "text-ink";
+  return (
+    <div className="space-y-2 border border-border bg-card p-6">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+        {label}
+      </p>
+      <p className={`font-display text-3xl font-semibold tracking-tight tabular-nums ${valueColor}`}>
+        {value}
+      </p>
+      {helper ? (
+        <p className="text-sm leading-relaxed text-ink-muted">{helper}</p>
+      ) : null}
+    </div>
   );
 }

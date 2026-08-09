@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Activity, ArrowRight, RefreshCw, Search } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  MoreHorizontal,
+  RefreshCw,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -21,6 +26,13 @@ import {
   compactId,
 } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -117,7 +129,8 @@ const quickTicketSchema = z
     (values) =>
       !values.dateStart ||
       !values.dateEnd ||
-      new Date(values.dateEnd).getTime() >= new Date(values.dateStart).getTime(),
+      new Date(values.dateEnd).getTime() >=
+        new Date(values.dateStart).getTime(),
     {
       message: "Giờ đến phải sau giờ khởi hành",
       path: ["dateEnd"],
@@ -285,32 +298,27 @@ export default function AdminPage() {
       title="Trung tâm quản trị"
       description="Không gian điều hành tập trung cho vé, đơn hàng, thanh toán và tài khoản."
       actions={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={healthQuery.isFetching}
             onClick={() => void healthQuery.refetch()}
           >
-            <RefreshCw className="size-4" />
+            <RefreshCw className="size-3.5" />
             {healthQuery.isFetching ? "Đang kiểm tra..." : "Trạng thái hệ thống"}
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild size="sm">
             <Link href="/admin/tickets/new">
               Tạo vé mới
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/search">
-              Xem khu vực đặt vé
-              <Search className="size-4" />
+              <ArrowRight className="size-3.5" />
             </Link>
           </Button>
         </div>
       }
     >
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Tổng vé"
           value={String(totals.tickets)}
@@ -333,8 +341,8 @@ export default function AdminPage() {
         />
       </div>
 
-      <Tabs defaultValue="overview" className="gap-5">
-        <TabsList className="w-full overflow-x-auto sm:w-auto">
+      <Tabs defaultValue="overview" className="gap-6">
+        <TabsList>
           <TabsTrigger value="overview">Tổng quan</TabsTrigger>
           <TabsTrigger value="tickets">Vé mới nhất</TabsTrigger>
           <TabsTrigger value="orders">Đơn & Thanh toán</TabsTrigger>
@@ -342,7 +350,7 @@ export default function AdminPage() {
           <TabsTrigger value="users">Người dùng</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-5">
+        <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DonutStat
               value={operationalSummary.openTickets}
@@ -355,7 +363,10 @@ export default function AdminPage() {
               label="Giao dịch thành công"
             />
             <DonutStat
-              value={orders.filter((o) => o.status === OrderStatus.TicketIssued).length}
+              value={
+                orders.filter((o) => o.status === OrderStatus.TicketIssued)
+                  .length
+              }
               total={Math.max(orders.length, 1)}
               label="Vé đã phát hành"
             />
@@ -367,6 +378,7 @@ export default function AdminPage() {
           </div>
 
           <Panel
+            eyebrow="Vận hành"
             title="Phân tích vận hành"
             description="Tổng quan trạng thái vé, đơn hàng và thanh toán trong kỳ hiện tại."
           >
@@ -374,25 +386,65 @@ export default function AdminPage() {
               <BarChart
                 title="Trạng thái vé"
                 data={[
-                  { label: "Nháp", value: operationalSummary.draftTickets, color: "var(--muted-foreground)" },
-                  { label: "Mở bán", value: operationalSummary.openTickets, color: "var(--primary)" },
-                  { label: "Tổng", value: totals.tickets, color: "var(--accent-foreground)" },
+                  {
+                    label: "Nháp",
+                    value: operationalSummary.draftTickets,
+                    color: "var(--muted-foreground)",
+                  },
+                  {
+                    label: "Mở bán",
+                    value: operationalSummary.openTickets,
+                    color: "var(--primary)",
+                  },
+                  {
+                    label: "Tổng",
+                    value: totals.tickets,
+                    color: "var(--ink)",
+                  },
                 ]}
               />
               <BarChart
                 title="Trạng thái đơn"
                 data={[
-                  { label: "Chờ TT", value: operationalSummary.pendingOrders, color: "var(--warning)" },
-                  { label: "Hoàn tất", value: orders.filter((o) => o.status === OrderStatus.TicketIssued).length, color: "var(--success)" },
-                  { label: "Tổng", value: totals.orders, color: "var(--accent-foreground)" },
+                  {
+                    label: "Chờ TT",
+                    value: operationalSummary.pendingOrders,
+                    color: "var(--warning)",
+                  },
+                  {
+                    label: "Hoàn tất",
+                    value: orders.filter(
+                      (o) => o.status === OrderStatus.TicketIssued,
+                    ).length,
+                    color: "var(--success)",
+                  },
+                  {
+                    label: "Tổng",
+                    value: totals.orders,
+                    color: "var(--ink)",
+                  },
                 ]}
               />
               <BarChart
                 title="Giao dịch"
                 data={[
-                  { label: "Hoàn tất", value: operationalSummary.paidPayments, color: "var(--success)" },
-                  { label: "Chờ", value: payments.filter((p) => p.status === PaymentStatus.Pending).length, color: "var(--warning)" },
-                  { label: "Tổng", value: totals.payments, color: "var(--accent-foreground)" },
+                  {
+                    label: "Hoàn tất",
+                    value: operationalSummary.paidPayments,
+                    color: "var(--success)",
+                  },
+                  {
+                    label: "Chờ",
+                    value: payments.filter(
+                      (p) => p.status === PaymentStatus.Pending,
+                    ).length,
+                    color: "var(--warning)",
+                  },
+                  {
+                    label: "Tổng",
+                    value: totals.payments,
+                    color: "var(--ink)",
+                  },
                 ]}
               />
             </div>
@@ -400,6 +452,7 @@ export default function AdminPage() {
 
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             <Panel
+              eyebrow="Hệ thống"
               title="Trạng thái hệ thống"
               description="Kiểm tra nhanh phản hồi của các phân hệ chính trước khi thao tác."
             >
@@ -407,21 +460,23 @@ export default function AdminPage() {
                 {(healthQuery.data ?? []).map((result) => (
                   <div
                     key={result.key}
-                    className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
+                    className="border border-border bg-secondary/50 px-4 py-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-foreground">{result.label}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="font-medium text-ink">
+                          {result.label}
+                        </p>
+                        <p className="mt-1 font-mono text-xs tabular-nums text-ink-muted">
                           {result.path}
                         </p>
                       </div>
                       <StatusBadge
                         label={result.healthy ? "Ổn định" : "Lỗi"}
-                        tone={result.healthy ? "positive" : "danger"}
+                        tone={result.healthy ? "success" : "destructive"}
                       />
                     </div>
-                    <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
+                    <p className="mt-3 line-clamp-2 text-sm text-ink-muted">
                       {result.value}
                     </p>
                   </div>
@@ -436,6 +491,7 @@ export default function AdminPage() {
             </Panel>
 
             <Panel
+              eyebrow="Điều hướng"
               title="Lối tắt điều hành"
               description="Đi tới các khu vực xử lý chính của ca vận hành."
             >
@@ -468,30 +524,74 @@ export default function AdminPage() {
             <NoticeBox
               title="Một hoặc nhiều phân hệ chưa sẵn sàng"
               description="Một số thao tác vận hành có thể tạm thời không thực hiện được."
-              tone="danger"
+              tone="destructive"
             />
           ) : null}
 
           <Panel
+            eyebrow="Tóm tắt"
             title="Tóm tắt hiện tại"
             description="Các trạng thái nổi bật trong dữ liệu đang hiển thị."
           >
             <MetaGrid
               columns={3}
               items={[
-                { label: "Vé nháp", value: String(operationalSummary.draftTickets) },
-                { label: "Đơn chờ thanh toán", value: String(operationalSummary.pendingOrders) },
-                { label: "Thanh toán hoàn tất", value: String(operationalSummary.paidPayments) },
-                { label: "Vé đang hiển thị", value: String(tickets.length) },
-                { label: "Đơn đang hiển thị", value: String(orders.length) },
-                { label: "Thanh toán đang hiển thị", value: String(payments.length) },
+                {
+                  label: "Vé nháp",
+                  value: (
+                    <span className="font-mono text-sm tabular-nums">
+                      {String(operationalSummary.draftTickets)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Đơn chờ thanh toán",
+                  value: (
+                    <span className="font-mono text-sm tabular-nums">
+                      {String(operationalSummary.pendingOrders)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Thanh toán hoàn tất",
+                  value: (
+                    <span className="font-mono text-sm tabular-nums">
+                      {String(operationalSummary.paidPayments)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Vé đang hiển thị",
+                  value: (
+                    <span className="font-mono text-sm tabular-nums">
+                      {String(tickets.length)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Đơn đang hiển thị",
+                  value: (
+                    <span className="font-mono text-sm tabular-nums">
+                      {String(orders.length)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Thanh toán đang hiển thị",
+                  value: (
+                    <span className="font-mono text-sm tabular-nums">
+                      {String(payments.length)}
+                    </span>
+                  ),
+                },
               ]}
             />
           </Panel>
         </TabsContent>
 
-        <TabsContent value="tickets" className="space-y-5">
+        <TabsContent value="tickets" className="space-y-6">
           <Panel
+            eyebrow="Vé mới"
             title="Vé mới nhất"
             description="Mở nhanh vé cần điều chỉnh hoặc chuyển trạng thái bán."
           >
@@ -508,7 +608,7 @@ export default function AdminPage() {
                 return (
                   <div
                     key={ticket.id}
-                    className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
+                    className="border border-border bg-secondary/50 px-4 py-4"
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                       <div className="space-y-3">
@@ -517,82 +617,96 @@ export default function AdminPage() {
                             label={formatTicketStatus(ticket.status)}
                             tone={getTicketStatusTone(ticket.status)}
                           />
-                          <span className="text-xs text-muted-foreground">
+                          <span className="font-mono text-xs tabular-nums text-ink-muted">
                             {compactId(ticket.id)}
                           </span>
                         </div>
                         <div>
-                          <p className="font-heading text-lg font-semibold tracking-tight">
+                          <p className="font-display text-lg font-semibold tracking-tight text-ink">
                             {ticket.title ?? "Vé chưa đặt tên"}
                           </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {ticket.departureStationName ?? ticket.departureStationCode ?? "?"}
-                            {" -> "}
-                            {ticket.arrivalStationName ?? ticket.arrivalStationCode ?? "?"}
+                          <p className="mt-1 text-sm text-ink-muted">
+                            {ticket.departureStationName ??
+                              ticket.departureStationCode ??
+                              "?"}
+                            {" → "}
+                            {ticket.arrivalStationName ??
+                              ticket.arrivalStationCode ??
+                              "?"}
                             {" · "}
                             {formatDateTime(ticket.dateStart)}
                           </p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/admin/tickets/${ticket.id}`}>Mở</Link>
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() => publishTicket.mutate({ ticketId: ticket.id })}
-                        >
-                          Công bố
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() => unpublishTicket.mutate({ ticketId: ticket.id })}
-                        >
-                          Gỡ công bố
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() =>
-                            prepareStock.mutate({
-                              ticketId: ticket.id,
-                              payload: { ticketItemId: primaryItem?.id },
-                            })
-                          }
-                        >
-                          Chuẩn bị
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() =>
-                            openSale.mutate({
-                              ticketId: ticket.id,
-                              payload: { ticketItemId: primaryItem?.id },
-                            })
-                          }
-                        >
-                          Mở bán
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={isBusy}
-                          onClick={() => closeSale.mutate({ ticketId: ticket.id })}
-                        >
-                          Đóng bán
-                        </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                            >
+                              <MoreHorizontal className="size-3.5" />
+                              Thao tác
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/tickets/${ticket.id}`}>
+                                Mở chi tiết
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              disabled={isBusy}
+                              onSelect={() =>
+                                publishTicket.mutate({ ticketId: ticket.id })
+                              }
+                            >
+                              Công bố
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isBusy}
+                              onSelect={() =>
+                                unpublishTicket.mutate({ ticketId: ticket.id })
+                              }
+                            >
+                              Gỡ công bố
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isBusy}
+                              onSelect={() =>
+                                prepareStock.mutate({
+                                  ticketId: ticket.id,
+                                  payload: { ticketItemId: primaryItem?.id },
+                                })
+                              }
+                            >
+                              Chuẩn bị
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isBusy}
+                              onSelect={() =>
+                                openSale.mutate({
+                                  ticketId: ticket.id,
+                                  payload: { ticketItemId: primaryItem?.id },
+                                })
+                              }
+                            >
+                              Mở bán
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={isBusy}
+                              onSelect={() =>
+                                closeSale.mutate({ ticketId: ticket.id })
+                              }
+                            >
+                              Đóng bán
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>
@@ -608,9 +722,10 @@ export default function AdminPage() {
           </Panel>
         </TabsContent>
 
-        <TabsContent value="orders" className="space-y-5">
+        <TabsContent value="orders" className="space-y-6">
           <div className="grid gap-6 xl:grid-cols-2">
             <Panel
+              eyebrow="Đơn hàng"
               title="Đơn mới nhất"
               description="Xử lý nhanh các bước thanh toán, xác nhận và phát hành vé."
             >
@@ -625,7 +740,7 @@ export default function AdminPage() {
                   return (
                     <div
                       key={order.id}
-                      className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
+                      className="border border-border bg-secondary/50 px-4 py-4"
                     >
                       <div className="flex flex-col gap-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -634,11 +749,12 @@ export default function AdminPage() {
                               label={formatOrderStatus(order.status)}
                               tone={getOrderStatusTone(order.status)}
                             />
-                            <p className="mt-3 font-medium text-foreground">
+                            <p className="mt-3 font-medium text-ink">
                               {order.ticketTitle}
                             </p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {compactId(order.id)} · {formatCurrency(order.totalPrice)}
+                            <p className="mt-1 font-mono text-xs tabular-nums text-ink-muted">
+                              {compactId(order.id)} ·{" "}
+                              {formatCurrency(order.totalPrice)}
                             </p>
                           </div>
                           <Button asChild size="sm" variant="outline">
@@ -646,47 +762,65 @@ export default function AdminPage() {
                           </Button>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => markOrderPaid.mutate({ orderId: order.id })}
-                          >
-                            Đã thanh toán
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => confirmOrder.mutate({ orderId: order.id })}
-                          >
-                            Xác nhận
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => issueTicket.mutate({ orderId: order.id })}
-                          >
-                            Phát hành
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={isBusy}
-                            onClick={() =>
-                              cancelOrder.mutate({
-                                orderId: order.id,
-                                payload: { reason: "Cancelled from admin dashboard" },
-                              })
-                            }
-                          >
-                            Hủy
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                              >
+                                <MoreHorizontal className="size-3.5" />
+                                Thao tác
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/admin/orders/${order.id}`}>
+                                  Mở chi tiết
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  markOrderPaid.mutate({ orderId: order.id })
+                                }
+                              >
+                                Đã thanh toán
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  confirmOrder.mutate({ orderId: order.id })
+                                }
+                              >
+                                Xác nhận
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  issueTicket.mutate({ orderId: order.id })
+                                }
+                              >
+                                Phát hành
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  cancelOrder.mutate({
+                                    orderId: order.id,
+                                    payload: {
+                                      reason: "Cancelled from admin dashboard",
+                                    },
+                                  })
+                                }
+                              >
+                                Hủy đơn
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
@@ -702,6 +836,7 @@ export default function AdminPage() {
             </Panel>
 
             <Panel
+              eyebrow="Thanh toán"
               title="Thanh toán mới nhất"
               description="Cập nhật nhanh trạng thái giao dịch."
             >
@@ -716,7 +851,7 @@ export default function AdminPage() {
                   return (
                     <div
                       key={payment.id}
-                      className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4"
+                      className="border border-border bg-secondary/50 px-4 py-4"
                     >
                       <div className="flex flex-col gap-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -725,55 +860,79 @@ export default function AdminPage() {
                               label={formatPaymentStatus(payment.status)}
                               tone={getPaymentStatusTone(payment.status)}
                             />
-                            <p className="mt-3 font-medium text-foreground">
+                            <p className="mt-3 font-mono text-sm font-medium tabular-nums text-ink">
                               {formatCurrency(Number(payment.amount))}
                             </p>
-                            <p className="mt-1 text-sm text-muted-foreground">
+                            <p className="mt-1 font-mono text-xs tabular-nums text-ink-muted">
                               {compactId(payment.transactionId)} · Đơn{" "}
                               {compactId(payment.orderId)}
                             </p>
                           </div>
                           <Button asChild size="sm" variant="outline">
-                            <Link href={`/admin/payments/${payment.id}`}>Mở</Link>
+                            <Link href={`/admin/payments/${payment.id}`}>
+                              Mở
+                            </Link>
                           </Button>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => markPaymentProcessing.mutate({ id: payment.id })}
-                          >
-                            Xử lý
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => markPaymentPaid.mutate({ id: payment.id })}
-                          >
-                            Đã trả
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => markPaymentFailed.mutate({ id: payment.id })}
-                          >
-                            Lỗi
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={isBusy}
-                            onClick={() => cancelPayment.mutate({ id: payment.id })}
-                          >
-                            Hủy
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                              >
+                                <MoreHorizontal className="size-3.5" />
+                                Thao tác
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/admin/payments/${payment.id}`}
+                                >
+                                  Mở chi tiết
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  markPaymentProcessing.mutate({
+                                    id: payment.id,
+                                  })
+                                }
+                              >
+                                Xử lý
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  markPaymentPaid.mutate({ id: payment.id })
+                                }
+                              >
+                                Đã trả
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  markPaymentFailed.mutate({ id: payment.id })
+                                }
+                              >
+                                Lỗi
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isBusy}
+                                onSelect={() =>
+                                  cancelPayment.mutate({ id: payment.id })
+                                }
+                              >
+                                Hủy
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
@@ -790,9 +949,10 @@ export default function AdminPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="create" className="space-y-5">
+        <TabsContent value="create" className="space-y-6">
           <div className="grid gap-6 xl:grid-cols-2">
             <Panel
+              eyebrow="Tạo nhanh"
               title="Tạo nhanh vé"
               description="Lập hành trình đầu tiên mà không cần rời dashboard."
             >
@@ -826,35 +986,128 @@ export default function AdminPage() {
                   );
                 })}
               >
-                <FormField label="Tên vé" required error={quickTicketForm.formState.errors.title?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.title)} {...quickTicketForm.register("title")} />
+                <FormField
+                  label="Tên vé"
+                  required
+                  error={quickTicketForm.formState.errors.title?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.title,
+                    )}
+                    {...quickTicketForm.register("title")}
+                  />
                 </FormField>
-                <FormField label="Số tàu" error={quickTicketForm.formState.errors.trainNumber?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.trainNumber)} {...quickTicketForm.register("trainNumber")} />
+                <FormField
+                  label="Số tàu"
+                  error={quickTicketForm.formState.errors.trainNumber?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.trainNumber,
+                    )}
+                    {...quickTicketForm.register("trainNumber")}
+                  />
                 </FormField>
-                <FormField label="Mã ga đi" required error={quickTicketForm.formState.errors.departureCode?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.departureCode)} {...quickTicketForm.register("departureCode")} />
+                <FormField
+                  label="Mã ga đi"
+                  required
+                  error={
+                    quickTicketForm.formState.errors.departureCode?.message
+                  }
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.departureCode,
+                    )}
+                    {...quickTicketForm.register("departureCode")}
+                  />
                 </FormField>
-                <FormField label="Tên ga đi" required error={quickTicketForm.formState.errors.departureName?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.departureName)} {...quickTicketForm.register("departureName")} />
+                <FormField
+                  label="Tên ga đi"
+                  required
+                  error={
+                    quickTicketForm.formState.errors.departureName?.message
+                  }
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.departureName,
+                    )}
+                    {...quickTicketForm.register("departureName")}
+                  />
                 </FormField>
-                <FormField label="Mã ga đến" required error={quickTicketForm.formState.errors.arrivalCode?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.arrivalCode)} {...quickTicketForm.register("arrivalCode")} />
+                <FormField
+                  label="Mã ga đến"
+                  required
+                  error={quickTicketForm.formState.errors.arrivalCode?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.arrivalCode,
+                    )}
+                    {...quickTicketForm.register("arrivalCode")}
+                  />
                 </FormField>
-                <FormField label="Tên ga đến" required error={quickTicketForm.formState.errors.arrivalName?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.arrivalName)} {...quickTicketForm.register("arrivalName")} />
+                <FormField
+                  label="Tên ga đến"
+                  required
+                  error={quickTicketForm.formState.errors.arrivalName?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.arrivalName,
+                    )}
+                    {...quickTicketForm.register("arrivalName")}
+                  />
                 </FormField>
-                <FormField label="Khởi hành" error={quickTicketForm.formState.errors.dateStart?.message}>
-                  <Input type="datetime-local" aria-invalid={Boolean(quickTicketForm.formState.errors.dateStart)} {...quickTicketForm.register("dateStart")} />
+                <FormField
+                  label="Khởi hành"
+                  error={quickTicketForm.formState.errors.dateStart?.message}
+                >
+                  <Input
+                    type="datetime-local"
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.dateStart,
+                    )}
+                    {...quickTicketForm.register("dateStart")}
+                  />
                 </FormField>
-                <FormField label="Đến nơi" error={quickTicketForm.formState.errors.dateEnd?.message}>
-                  <Input type="datetime-local" aria-invalid={Boolean(quickTicketForm.formState.errors.dateEnd)} {...quickTicketForm.register("dateEnd")} />
+                <FormField
+                  label="Đến nơi"
+                  error={quickTicketForm.formState.errors.dateEnd?.message}
+                >
+                  <Input
+                    type="datetime-local"
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.dateEnd,
+                    )}
+                    {...quickTicketForm.register("dateEnd")}
+                  />
                 </FormField>
-                <FormField label="Mã toa" required error={quickTicketForm.formState.errors.coachCode?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.coachCode)} {...quickTicketForm.register("coachCode")} />
+                <FormField
+                  label="Mã toa"
+                  required
+                  error={quickTicketForm.formState.errors.coachCode?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.coachCode,
+                    )}
+                    {...quickTicketForm.register("coachCode")}
+                  />
                 </FormField>
-                <FormField label="Hạng ghế" required error={quickTicketForm.formState.errors.seatClass?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.seatClass)} {...quickTicketForm.register("seatClass")} />
+                <FormField
+                  label="Hạng ghế"
+                  required
+                  error={quickTicketForm.formState.errors.seatClass?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.seatClass,
+                    )}
+                    {...quickTicketForm.register("seatClass")}
+                  />
                 </FormField>
                 <FormField
                   className="md:col-span-2"
@@ -863,18 +1116,39 @@ export default function AdminPage() {
                   required
                   error={quickTicketForm.formState.errors.seatLabels?.message}
                 >
-                  <Textarea aria-invalid={Boolean(quickTicketForm.formState.errors.seatLabels)} {...quickTicketForm.register("seatLabels")} />
+                  <Textarea
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.seatLabels,
+                    )}
+                    {...quickTicketForm.register("seatLabels")}
+                  />
                 </FormField>
-                <FormField label="Giá gốc" required error={quickTicketForm.formState.errors.priceOriginal?.message}>
-                  <Input aria-invalid={Boolean(quickTicketForm.formState.errors.priceOriginal)} {...quickTicketForm.register("priceOriginal")} />
+                <FormField
+                  label="Giá gốc"
+                  required
+                  error={
+                    quickTicketForm.formState.errors.priceOriginal?.message
+                  }
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickTicketForm.formState.errors.priceOriginal,
+                    )}
+                    {...quickTicketForm.register("priceOriginal")}
+                  />
                 </FormField>
-                <Button type="submit" disabled={createTicket.isPending}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={createTicket.isPending}
+                >
                   {createTicket.isPending ? "Đang tạo..." : "Tạo vé"}
                 </Button>
               </form>
             </Panel>
 
             <Panel
+              eyebrow="Tạo nhanh"
               title="Tạo nhanh đơn"
               description="Dùng khi cần hỗ trợ đặt chỗ thủ công ngay từ dashboard."
             >
@@ -895,32 +1169,98 @@ export default function AdminPage() {
                   ),
                 )}
               >
-                <FormField label="Mã người dùng" required error={quickOrderForm.formState.errors.userId?.message}>
-                  <Input aria-invalid={Boolean(quickOrderForm.formState.errors.userId)} {...quickOrderForm.register("userId")} />
+                <FormField
+                  label="Mã người dùng"
+                  required
+                  error={quickOrderForm.formState.errors.userId?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.userId,
+                    )}
+                    {...quickOrderForm.register("userId")}
+                  />
                 </FormField>
-                <FormField label="Mã vé" required error={quickOrderForm.formState.errors.ticketId?.message}>
-                  <Input aria-invalid={Boolean(quickOrderForm.formState.errors.ticketId)} {...quickOrderForm.register("ticketId")} />
+                <FormField
+                  label="Mã vé"
+                  required
+                  error={quickOrderForm.formState.errors.ticketId?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.ticketId,
+                    )}
+                    {...quickOrderForm.register("ticketId")}
+                  />
                 </FormField>
-                <FormField label="Mã hạng ghế" required error={quickOrderForm.formState.errors.ticketItemId?.message}>
-                  <Input aria-invalid={Boolean(quickOrderForm.formState.errors.ticketItemId)} {...quickOrderForm.register("ticketItemId")} />
+                <FormField
+                  label="Mã hạng ghế"
+                  required
+                  error={
+                    quickOrderForm.formState.errors.ticketItemId?.message
+                  }
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.ticketItemId,
+                    )}
+                    {...quickOrderForm.register("ticketItemId")}
+                  />
                 </FormField>
-                <FormField label="Tên vé" required error={quickOrderForm.formState.errors.ticketTitle?.message}>
-                  <Input aria-invalid={Boolean(quickOrderForm.formState.errors.ticketTitle)} {...quickOrderForm.register("ticketTitle")} />
+                <FormField
+                  label="Tên vé"
+                  required
+                  error={quickOrderForm.formState.errors.ticketTitle?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.ticketTitle,
+                    )}
+                    {...quickOrderForm.register("ticketTitle")}
+                  />
                 </FormField>
-                <FormField label="Số lượng" required error={quickOrderForm.formState.errors.quantity?.message}>
-                  <Input aria-invalid={Boolean(quickOrderForm.formState.errors.quantity)} {...quickOrderForm.register("quantity")} />
+                <FormField
+                  label="Số lượng"
+                  required
+                  error={quickOrderForm.formState.errors.quantity?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.quantity,
+                    )}
+                    {...quickOrderForm.register("quantity")}
+                  />
                 </FormField>
-                <FormField label="Đơn giá" required error={quickOrderForm.formState.errors.unitPrice?.message}>
-                  <Input aria-invalid={Boolean(quickOrderForm.formState.errors.unitPrice)} {...quickOrderForm.register("unitPrice")} />
+                <FormField
+                  label="Đơn giá"
+                  required
+                  error={quickOrderForm.formState.errors.unitPrice?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.unitPrice,
+                    )}
+                    {...quickOrderForm.register("unitPrice")}
+                  />
                 </FormField>
                 <FormField
                   className="md:col-span-2"
                   label="Danh sách ghế CSV"
                   error={quickOrderForm.formState.errors.seatLabels?.message}
                 >
-                  <Textarea aria-invalid={Boolean(quickOrderForm.formState.errors.seatLabels)} {...quickOrderForm.register("seatLabels")} />
+                  <Textarea
+                    aria-invalid={Boolean(
+                      quickOrderForm.formState.errors.seatLabels,
+                    )}
+                    {...quickOrderForm.register("seatLabels")}
+                  />
                 </FormField>
-                <Button type="submit" className="md:col-span-2" disabled={createOrderRecord.isPending}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="md:col-span-2"
+                  disabled={createOrderRecord.isPending}
+                >
                   {createOrderRecord.isPending ? "Đang tạo đơn..." : "Tạo đơn"}
                 </Button>
               </form>
@@ -928,8 +1268,9 @@ export default function AdminPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="users" className="space-y-5">
+        <TabsContent value="users" className="space-y-6">
           <Panel
+            eyebrow="Người dùng"
             title="Quản lý người dùng"
             description="Tạo tài khoản mới hoặc tìm nhanh theo email."
           >
@@ -938,21 +1279,53 @@ export default function AdminPage() {
                 className="grid gap-3 md:grid-cols-4"
                 onSubmit={quickUserForm.handleSubmit((values) =>
                   createUser.mutate(values, {
-                    onSuccess: () => quickUserForm.reset(),
+                    onSuccess: () => {
+                      quickUserForm.reset();
+                    },
                   }),
                 )}
               >
-                <FormField label="Tên đăng nhập" required error={quickUserForm.formState.errors.username?.message}>
-                  <Input aria-invalid={Boolean(quickUserForm.formState.errors.username)} {...quickUserForm.register("username")} />
+                <FormField
+                  label="Tên đăng nhập"
+                  required
+                  error={quickUserForm.formState.errors.username?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(
+                      quickUserForm.formState.errors.username,
+                    )}
+                    {...quickUserForm.register("username")}
+                  />
                 </FormField>
-                <FormField label="Email" required error={quickUserForm.formState.errors.email?.message}>
-                  <Input aria-invalid={Boolean(quickUserForm.formState.errors.email)} {...quickUserForm.register("email")} />
+                <FormField
+                  label="Email"
+                  required
+                  error={quickUserForm.formState.errors.email?.message}
+                >
+                  <Input
+                    aria-invalid={Boolean(quickUserForm.formState.errors.email)}
+                    {...quickUserForm.register("email")}
+                  />
                 </FormField>
-                <FormField label="Mật khẩu" required error={quickUserForm.formState.errors.password?.message}>
-                  <Input type="password" aria-invalid={Boolean(quickUserForm.formState.errors.password)} {...quickUserForm.register("password")} />
+                <FormField
+                  label="Mật khẩu"
+                  required
+                  error={quickUserForm.formState.errors.password?.message}
+                >
+                  <Input
+                    type="password"
+                    aria-invalid={Boolean(
+                      quickUserForm.formState.errors.password,
+                    )}
+                    {...quickUserForm.register("password")}
+                  />
                 </FormField>
                 <div className="flex items-end">
-                  <Button type="submit" disabled={createUser.isPending}>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={createUser.isPending}
+                  >
                     {createUser.isPending ? "Đang tạo..." : "Tạo tài khoản"}
                   </Button>
                 </div>
@@ -966,13 +1339,19 @@ export default function AdminPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   disabled={!lookupEmail}
                   onClick={() => setSubmittedLookupEmail(lookupEmail)}
                 >
                   Tìm
                 </Button>
                 {lookupQuery.data ? (
-                  <Button asChild variant="ghost" className="md:col-span-2">
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="md:col-span-2 justify-start"
+                  >
                     <Link href={`/admin/users/${lookupQuery.data.id}`}>
                       Mở {lookupQuery.data.email ?? compactId(lookupQuery.data.id)}
                     </Link>
@@ -983,6 +1362,7 @@ export default function AdminPage() {
           </Panel>
 
           <Panel
+            eyebrow="Danh sách"
             title="Người dùng mới nhất"
             description="Mở nhanh hồ sơ tài khoản cần kiểm tra."
           >
@@ -991,26 +1371,28 @@ export default function AdminPage() {
                 <Link
                   key={user.id}
                   href={`/admin/users/${user.id}`}
-                  className="rounded-lg border border-border/80 bg-secondary/45 px-4 py-4 transition-colors hover:bg-muted/35"
+                  className="border border-border bg-card px-4 py-4 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
                       <Activity className="size-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">
+                      <p className="truncate font-medium text-ink">
                         {user.name ?? user.username ?? user.email ?? compactId(user.id)}
                       </p>
-                      <p className="mt-1 truncate text-sm text-muted-foreground">
+                      <p className="mt-1 truncate text-sm text-ink-muted">
                         {user.email ?? "Chưa có email"}
                       </p>
-                      <p className="mt-2 text-xs text-muted-foreground">
+                      <p className="mt-2 font-mono text-xs text-ink-muted">
                         {user.username ?? "Chưa có tên đăng nhập"}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 font-mono text-xs tabular-nums text-ink-muted">
                         Cập nhật{" "}
                         {formatDateTime(
-                          typeof user.updatedAt === "string" ? user.updatedAt : null,
+                          typeof user.updatedAt === "string"
+                            ? user.updatedAt
+                            : null,
                         )}
                       </p>
                     </div>

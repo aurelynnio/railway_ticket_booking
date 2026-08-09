@@ -48,7 +48,8 @@ const createTicketSchema = z
     (values) =>
       !values.dateStart ||
       !values.dateEnd ||
-      new Date(values.dateEnd).getTime() >= new Date(values.dateStart).getTime(),
+      new Date(values.dateEnd).getTime() >=
+        new Date(values.dateStart).getTime(),
     {
       message: "Giờ đến phải sau giờ khởi hành",
       path: ["dateEnd"],
@@ -85,16 +86,17 @@ export default function AdminTicketNewPage() {
       description="Thiết lập hành trình, lịch chạy và hạng ghế đầu tiên để mở bán."
     >
       <Panel
+        eyebrow="Tạo vé"
         title="Thông tin hành trình"
         description="Nhập tuyến, thời gian và danh sách ghế cho hạng vé mặc định."
       >
         <NoticeBox
           title="Quy trình tạo vé"
           description="Tạo hành trình trước, sau đó vào trang chi tiết để mở bán, chuẩn bị tồn chỗ và bổ sung thêm hạng ghế."
-          tone="muted"
+          tone="secondary"
         />
         <form
-          className="mt-4 grid gap-3 xl:grid-cols-2"
+          className="mt-6 grid gap-4 xl:grid-cols-2"
           onSubmit={form.handleSubmit(async (values) => {
             const parsedSeatLabels = splitCsv(values.seatLabels);
             const result = await createTicket.mutateAsync({
@@ -125,59 +127,134 @@ export default function AdminTicketNewPage() {
             router.push(`/admin/tickets/${result.id}`);
           })}
         >
-          <FormField label="Tên vé" error={form.formState.errors.title?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.title)} {...form.register("title")} />
+          <FormField
+            label="Tên vé"
+            error={form.formState.errors.title?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.title)}
+              {...form.register("title")}
+            />
           </FormField>
-          <FormField label="Số tàu" error={form.formState.errors.trainNumber?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.trainNumber)} {...form.register("trainNumber")} />
+          <FormField
+            label="Số tàu"
+            error={form.formState.errors.trainNumber?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.trainNumber)}
+              {...form.register("trainNumber")}
+            />
           </FormField>
-          <FormField label="Mã ga đi" error={form.formState.errors.departureCode?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.departureCode)} {...form.register("departureCode")} />
+          <FormField
+            label="Mã ga đi"
+            error={form.formState.errors.departureCode?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.departureCode)}
+              {...form.register("departureCode")}
+            />
           </FormField>
-          <FormField label="Tên ga đi" error={form.formState.errors.departureName?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.departureName)} {...form.register("departureName")} />
+          <FormField
+            label="Tên ga đi"
+            error={form.formState.errors.departureName?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.departureName)}
+              {...form.register("departureName")}
+            />
           </FormField>
-          <FormField label="Mã ga đến" error={form.formState.errors.arrivalCode?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.arrivalCode)} {...form.register("arrivalCode")} />
+          <FormField
+            label="Mã ga đến"
+            error={form.formState.errors.arrivalCode?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.arrivalCode)}
+              {...form.register("arrivalCode")}
+            />
           </FormField>
-          <FormField label="Tên ga đến" error={form.formState.errors.arrivalName?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.arrivalName)} {...form.register("arrivalName")} />
+          <FormField
+            label="Tên ga đến"
+            error={form.formState.errors.arrivalName?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.arrivalName)}
+              {...form.register("arrivalName")}
+            />
           </FormField>
-          <FormField label="Khởi hành" error={form.formState.errors.dateStart?.message}>
+          <FormField
+            label="Khởi hành"
+            error={form.formState.errors.dateStart?.message}
+          >
             <Input
               type="datetime-local"
               aria-invalid={Boolean(form.formState.errors.dateStart)}
               {...form.register("dateStart")}
             />
           </FormField>
-          <FormField label="Đến nơi" error={form.formState.errors.dateEnd?.message}>
+          <FormField
+            label="Đến nơi"
+            error={form.formState.errors.dateEnd?.message}
+          >
             <Input
               type="datetime-local"
               aria-invalid={Boolean(form.formState.errors.dateEnd)}
               {...form.register("dateEnd")}
             />
           </FormField>
-          <FormField label="Mã toa" error={form.formState.errors.coachCode?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.coachCode)} {...form.register("coachCode")} />
+          <FormField
+            label="Mã toa"
+            error={form.formState.errors.coachCode?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.coachCode)}
+              {...form.register("coachCode")}
+            />
           </FormField>
-          <FormField label="Hạng ghế" error={form.formState.errors.seatClass?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.seatClass)} {...form.register("seatClass")} />
+          <FormField
+            label="Hạng ghế"
+            error={form.formState.errors.seatClass?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.seatClass)}
+              {...form.register("seatClass")}
+            />
           </FormField>
-          <FormField label="Loại ghế" error={form.formState.errors.seatType?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.seatType)} {...form.register("seatType")} />
+          <FormField
+            label="Loại ghế"
+            error={form.formState.errors.seatType?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.seatType)}
+              {...form.register("seatType")}
+            />
           </FormField>
-          <FormField label="Giá gốc" error={form.formState.errors.priceOriginal?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.priceOriginal)} {...form.register("priceOriginal")} />
+          <FormField
+            label="Giá gốc"
+            error={form.formState.errors.priceOriginal?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.priceOriginal)}
+              {...form.register("priceOriginal")}
+            />
           </FormField>
-          <FormField label="Giá ưu đãi" error={form.formState.errors.priceFlash?.message}>
-            <Input aria-invalid={Boolean(form.formState.errors.priceFlash)} {...form.register("priceFlash")} />
+          <FormField
+            label="Giá ưu đãi"
+            error={form.formState.errors.priceFlash?.message}
+          >
+            <Input
+              aria-invalid={Boolean(form.formState.errors.priceFlash)}
+              {...form.register("priceFlash")}
+            />
           </FormField>
           <FormField
             className="xl:col-span-2"
             label="Ghi chú hành trình"
             error={form.formState.errors.journeyNote?.message}
           >
-            <Textarea aria-invalid={Boolean(form.formState.errors.journeyNote)} {...form.register("journeyNote")} />
+            <Textarea
+              aria-invalid={Boolean(form.formState.errors.journeyNote)}
+              {...form.register("journeyNote")}
+            />
           </FormField>
           <FormField
             className="xl:col-span-2"
@@ -185,12 +262,16 @@ export default function AdminTicketNewPage() {
             hint="Ví dụ A1,A2,A3"
             error={form.formState.errors.seatLabels?.message}
           >
-            <Textarea aria-invalid={Boolean(form.formState.errors.seatLabels)} {...form.register("seatLabels")} />
+            <Textarea
+              aria-invalid={Boolean(form.formState.errors.seatLabels)}
+              {...form.register("seatLabels")}
+            />
           </FormField>
 
-          <div className="xl:col-span-2 flex flex-wrap gap-2">
+          <div className="xl:col-span-2 flex flex-wrap gap-2 pt-2">
             <Button
               type="submit"
+              size="sm"
               disabled={createTicket.isPending}
             >
               {createTicket.isPending ? "Đang tạo..." : "Tạo vé"}

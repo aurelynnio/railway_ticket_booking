@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 
 import { AppShell, Panel } from "@/components/app-shell";
+import { RouteLine } from "@/components/route-line";
 import {
   DetailBlock,
   MetaGrid,
@@ -53,9 +56,18 @@ export default function AdminTicketItemPage() {
     <AppShell
       title="Chi tiết hạng ghế"
       description="Quản lý giá, thời gian bán và tình trạng ghế của một toa hoặc hạng vé."
+      actions={
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/admin/tickets/${ticketId}`}>
+            <ChevronLeft className="size-3.5" aria-hidden />
+            Quay lại vé
+          </Link>
+        </Button>
+      }
     >
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel
+          eyebrow="Khoang ghế"
           title={item?.name ?? item?.coachCode ?? "Đang tải hạng ghế"}
           description="Thông tin ghế, tồn chỗ, giá và thời gian mở bán."
         >
@@ -70,21 +82,25 @@ export default function AdminTicketItemPage() {
               <>
                 <MetaGrid
                   items={[
-                    { label: "Mã toa", value: item.coachCode ?? "N/A" },
+                    { label: "Mã toa", value: <span className="mono">{item.coachCode ?? "N/A"}</span> },
                     { label: "Hạng ghế", value: item.seatClass ?? "N/A" },
                     { label: "Loại ghế", value: item.seatType ?? "N/A" },
-                    { label: "Tồn đầu", value: String(item.stockInitial ?? 0) },
-                    { label: "Tồn hiện tại", value: String(item.stockAvailable ?? 0) },
+                    { label: "Tồn đầu", value: <span className="mono tabular-nums">{String(item.stockInitial ?? 0)}</span> },
+                    { label: "Tồn hiện tại", value: <span className="mono tabular-nums">{String(item.stockAvailable ?? 0)}</span> },
                     { label: "Đã chuẩn bị", value: item.stockPrepared ? "Có" : "Chưa" },
-                    { label: "Giá gốc", value: formatCurrency(item.priceOriginal) },
-                    { label: "Giá ưu đãi", value: formatCurrency(item.priceFlash) },
-                    { label: "Mở bán từ", value: formatDateTime(item.saleStartTime) },
-                    { label: "Kết thúc bán", value: formatDateTime(item.saleEndTime) },
-                    { label: "Ngày tạo", value: formatDateTime(item.createdAt) },
-                    { label: "Cập nhật", value: formatDateTime(item.updatedAt) },
+                    { label: "Giá gốc", value: <span className="mono tabular-nums">{formatCurrency(item.priceOriginal)}</span> },
+                    { label: "Giá ưu đãi", value: <span className="mono tabular-nums">{formatCurrency(item.priceFlash)}</span> },
+                    { label: "Mở bán từ", value: <span className="mono tabular-nums">{formatDateTime(item.saleStartTime)}</span> },
+                    { label: "Kết thúc bán", value: <span className="mono tabular-nums">{formatDateTime(item.saleEndTime)}</span> },
+                    { label: "Ngày tạo", value: <span className="mono tabular-nums">{formatDateTime(item.createdAt)}</span> },
+                    { label: "Cập nhật", value: <span className="mono tabular-nums">{formatDateTime(item.updatedAt)}</span> },
                   ]}
                   columns={3}
                 />
+
+                <div className="py-1">
+                  <RouteLine compact aria-hidden />
+                </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <DetailBlock
@@ -103,6 +119,7 @@ export default function AdminTicketItemPage() {
 
         <div className="grid gap-6">
           <Panel
+            eyebrow="Điều chỉnh giá"
             title="Cập nhật giá"
             description="Điều chỉnh giá gốc và giá ưu đãi."
           >
@@ -120,6 +137,7 @@ export default function AdminTicketItemPage() {
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 disabled={!ticketId || !itemId || changePrice.isPending}
                 onClick={() =>
                   changePrice.mutate({
@@ -138,6 +156,7 @@ export default function AdminTicketItemPage() {
           </Panel>
 
           <Panel
+            eyebrow="Vận hành"
             title="Giữ chỗ thủ công"
             description="Giữ hoặc hoàn một ghế cụ thể khi cần hỗ trợ vận hành."
           >
@@ -174,6 +193,7 @@ export default function AdminTicketItemPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   disabled={!ticketId || !itemId || !seatLabel || reserveSeat.isPending}
                   onClick={() =>
                     reserveSeat.mutate({
@@ -188,6 +208,7 @@ export default function AdminTicketItemPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   disabled={!ticketId || !itemId || !seatLabel || releaseSeat.isPending}
                   onClick={() =>
                     releaseSeat.mutate({
@@ -204,6 +225,7 @@ export default function AdminTicketItemPage() {
           </Panel>
 
           <Panel
+            eyebrow="Lịch bán"
             title="Thời gian mở bán"
             description="Cập nhật thời điểm bắt đầu và kết thúc bán vé."
           >
@@ -223,6 +245,7 @@ export default function AdminTicketItemPage() {
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 disabled={!ticketId || !itemId || changeSaleWindow.isPending}
                 onClick={() =>
                   changeSaleWindow.mutate({
@@ -241,6 +264,7 @@ export default function AdminTicketItemPage() {
           </Panel>
 
           <Panel
+            eyebrow="Thông tin"
             title="Thông tin hạng ghế"
             description="Cập nhật tên hiển thị và hạng ghế."
           >
@@ -258,6 +282,7 @@ export default function AdminTicketItemPage() {
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 disabled={!ticketId || !itemId || updateTicketItem.isPending}
                 onClick={() =>
                   updateTicketItem.mutate({
@@ -276,17 +301,19 @@ export default function AdminTicketItemPage() {
           </Panel>
 
           <Panel
+            eyebrow="Nguy hiểm"
             title="Danger zone"
             description="Xoá hạng ghế khỏi hành trình. Hành động này không thể hoàn tác."
           >
             <NoticeBox
               title="Thao tác không hoàn tác"
               description="Chỉ xoá khi chắc chắn toa hoặc hạng ghế này không còn dùng trong vận hành."
-              tone="danger"
+              tone="destructive"
             />
             <Button
               type="button"
               variant="destructive"
+              size="sm"
               className="mt-4"
               disabled={!ticketId || !itemId || removeTicketItem.isPending}
               onClick={() =>
