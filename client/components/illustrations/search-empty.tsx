@@ -24,7 +24,7 @@ export function SearchEmptyIllustration({ size }: Props) {
       <circle cx="78" cy="78" r="18" />
       <line x1="91" y1="91" x2="104" y2="104" strokeWidth="2.4" />
       <circle cx="78" cy="78" r="11" opacity="0.4" />
-      <circle cx="78" cy="78" r="3" fill="#C8161D" stroke="none" />
+      <circle cx="78" cy="78" r="3" fill="#06A1A0" stroke="none" />
     </svg>
   );
 }

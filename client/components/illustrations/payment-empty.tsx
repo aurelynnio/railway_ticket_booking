@@ -25,7 +25,7 @@ export function PaymentEmptyIllustration({ size }: Props) {
       <line x1="78" y1="62" x2="92" y2="62" />
       <line x1="22" y1="78" x2="60" y2="78" opacity="0.6" />
       <line x1="80" y1="78" x2="98" y2="78" opacity="0.6" />
-      <circle cx="100" cy="84" r="3" fill="#C8161D" stroke="none" />
+      <circle cx="100" cy="84" r="3" fill="#06A1A0" stroke="none" />
     </svg>
   );
 }

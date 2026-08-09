@@ -17,7 +17,7 @@ export function SuccessStateIllustration({ size }: Props) {
       <circle cx="60" cy="60" r="36" />
       <circle cx="60" cy="60" r="48" opacity="0.2" strokeDasharray="3 4" />
       <path d="M44 62 L 56 74 L 80 48" strokeWidth="3" />
-      <circle cx="60" cy="60" r="2" fill="#C8161D" stroke="none" />
+      <circle cx="60" cy="60" r="2" fill="#06A1A0" stroke="none" />
     </svg>
   );
 }

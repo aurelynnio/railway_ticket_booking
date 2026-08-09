@@ -20,11 +20,11 @@ export function ThemeToggle() {
       id="theme-toggle-btn"
     >
       <Sun
-        className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
+        className="size-4 rotate-0 scale-100 transition-[opacity,transform] dark:-rotate-90 dark:scale-0"
         suppressHydrationWarning
       />
       <Moon
-        className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+        className="absolute size-4 rotate-90 scale-0 transition-[opacity,transform] dark:rotate-0 dark:scale-100"
         suppressHydrationWarning
       />
       <span className="sr-only">Toggle theme</span>

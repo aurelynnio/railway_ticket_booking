@@ -31,12 +31,11 @@ export function CountUp({
 }: CountUpProps) {
   const ref = useRef<HTMLSpanElement | null>(null);
   const reduced = useReducedMotion();
-  const [value, setValue] = useState(reduced ? to : 0);
+  const [value, setValue] = useState(0);
   const startedRef = useRef(false);
 
   useEffect(() => {
     if (reduced) {
-      setValue(to);
       return;
     }
     const el = ref.current;
@@ -63,7 +62,8 @@ export function CountUp({
     return () => observer.disconnect();
   }, [to, duration, delay, reduced]);
 
-  const display = format ? format(value) : value.toFixed(decimals);
+  const renderedValue = reduced ? to : value;
+  const display = format ? format(renderedValue) : renderedValue.toFixed(decimals);
 
   return (
     <span ref={ref} className={cn("tabular-nums", className)}>

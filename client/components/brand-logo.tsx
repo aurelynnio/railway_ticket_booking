@@ -17,30 +17,32 @@ type BrandLogoProps = {
   size?: BrandSize;
   variant?: BrandVariant;
   tone?: BrandTone;
-  /** override the onClick, e.g. for keeping focus on a button */
   asChild?: boolean;
 };
 
 const SIZE_MAP: Record<
   BrandSize,
-  { markBox: number; markClass: string; textClass: string; tagline: boolean }
+  { markBox: number; markClass: string; textClass: string; wordmarkClass: string; tagline: boolean }
 > = {
   sm: {
-    markBox: 32,
-    markClass: "h-8 w-8",
+    markBox: 28,
+    markClass: "h-7 w-7",
     textClass: "text-xs",
+    wordmarkClass: "text-sm",
     tagline: false,
   },
   md: {
-    markBox: 44,
-    markClass: "h-11 w-11",
+    markBox: 36,
+    markClass: "h-9 w-9",
     textClass: "text-sm",
+    wordmarkClass: "text-base",
     tagline: false,
   },
   lg: {
-    markBox: 56,
-    markClass: "h-14 w-14",
+    markBox: 48,
+    markClass: "h-12 w-12",
     textClass: "text-base",
+    wordmarkClass: "text-xl",
     tagline: true,
   },
 };
@@ -63,7 +65,7 @@ export function BrandLogo({
     <Link
       href={href}
       className={cn(
-        "group inline-flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md",
+        "group inline-flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background rounded-sm",
         className,
       )}
       aria-label="Vietrail Way"
@@ -71,7 +73,7 @@ export function BrandLogo({
       {variant === "mark" ? (
         <span
           className={cn(
-            "shrink-0 overflow-hidden rounded-lg border border-border/60 bg-card transition-transform group-hover:scale-[1.02]",
+            "shrink-0 overflow-hidden rounded-sm border border-border bg-card transition-transform group-hover:scale-[1.02]",
             dims.markClass,
           )}
         >
@@ -91,7 +93,10 @@ export function BrandLogo({
             alt=""
             width={168}
             height={40}
-            className="h-10 w-auto"
+            className={cn(
+              "h-auto w-auto",
+              size === "sm" ? "h-8" : size === "lg" ? "h-12" : "h-10",
+            )}
             priority
           />
         </span>
@@ -101,9 +106,8 @@ export function BrandLogo({
         <span className="grid gap-0.5 leading-none">
           <span
             className={cn(
-              "font-heading font-bold tracking-tight text-ink",
-              dims.textClass,
-              size === "lg" ? "text-lg" : size === "md" ? "text-sm" : "text-xs",
+              "font-display font-semibold tracking-tight text-ink",
+              dims.wordmarkClass,
             )}
           >
             Vietrail Way
@@ -111,7 +115,7 @@ export function BrandLogo({
           {sublabel ? (
             <span
               className={cn(
-                "text-[10px] font-medium uppercase tracking-wider text-ink-muted",
+                "text-[10px] font-semibold uppercase tracking-wider text-ink-muted",
                 size === "lg" && "text-xs",
               )}
             >
@@ -119,7 +123,7 @@ export function BrandLogo({
             </span>
           ) : null}
           {dims.tagline && !sublabel ? (
-            <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Đặt vé tàu Bắc · Trung · Nam
             </span>
           ) : null}

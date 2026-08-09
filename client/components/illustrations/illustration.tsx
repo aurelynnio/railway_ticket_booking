@@ -9,7 +9,7 @@ import { TrainEmptyIllustration } from "./train-empty";
 
 /**
  * Illustration — render 1 trong 6 illustration preset của design system.
- * Style: line-art với currentColor + 1 accent brand (#C8161D) tích hợp sẵn.
+ * Style: line-art với currentColor + 1 accent brand (#06A1A0) tích hợp sẵn.
  *
  * Tone mặc định dùng `text-ink-muted` để giữ phong cách tối giản. Có thể
  * override tone bằng prop `tone` (brand / muted / positive / warning / danger).

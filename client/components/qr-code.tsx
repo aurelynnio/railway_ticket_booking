@@ -27,7 +27,7 @@ export function QrCode({ value, size = 200, className }: QrCodeProps) {
         alt={`QR code for ${value}`}
         width={size}
         height={size}
-        className="rounded-lg"
+        className="block"
         unoptimized
       />
     </div>

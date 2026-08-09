@@ -33,7 +33,7 @@ export function TrainEmptyIllustration({ size }: Props) {
       <line x1="50" y1="102" x2="58" y2="102" />
       <line x1="68" y1="102" x2="76" y2="102" />
       <line x1="86" y1="102" x2="94" y2="102" />
-      <circle cx="60" cy="60" r="1.5" fill="#C8161D" stroke="none" />
+      <circle cx="60" cy="60" r="1.5" fill="#06A1A0" stroke="none" />
     </svg>
   );
 }

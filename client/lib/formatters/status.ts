@@ -1,7 +1,7 @@
 import { OrderStatus } from "@/lib/api-types/order";
 import { PaymentStatus } from "@/lib/api-types/payment";
 
-export type StatusTone = "brand" | "positive" | "warning" | "danger" | "muted";
+export type StatusTone = "default" | "success" | "warning" | "destructive" | "secondary";
 
 export function formatOrderStatus(status: OrderStatus | number) {
   switch (status) {
@@ -54,21 +54,21 @@ export function getOrderStatusTone(status: OrderStatus | number): StatusTone {
     case OrderStatus.Paid:
     case OrderStatus.Confirmed:
     case OrderStatus.TicketIssued:
-      return "positive";
+      return "success";
     case OrderStatus.PendingPayment:
     case OrderStatus.Draft:
       return "warning";
     case OrderStatus.Cancelled:
     case OrderStatus.Expired:
     case OrderStatus.Refunded:
-      return "danger";
+      return "destructive";
     default:
-      return "muted";
+      return "secondary";
   }
 }
 
 export function getTicketStatusTone(status: number): StatusTone {
-  return status === 1 ? "positive" : "warning";
+  return status === 1 ? "success" : "warning";
 }
 
 export function getPaymentStatusTone(
@@ -76,15 +76,15 @@ export function getPaymentStatusTone(
 ): StatusTone {
   switch (status) {
     case PaymentStatus.Paid:
-      return "positive";
+      return "success";
     case PaymentStatus.Processing:
     case PaymentStatus.Pending:
       return "warning";
     case PaymentStatus.Failed:
     case PaymentStatus.Cancelled:
     case PaymentStatus.Expired:
-      return "danger";
+      return "destructive";
     default:
-      return "muted";
+      return "secondary";
   }
 }

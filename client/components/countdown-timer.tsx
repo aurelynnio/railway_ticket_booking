@@ -61,7 +61,7 @@ export function CountdownTimer({
           ? "border-destructive/20 bg-destructive/8 text-destructive"
           : isUrgent
             ? "border-warning/25 bg-warning/8 text-warning animate-pulse"
-            : "border-primary/20 bg-accent/50 text-accent-foreground",
+            : "border-primary/20 bg-primary-soft text-ink",
         className,
       )}
       id="payment-countdown"

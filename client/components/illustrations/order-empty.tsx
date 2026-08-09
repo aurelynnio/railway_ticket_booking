@@ -25,7 +25,7 @@ export function OrderEmptyIllustration({ size }: Props) {
       <rect x="80" y="61" width="5" height="5" fill="currentColor" stroke="none" />
       <rect x="71" y="70" width="5" height="5" fill="currentColor" stroke="none" />
       <rect x="80" y="70" width="5" height="5" fill="currentColor" stroke="none" />
-      <circle cx="60" cy="52" r="2" fill="#C8161D" stroke="none" />
+      <circle cx="60" cy="52" r="2" fill="#06A1A0" stroke="none" />
     </svg>
   );
 }

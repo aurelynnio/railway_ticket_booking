@@ -9,7 +9,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-heading: var(--font-heading);
+  --font-display: var(--font-display);
+  --font-heading: var(--font-display);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -23,6 +24,10 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-hover: var(--primary-soft-hover);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -33,253 +38,379 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
-  --color-brand: var(--brand);
-  --color-brand-hover: var(--brand-hover);
-  --color-brand-soft: var(--brand-soft);
+  --color-brand: var(--primary);
+  --color-brand-hover: var(--primary-hover);
+  --color-brand-soft: var(--primary-soft);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
   --color-border-strong: var(--border-strong);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.85);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 2);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
-  --shadow-brand: var(--shadow-brand);
 }
 
 /* =========================================================================
-   DESIGN TOKENS - Vietrail Way (JD Red edition)
-   Brand: #C8161D - Vietnamese railway booking
+   DESIGN SYSTEM — Vietrail (Premium Editorial Edition)
+   Direction: Modern Railway Travel Platform
+   Typography: Fraunces (display/editorial) + DM Sans (UI/body) + JetBrains Mono
+   Primary: Deep refined teal #0D7377
+   Surfaces: Warm off-white, crisp white, subtle grays
+   Philosophy: Border-first, generous whitespace, strong hierarchy, minimal shadow
    ========================================================================= */
+
 :root {
-  /* Brand */
-  --brand: #c8161d;
-  --brand-hover: #a61118;
-  --brand-soft: #fff5f5;
+  /* Primary — Refined deep teal (premium, trustworthy, travel-oriented) */
+  --primary: #0d7377;
+  --primary-hover: #0a5c5f;
+  --primary-active: #084a4d;
+  --primary-soft: #e6f3f3;
+  --primary-soft-hover: #d4ebeb;
 
-  /* Ink (typography scale) */
-  --ink: #1a1a1a;
-  --ink-muted: #5c5c5c;
+  /* Accent — Warm amber for highlights and secondary CTAs */
+  --accent: #b8632a;
+  --accent-foreground: #ffffff;
 
-  /* Surfaces (cool cream, no gradient) */
-  --background: #fafaf7;
-  --foreground: #1a1a1a;
+  /* Ink — Deep blue-charcoal for warm, legible text */
+  --ink: #1a2332;
+  --ink-muted: #64748b;
+  --ink-subtle: #64748b;
 
+  /* Background — Warm off-white (not clinical pure white) */
+  --background: #fafbfb;
+  --foreground: #1a2332;
+
+  /* Card/Surface */
   --card: #ffffff;
-  --card-foreground: #1a1a1a;
+  --card-foreground: #1a2332;
 
   --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
+  --popover-foreground: #1a2332;
 
-  --primary: #c8161d;
   --primary-foreground: #ffffff;
 
-  --secondary: #f4f4f0;
-  --secondary-foreground: #1a1a1a;
+  --secondary: #f1f5f5;
+  --secondary-foreground: #1a2332;
 
-  --muted: #ecece6;
-  --muted-foreground: #5c5c5c;
+  --muted: #f4f6f7;
+  --muted-foreground: #64748b;
 
-  --accent: #fff5f5;
-  --accent-foreground: #c8161d;
-
-  --destructive: #dc2626;
+  /* Semantic */
+  --destructive: #c53d3d;
   --destructive-foreground: #ffffff;
 
-  --success: #16a34a;
+  --success: #237347;
   --success-foreground: #ffffff;
 
-  --warning: #d97706;
-  --warning-foreground: #fffaf0;
+  --warning: #965a0b;
+  --warning-foreground: #ffffff;
 
-  --info: #2563eb;
+  --info: #2b6cb0;
   --info-foreground: #ffffff;
 
-  /* Surfaces */
+  /* Surface scale */
   --surface-1: #ffffff;
-  --surface-2: #f4f4f0;
-  --surface-3: #ecece6;
+  --surface-2: #f4f6f7;
+  --surface-3: #eaeef0;
 
-  /* Borders - WCAG AA 3:1 */
-  --border: #d4d4d0;
-  --border-strong: #a8a8a2;
-  --input: #e5e5df;
-  --ring: #c8161d;
+  /* Borders — Subtle, warm, layered */
+  --border: #e2e8ea;
+  --border-strong: #c7d2d6;
+  --input: #d4dde0;
+  --ring: #0d7377;
 
-  /* Geometry */
-  --radius: 0.625rem;
+  /* Geometry — approachable controls with restrained, consistent rounding */
+  --radius: 0.75rem;
 
-  /* Shadow - subtle, brand-tinted */
-  --shadow-xs: 0 1px 2px 0 rgb(26 26 26 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(26 26 26 / 0.05), 0 1px 1px rgb(26 26 26 / 0.03);
-  --shadow-md: 0 4px 12px -2px rgb(26 26 26 / 0.08), 0 2px 4px -2px rgb(26 26 26 / 0.04);
-  --shadow-brand: 0 4px 16px -4px rgb(200 22 29 / 0.18);
+  /* Shadows — Extremely subtle; prefer borders for definition */
+  --shadow-xs: 0 1px 2px 0 rgb(26 35 50 / 0.04);
+  --shadow-sm: 0 1px 3px rgb(26 35 50 / 0.05), 0 1px 2px rgb(26 35 50 / 0.03);
+  --shadow-md: 0 4px 12px -2px rgb(26 35 50 / 0.06), 0 2px 4px -2px rgb(26 35 50 / 0.03);
 
-  /* Track (kept for backward compat with existing route-pill) */
-  --track: #ffe0e1;
-  --track-strong: #c8161d;
+  /* Legacy track vars (kept for route components) */
+  --track: #e6f3f3;
+  --track-strong: #0d7377;
 }
 
 .dark {
-  --brand: #ef4444;
-  --brand-hover: #f87171;
-  --brand-soft: #2a0f0f;
+  --primary: #14a1a5;
+  --primary-hover: #1ab8bd;
+  --primary-active: #0d7377;
+  --primary-soft: #0a2a2c;
+  --primary-soft-hover: #0d3538;
 
-  --ink: #f5f5f5;
-  --ink-muted: #a1a1a1;
+  --accent: #d4834a;
+  --accent-foreground: #0f1720;
 
-  --background: #0a0a0a;
-  --foreground: #f5f5f5;
+  --ink: #e2eef0;
+  --ink-muted: #8ba1a8;
+  --ink-subtle: #8ba1a8;
 
-  --card: #141414;
-  --card-foreground: #f5f5f5;
+  --background: #0c1218;
+  --foreground: #e2eef0;
 
-  --popover: #141414;
-  --popover-foreground: #f5f5f5;
+  --card: #131c24;
+  --card-foreground: #e2eef0;
 
-  --primary: #ef4444;
-  --primary-foreground: #0a0a0a;
+  --popover: #131c24;
+  --popover-foreground: #e2eef0;
 
-  --secondary: #1f1f1f;
-  --secondary-foreground: #f5f5f5;
+  --primary-foreground: #0a1a1b;
 
-  --muted: #2a2a2a;
-  --muted-foreground: #a1a1a1;
+  --secondary: #1a252e;
+  --secondary-foreground: #e2eef0;
 
-  --accent: #2a0f0f;
-  --accent-foreground: #fca5a5;
+  --muted: #1e2a33;
+  --muted-foreground: #8ba1a8;
 
-  --destructive: #ef4444;
-  --destructive-foreground: #0a0a0a;
+  --destructive: #d45454;
+  --destructive-foreground: #1a0a0a;
 
-  --success: #22c55e;
-  --success-foreground: #052e16;
+  --success: #3ea06a;
+  --success-foreground: #0a1f14;
 
-  --warning: #f59e0b;
-  --warning-foreground: #1c1917;
+  --warning: #d4923a;
+  --warning-foreground: #1f1505;
 
-  --info: #3b82f6;
-  --info-foreground: #0a0a0a;
+  --info: #4a8dd4;
+  --info-foreground: #081525;
 
-  --surface-1: #141414;
-  --surface-2: #1f1f1f;
-  --surface-3: #2a2a2a;
+  --surface-1: #131c24;
+  --surface-2: #1a252e;
+  --surface-3: #1e2a33;
 
-  --border: #2a2a2a;
-  --border-strong: #404040;
-  --input: #2a2a2a;
-  --ring: #ef4444;
+  --border: #24333d;
+  --border-strong: #364a55;
+  --input: #24333d;
+  --ring: #14a1a5;
 
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-  --shadow-brand: 0 4px 16px -4px rgb(239 68 68 / 0.25);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.2);
 
-  --track: #3a1818;
-  --track-strong: #ef4444;
+  --track: #0a2a2c;
+  --track-strong: #14a1a5;
 }
+
+/* =========================================================================
+   Base
+   ========================================================================= */
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
 
   html {
-    @apply bg-background font-sans text-foreground antialiased;
-    scroll-behavior: smooth;
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "ss02", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    @apply min-h-screen bg-background text-foreground;
+    @apply min-h-screen;
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.005em;
   }
 
   ::selection {
-    background: color-mix(in oklch, var(--brand) 18%, transparent);
+    background: color-mix(in oklch, var(--primary) 15%, transparent);
     color: var(--foreground);
   }
 
-  /* Typography hierarchy — heading dùng tracking tight + weight rõ */
+  /* Typography hierarchy */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading tracking-tight text-ink;
+    font-family: var(--font-display), Georgia, serif;
+    @apply font-semibold tracking-tight text-ink;
     text-wrap: balance;
+    letter-spacing: -0.02em;
   }
 
-  /* Scrollbar tối giản */
+  h1 { @apply text-[clamp(2rem,5vw,3.5rem)] leading-[1.1] font-semibold; }
+  h2 { @apply text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.2] font-semibold; }
+  h3 { @apply text-[clamp(1.25rem,2vw,1.5rem)] leading-[1.3] font-medium; }
+  h4 { @apply text-lg leading-[1.4] font-medium; }
+  h5 { @apply text-base leading-[1.5] font-medium; }
+  h6 { @apply text-sm leading-[1.5] font-semibold uppercase tracking-widest; }
+
+  p {
+    @apply leading-relaxed text-ink-muted;
+  }
+
+  small { @apply text-sm; }
+
+  /* Scrollbar — minimal */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 4px;
+    background: var(--border-strong);
+    border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--muted-foreground);
+    background: var(--ink-subtle);
   }
 
-  /* Focus ring rõ cho keyboard navigation */
+  /* Focus ring */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    @apply outline-none ring-2 ring-ring ring-offset-1 ring-offset-background;
+  }
+
+  /* Links */
+  a {
+    @apply transition-colors duration-150;
+  }
+
+  /* Form elements baseline */
+  input, select, textarea {
+    @apply transition-colors duration-150;
   }
 }
 
-@layer components {
-  /* Surfaces - thống nhất qua <Card /> component với variant:
-     - outlined   (mặc định): border + bg-card
-     - elevated                : border + bg-card + shadow-sm
-     - flat                    : border-transparent + bg-secondary
-     - quiet                   : transparent hoàn toàn
-     (Các class cũ đã được migrate sang component.) */
+/* =========================================================================
+   Components
+   ========================================================================= */
 
+@layer components {
+  /* Container — max-width with consistent horizontal padding */
+  .app-container {
+    @apply mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Section spacing */
+  .page-section {
+    @apply flex min-w-0 flex-col gap-8;
+  }
+
+  .page-band {
+    @apply border border-border bg-card;
+  }
+
+  /* Dividers */
   .soft-divider {
     @apply h-px w-full bg-border;
   }
 
-  /* Pill dùng cho route, station, tag */
+  .hard-divider {
+    @apply h-px w-full bg-border-strong;
+  }
+
+  /* Pill tag */
   .route-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand;
+    @apply inline-flex items-center gap-1.5 border border-primary/15 bg-primary-soft px-2.5 py-1 text-xs font-medium text-primary;
   }
 
-  .page-band {
-    @apply rounded-lg border border-border bg-card;
+  /* Page header with eyebrow */
+  .page-header {
+    @apply border-b border-border pb-8;
   }
 
-  /* Transit line (decorative cho hero) - dùng solid color, không gradient */
+  .eyebrow {
+    @apply mb-3 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-primary;
+  }
+
+  .eyebrow::before {
+    content: "";
+    @apply block h-px w-6 bg-primary;
+  }
+
+  /* Transit line (hero decorative) */
   .transit-line {
     background-color: var(--track);
     background-image: repeating-linear-gradient(
       90deg,
       transparent 0,
       transparent 28px,
-      color-mix(in oklch, var(--track-strong) 50%, transparent) 28px,
-      color-mix(in oklch, var(--track-strong) 50%, transparent) 30px
+      color-mix(in oklch, var(--track-strong) 40%, transparent) 28px,
+      color-mix(in oklch, var(--track-strong) 40%, transparent) 30px
     );
   }
 
-  .text-balance {
-    text-wrap: balance;
+  /* Route train animation */
+  .route-train {
+    position: absolute;
+    left: 0;
+    animation: route-train-travel 15s ease-in-out infinite alternate;
   }
 
-  .app-container {
-    @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8;
+  @keyframes route-train-travel {
+    0% { left: 0; }
+    100% { left: calc(100% - 1.25rem); }
   }
 
-  .page-header-compact {
-    @apply border-b border-border pb-5;
+  @media (prefers-reduced-motion: reduce) {
+    .route-train { animation: none; }
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 
-  .page-section {
-    @apply flex min-w-0 flex-col gap-6;
+  /* Ticket notch — subtle premium ticket perforation effect */
+  .ticket-notch {
+    position: relative;
+    padding: 0 0.75rem;
   }
+  .ticket-notch::before,
+  .ticket-notch::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 9999px;
+    background: var(--background);
+    box-shadow: inset 0 0 0 1px var(--border);
+    transform: translateY(-50%);
+    z-index: 2;
+  }
+  .ticket-notch::before { left: 0.3125rem; }
+  .ticket-notch::after { right: 0.3125rem; }
+
+  /* Text utilities */
+  .text-balance { text-wrap: balance; }
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--font-mono), ui-monospace, monospace; }
+
+  /* Kicker label */
+  .kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted;
+  }
+
+  /* Button base refinements applied via utility classes */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active;
+  }
+}
+
+/* =========================================================================
+   Animations
+   ========================================================================= */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-slow {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-fade-in-slow {
+  animation: fade-in-slow 0.6s ease-out both;
 }

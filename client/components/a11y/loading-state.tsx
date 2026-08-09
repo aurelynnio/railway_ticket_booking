@@ -35,14 +35,13 @@ export function LoadingState({
   as: Tag = "div",
   minDelay = 200,
 }: LoadingStateProps) {
-  const [delayedLoading, setDelayedLoading] = useState(loading);
+  const [delayedLoading, setDelayedLoading] = useState(false);
 
   useEffect(() => {
-    if (!loading) {
-      setDelayedLoading(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setDelayedLoading(true), minDelay);
+    const timer = window.setTimeout(
+      () => setDelayedLoading(loading),
+      loading ? minDelay : 0,
+    );
     return () => window.clearTimeout(timer);
   }, [loading, minDelay]);
 

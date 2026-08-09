@@ -23,15 +23,22 @@ export function AppShell({
   children,
   actions,
   heroVariant = "simple",
+  embedded = false,
 }: {
   title: string;
   description: string;
   children: ReactNode;
   actions?: ReactNode;
-  heroVariant?: "simple" | "rich";
+  heroVariant?: "simple" | "rich" | "minimal";
+  /** Renders only page content when a route is already framed by a parent layout. */
+  embedded?: boolean;
 }) {
   const pathname = usePathname();
   const isAdmin = pathname.startsWith("/admin");
+
+  if (embedded) {
+    return <>{children}</>;
+  }
 
   if (isAdmin) {
     return (

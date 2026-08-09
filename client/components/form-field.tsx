@@ -39,12 +39,12 @@ export function FormField({
       <div className="flex items-center justify-between gap-3">
         <label
           htmlFor={htmlFor}
-          className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted"
+          className="inline-flex items-center gap-1 text-sm font-medium text-ink"
         >
           {label}
           {required ? (
             <Asterisk
-              className="size-3 text-brand"
+              className="size-2.5 text-primary"
               aria-hidden
               strokeWidth={3}
             />
@@ -64,7 +64,7 @@ export function FormField({
       ) : hint ? (
         <p
           id={descriptionId}
-          className="text-xs leading-5 text-ink-muted"
+          className="text-xs leading-relaxed text-ink-muted"
         >
           {hint}
         </p>

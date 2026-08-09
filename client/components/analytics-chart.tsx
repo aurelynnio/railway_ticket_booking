@@ -27,7 +27,7 @@ export function BarChart({ data, title, maxValue, className }: BarChartProps) {
             </p>
             <div className="flex-1 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-5 rounded-full transition-all duration-700 ease-out"
+                className="h-5 rounded-full transition-[width] duration-700 ease-out"
                 style={{
                   width: `${Math.max((item.value / max) * 100, item.value > 0 ? 4 : 0)}%`,
                   backgroundColor: item.color ?? "var(--primary)",

@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 40" fill="none" role="img" aria-label="Vietrail Way">
-  <rect x="0" y="0" width="40" height="40" rx="9" fill="#C8161D"/>
+  <rect x="0" y="0" width="40" height="40" rx="9" fill="#06A1A0"/>
   <path d="M10 28 L16 16 L22 24 L28 16 L34 28" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   <circle cx="22" cy="33" r="1.8" fill="#FFFFFF"/>
   <rect x="11" y="11" width="22" height="1.8" rx="0.9" fill="#FFFFFF" opacity="0.6"/>
-  <text x="52" y="20" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700" fill="#1A1A1A" letter-spacing="-0.3">Vietrail</text>
-  <text x="52" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" font-weight="500" fill="#5C5C5C" letter-spacing="0.2">Way · Đặt vé tàu Bắc Trung Nam</text>
+  <text x="52" y="20" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700" fill="#17324D" letter-spacing="-0.3">Vietrail</text>
+  <text x="52" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" font-weight="500" fill="#5B7A88" letter-spacing="0.2">Way · Đặt vé tàu Bắc Trung Nam</text>
 </svg>

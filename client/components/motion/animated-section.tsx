@@ -40,6 +40,8 @@ type AnimatedSectionProps = {
   as?: ElementType;
   className?: string;
   scopeKey?: string;
+  id?: string;
+  "aria-label"?: string;
 };
 
 export function AnimatedSection({
@@ -50,6 +52,8 @@ export function AnimatedSection({
   as: Tag = "div",
   className,
   scopeKey,
+  id,
+  "aria-label": ariaLabel,
 }: AnimatedSectionProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const reduced = useReducedMotion();
@@ -81,6 +85,8 @@ export function AnimatedSection({
   return (
     <Tag
       ref={containerRef as React.Ref<HTMLElement>}
+      id={id}
+      aria-label={ariaLabel}
       className={cn(className)}
       data-motion={stagger ? "stagger" : "single"}
     >

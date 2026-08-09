@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { PageTransition } from "@/components/motion/page-transition";
 import { Providers } from "./providers";
 
-const bodyFont = Be_Vietnam_Pro({
+const sansFont = DM_Sans({
   variable: "--font-sans",
-  subsets: ["latin", "vietnamese"],
+  subsets: ["latin", "latin-ext"],
   weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
+
+const displayFont = Fraunces({
+  variable: "--font-display",
+  subsets: ["latin", "latin-ext"],
+  weight: "variable",
   display: "swap",
 });
 
@@ -19,16 +25,9 @@ const monoFont = JetBrains_Mono({
   display: "swap",
 });
 
-const headingFont = Be_Vietnam_Pro({
-  variable: "--font-heading",
-  subsets: ["latin", "vietnamese"],
-  weight: ["500", "600", "700", "800"],
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "Vietrail Way",
-  description: "Tra cứu chuyến, đặt vé, thanh toán và theo dõi đơn hàng tàu.",
+  title: "Vietrail — Đặt vé tàu trực tuyến",
+  description: "Tìm chuyến, chọn ghế, thanh toán và nhận vé điện tử cho hành trình đường sắt Bắc-Nam.",
 };
 
 export default function RootLayout({
@@ -39,12 +38,12 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${bodyFont.variable} ${monoFont.variable} ${headingFont.variable} h-full`}
+      className={`${sansFont.variable} ${displayFont.variable} ${monoFont.variable} h-full`}
     >
-      <body className="min-h-full">
+      <body className="min-h-full font-sans antialiased">
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-brand focus:px-4 focus:py-2 focus:text-brand-foreground focus:shadow-lg"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:bg-primary focus:px-4 focus:py-2.5 focus:text-sm focus:font-medium focus:text-primary-foreground"
         >
           Bỏ qua đến nội dung chính
         </a>
