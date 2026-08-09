@@ -40,18 +40,21 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       eyebrow="Quên mật khẩu"
-      title="Gửi yêu cầu khôi phục tài khoản"
+      title="Khôi phục mật khẩu"
       description="Nhập email đã đăng ký để nhận hướng dẫn đặt lại mật khẩu."
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>Đã nhớ mật khẩu?</span>
-          <Link href="/login" className="font-semibold text-primary">
-            Quay về đăng nhập
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-ink-muted">Đã nhớ mật khẩu?</span>
+          <Link
+            href="/login"
+            className="font-semibold text-primary transition-colors hover:text-primary-hover"
+          >
+            Quay về đăng nhập <ArrowRight className="ml-0.5 inline size-3.5" />
           </Link>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="grid gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <FormField
           label="Email"
           required
@@ -70,10 +73,11 @@ export default function ForgotPasswordPage() {
         <Button
           type="submit"
           size="lg"
+          className="w-full"
           disabled={forgotPassword.isPending || form.formState.isSubmitting}
         >
           {forgotPassword.isPending ? "Đang gửi..." : "Gửi yêu cầu"}
-          <ArrowRight />
+          <ArrowRight className="size-4" />
         </Button>
 
         {tokenPreview ? (
@@ -81,18 +85,18 @@ export default function ForgotPasswordPage() {
             title="Yêu cầu đã được tạo"
             description={
               <>
-                <p className="text-sm leading-6">
+                <p className="text-sm leading-relaxed">
                   Trong môi trường dev, dùng mã bên dưới để đặt lại mật khẩu.
                   Trên production, mã chỉ gửi qua email.
                 </p>
-                <code className="mt-2 block break-all rounded-md border border-border/60 bg-card px-3 py-2 font-mono text-xs text-foreground">
+                <code className="mt-3 block break-all border border-border bg-muted px-4 py-3 font-mono text-sm text-ink tabular-nums">
                   {tokenPreview}
                 </code>
                 <Link
                   href="/reset-password"
-                  className="mt-3 inline-flex font-semibold text-primary hover:text-primary/80"
+                  className="mt-3 inline-flex items-center font-semibold text-primary transition-colors hover:text-primary-hover"
                 >
-                  Đi tới màn reset <ArrowRight className="ml-0.5 size-3.5" />
+                  Đi tới màn reset <ArrowRight className="ml-1 size-3.5" />
                 </Link>
               </>
             }

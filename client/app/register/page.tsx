@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import { AuthShell } from "@/components/auth-shell";
 import { FormField } from "@/components/form-field";
-import { NoticeBox, StatusBadge } from "@/components/railway-ui";
+import { NoticeBox } from "@/components/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRegister } from "@/hooks/auth.hook";
@@ -44,18 +44,21 @@ export default function RegisterPage() {
   return (
     <AuthShell
       eyebrow="Tạo tài khoản"
-      title="Tạo tài khoản mới để giữ booking theo người dùng"
+      title="Tạo tài khoản mới"
       description="Tài khoản giúp lưu hồ sơ, giữ lịch sử đơn hàng và theo dõi vé đã phát hành trong các lần đặt sau."
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>Đã có tài khoản?</span>
-          <Link href="/login" className="font-semibold text-primary">
-            Quay về đăng nhập
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-ink-muted">Đã có tài khoản?</span>
+          <Link
+            href="/login"
+            className="font-semibold text-primary transition-colors hover:text-primary-hover"
+          >
+            Quay về đăng nhập <ArrowRight className="ml-0.5 inline size-3.5" />
           </Link>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="grid gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <FormField
           label="Username"
           required
@@ -102,16 +105,12 @@ export default function RegisterPage() {
         <Button
           type="submit"
           size="lg"
+          className="w-full"
           disabled={register.isPending || form.formState.isSubmitting}
         >
           {register.isPending ? "Đang tạo..." : "Tạo tài khoản"}
-          <ArrowRight />
+          <ArrowRight className="size-4" />
         </Button>
-
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge label="Sẵn sàng cho hồ sơ" tone="brand" />
-          <StatusBadge label="Nối tiếp lịch sử đơn" tone="positive" />
-        </div>
 
         {register.isError ? (
           <NoticeBox

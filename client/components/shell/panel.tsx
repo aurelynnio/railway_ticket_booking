@@ -1,39 +1,54 @@
 import type { ReactNode } from "react";
 
-import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardAction,
+} from "@/components/ui/card";
 
 export function Panel({
+  eyebrow,
   title,
   description,
   action,
   children,
   className,
+  padding = "lg",
+  variant = "outlined",
 }: {
+  eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  padding?: "none" | "sm" | "md" | "lg" | "xl";
+  variant?: "outlined" | "elevated" | "flat" | "quiet";
 }) {
   return (
-    <Card className={cn("px-6 py-5", className)}>
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <Card variant={variant} padding={padding} className={className}>
+      <CardHeader className="pb-0">
+        {eyebrow ? (
+          <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-primary">
+            {eyebrow}
+          </div>
+        ) : null}
+        <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="font-heading text-lg font-semibold tracking-tight text-ink">
-              {title}
-            </h2>
+            <CardTitle>{title}</CardTitle>
             {description ? (
-              <p className="max-w-3xl text-sm leading-6 text-ink-muted">
-                {description}
-              </p>
+              <CardDescription>{description}</CardDescription>
             ) : null}
           </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {action ? <CardAction>{action}</CardAction> : null}
         </div>
-        <div>{children}</div>
-      </div>
+      </CardHeader>
+      <CardContent className="pt-6">
+        {children}
+      </CardContent>
     </Card>
   );
 }

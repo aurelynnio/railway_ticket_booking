@@ -4,7 +4,6 @@ import {
   Receipt,
   Search,
   Shield,
-  Ticket as TicketIcon,
   TrainFront,
   UserRound,
   Wallet,

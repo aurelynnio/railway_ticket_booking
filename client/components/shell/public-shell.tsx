@@ -3,25 +3,25 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, type ReactNode } from "react";
-import { ArrowUpRight, ChevronRight, MapPinned, Search } from "lucide-react";
+import { ArrowUpRight, Menu, Search, X } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { RouteLine } from "@/components/route-line";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
 import {
-  bookingFlowSteps,
   isActivePath,
   publicPrimaryNav,
-  publicSecondaryLinks,
 } from "@/components/shell/nav-config";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 type PublicShellProps = {
   title: string;
   description: string;
   actions?: ReactNode;
-  heroVariant?: "simple" | "rich";
+  heroVariant?: "simple" | "rich" | "minimal";
   children: ReactNode;
 };
 
@@ -37,116 +37,205 @@ export function PublicShell({
   const sessionQuery = useAuthSession();
   const logout = useLogout();
   const isHome = pathname === "/";
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border/75 bg-background/92 backdrop-blur-xl">
-        <div className="app-container flex">
-          <div className="flex h-16 w-full items-center gap-6">
-            <BrandLogo />
-
-            <div className="hidden min-w-0 flex-1 justify-center lg:flex">
-              <Link
-                href="/search"
-                className="inline-flex w-full max-w-md items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground"
-              >
-                <Search className="size-4" aria-hidden />
-                Tìm tuyến, ga đến hoặc ngày đi
-              </Link>
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+        <div className="app-container">
+          <div className="flex h-16 items-center justify-between gap-4">
+            {/* Left: Logo */}
+            <div className="flex items-center gap-8">
+              <BrandLogo />
+              <nav className="hidden items-center gap-1 lg:flex" aria-label="Điều hướng chính">
+                {publicPrimaryNav.map((item) => {
+                  const active = isActivePath(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "relative px-3 py-2 text-sm font-medium transition-colors duration-150",
+                        active
+                          ? "text-ink"
+                          : "text-ink-muted hover:text-ink",
+                      )}
+                    >
+                      {item.label}
+                      {active && (
+                        <span
+                          className="absolute bottom-0 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-primary"
+                          aria-hidden
+                        />
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              <Button asChild variant="ghost" size="icon" className="hidden sm:flex">
+                <Link href="/search" aria-label="Tìm chuyến">
+                  <Search className="size-4" />
+                </Link>
+              </Button>
               <ThemeToggle />
               {sessionQuery.data ? (
-                <div className="hidden items-center gap-2 text-xs text-muted-foreground lg:inline-flex">
-                  <span className="line-clamp-1 max-w-[160px]">
-                    {sessionQuery.data.email}
-                  </span>
-                  <ChevronRight className="size-3" aria-hidden />
-                  <Link href="/profile" className="font-medium text-foreground hover:text-primary">
-                    Hồ sơ
+                <div className="hidden items-center gap-3 md:flex">
+                  <Link href="/profile" className="flex items-center gap-2 text-sm text-ink-muted hover:text-ink transition-colors">
+                    <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary font-medium text-xs">
+                      {(sessionQuery.data.email ?? "U").charAt(0).toUpperCase()}
+                    </div>
+                    <span className="hidden lg:inline max-w-[140px] truncate">
+                      {sessionQuery.data.email}
+                    </span>
                   </Link>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={logout.isPending}
+                    onClick={() => {
+                      logout.mutate(undefined, {
+                        onSettled: () => {
+                          startTransition(() => {
+                            router.push("/login");
+                            router.refresh();
+                          });
+                        },
+                      });
+                    }}
+                  >
+                    Đăng xuất
+                  </Button>
                 </div>
-              ) : null}
-              {sessionQuery.data ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={logout.isPending}
-                  onClick={() => {
-                    logout.mutate(undefined, {
-                      onSettled: () => {
-                        startTransition(() => {
-                          router.push("/login");
-                          router.refresh();
-                        });
-                      },
-                    });
-                  }}
-                >
-                  {logout.isPending ? "Đang xuất..." : "Đăng xuất"}
-                </Button>
               ) : (
-                <>
-                  <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+                <div className="hidden items-center gap-2 sm:flex">
+                  <Button asChild size="sm" variant="ghost">
                     <Link href="/login">Đăng nhập</Link>
                   </Button>
                   <Button asChild size="sm">
                     <Link href="/register">
-                      Tạo tài khoản
+                      Đặt vé ngay
                       <ArrowUpRight className="size-3.5" aria-hidden />
                     </Link>
                   </Button>
-                </>
+                </div>
               )}
+
+              {/* Mobile menu button */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="public-mobile-menu"
+              >
+                {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+              </Button>
             </div>
           </div>
         </div>
-        <div className="app-container flex">
-          <nav className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto sm:items-center" aria-label="Điều hướng chính">
-            {publicPrimaryNav.map((item) => {
-              const active = isActivePath(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "border-b-2 px-2 py-2.5 text-center text-sm leading-tight transition-colors sm:px-3",
-                    active
-                      ? "border-primary font-medium text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div
+            id="public-mobile-menu"
+            className="animate-fade-in border-t border-border lg:hidden"
+          >
+            <div className="app-container py-4 space-y-1">
+              {publicPrimaryNav.map((item) => {
+                const active = isActivePath(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      "block px-3 py-2.5 text-sm font-medium rounded-sm",
+                      active ? "bg-primary/10 text-primary" : "text-ink-muted hover:bg-muted hover:text-ink",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <div className="border-t border-border my-3 pt-3 flex flex-col gap-2">
+                {sessionQuery.data ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={logout.isPending}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout.mutate(undefined, {
+                        onSettled: () => {
+                          startTransition(() => {
+                            router.push("/login");
+                            router.refresh();
+                          });
+                        },
+                      });
+                    }}
+                  >
+                    Đăng xuất
+                  </Button>
+                ) : (
+                  <>
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Đăng nhập</Link>
+                    </Button>
+                    <Button asChild className="w-full">
+                      <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
+                        Đặt vé ngay
+                      </Link>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
-      <div className="app-container flex flex-col gap-8 py-8">
-        {isHome ? (
-          heroVariant === "rich" ? (
-            <RichHero title={title} description={description} actions={actions} />
+      {/* Main Content */}
+      <main className="flex-1">
+        <div className="app-container py-8 lg:py-12">
+          {isHome ? (
+            heroVariant === "rich" ? (
+              <EditorialHero title={title} description={description} actions={actions} />
+            ) : heroVariant === "minimal" ? null : (
+              <PageHero title={title} description={description} actions={actions} />
+            )
           ) : (
-            <SimpleHero title={title} description={description} actions={actions} variant="home" />
-          )
-        ) : (
-          <SimpleHero title={title} description={description} actions={actions} variant="page" />
-        )}
+            <PageHero title={title} description={description} actions={actions} />
+          )}
 
-        <div className="page-section">{children}</div>
+          <div
+            id="main-content"
+            tabIndex={-1}
+            className="page-section mt-8 outline-none lg:mt-12"
+          >
+            {children}
+          </div>
+        </div>
+      </main>
 
-        <SiteFooter />
-      </div>
-    </main>
+      {/* Footer */}
+      <SiteFooter />
+    </div>
   );
 }
 
-function RichHero({
+function EditorialHero({
   title,
   description,
   actions,
@@ -156,170 +245,153 @@ function RichHero({
   actions?: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="grid gap-0 lg:grid-cols-[1.3fr_1fr]">
-        <div className="flex flex-col gap-5 border-b border-border p-6 sm:p-8 lg:border-b-0 lg:border-r">
+    <section className="relative -mt-4 mb-4">
+      <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-16 items-center py-8 lg:py-16 border-b border-border pb-12 lg:pb-20">
+        <div className="space-y-8">
           <div className="space-y-4">
-            <div className="route-pill w-fit">
-              <MapPinned className="size-3" aria-hidden />
-              Bắc · Trung · Nam
-            </div>
-            <h1 className="max-w-2xl font-heading text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+              <span className="h-px w-8 bg-primary" />
+              Đường sắt Việt Nam
+            </span>
+            <h1 className="font-display text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] font-semibold text-ink tracking-tight text-balance">
               {title}
             </h1>
-            <p className="max-w-2xl text-sm leading-6 text-ink-muted sm:text-base">
+            <p className="text-lg leading-relaxed text-ink-muted max-w-xl">
               {description}
             </p>
           </div>
-          {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-          <div className="mt-2 grid grid-cols-3 gap-3 border-t border-border pt-5">
-            {bookingFlowSteps.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="flex flex-col gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-md bg-brand-soft text-brand">
-                    <Icon className="size-4" aria-hidden />
-                  </span>
-                  <p className="text-xs font-medium text-ink">{item.label}</p>
-                </div>
-              );
-            })}
+          {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+
+          {/* Quick stats */}
+          <div className="grid grid-cols-3 gap-4 border-t border-border pt-8 sm:gap-8">
+            {[
+              { value: "36", label: "Ga phủ sóng" },
+              { value: "1.726", label: "Km đường sắt" },
+              { value: "24/7", label: "Hỗ trợ" },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <p className="font-display text-2xl font-semibold text-ink tabular-nums sm:text-3xl">{stat.value}</p>
+                <p className="mt-1 text-sm text-ink-muted">{stat.label}</p>
+              </div>
+            ))}
           </div>
         </div>
-        <div className="flex flex-col gap-4 bg-secondary p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Tuyến phủ sóng
-          </p>
-          <div className="transit-line h-1.5 rounded-full" aria-hidden />
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm font-medium text-ink">
-            {["Hà Nội", "Huế", "Đà Nẵng", "Nha Trang", "Sài Gòn", "..."].map((city) => (
-              <li
-                key={city}
-                className="flex items-center gap-2 border-b border-border/60 pb-2 last:border-b-0"
-              >
-                <span className="size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
-                {city}
-              </li>
-            ))}
-          </ul>
+
+        <div className="relative hidden lg:block">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-border bg-primary-soft/35">
+            {/* Decorative railway illustration */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+              <div className="w-full space-y-6">
+                <div className="space-y-2 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-muted">Hành trình Bắc-Nam</p>
+                  <p className="font-display text-2xl font-semibold text-ink">Hà Nội → Sài Gòn</p>
+                </div>
+                <RouteLine animated />
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  {[
+                    { time: "32h", label: "Thời gian" },
+                    { time: "SE2", label: "Tàu nhanh" },
+                    { time: "Từ 750K", label: "Giá vé" },
+                  ].map((item) => (
+                    <div key={item.label} className="space-y-1">
+                      <p className="font-mono text-sm font-semibold text-primary">{item.time}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Decorative element */}
+          <div className="absolute -bottom-4 -left-4 w-24 h-24 border border-primary/20 -z-10" />
         </div>
       </div>
     </section>
   );
 }
 
-function SimpleHero({
+function PageHero({
   title,
   description,
   actions,
-  variant,
 }: {
   title: string;
   description: string;
   actions?: ReactNode;
-  variant: "home" | "page";
 }) {
-  if (variant === "page") {
-    return (
-      <section className="page-header-compact">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
-            <div className="route-pill w-fit">
-              <MapPinned className="size-3" aria-hidden />
-              Bắc - Trung - Nam
-            </div>
-            <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {title}
-            </h1>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
-          </div>
-          {actions ? <div className="w-full lg:w-auto">{actions}</div> : null}
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section className="page-band overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
-      <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div className="space-y-2">
-          <div className="route-pill w-fit">
-            <MapPinned className="size-3" aria-hidden />
-            Bắc - Trung - Nam
-          </div>
-          <h1 className="max-w-4xl font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+    <section className="border-b border-border pb-8 lg:pb-10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-3 max-w-3xl">
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-primary">
+            <span className="h-px w-6 bg-primary" />
+            Vietrail
+          </span>
+          <h1 className="font-display text-[clamp(1.75rem,4vw,2.75rem)] leading-[1.15] font-semibold text-ink tracking-tight text-balance">
             {title}
           </h1>
-          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+          <p className="text-base leading-relaxed text-ink-muted">
             {description}
           </p>
         </div>
-        <div className="hidden min-w-72 rounded-lg border border-border/80 bg-card/70 px-4 py-3 lg:block">
-          <div className="transit-line h-1.5 rounded-full" aria-hidden />
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {bookingFlowSteps.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="space-y-1">
-                  <div className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
-                    <Icon className="size-3.5" aria-hidden />
-                  </div>
-                  <p className="text-xs font-medium text-foreground">{item.label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {actions ? <div className="shrink-0 flex flex-wrap gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="mt-5">{actions}</div> : null}
     </section>
   );
 }
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-border/70 pt-8">
-      <div className="grid gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
-        <div>
-          <p className="font-heading text-sm font-semibold tracking-tight text-foreground">
-            Vietrail Way
-          </p>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            Lên kế hoạch, giữ chỗ và theo dõi hành trình trong một trải nghiệm
-            đặt vé thống nhất.
-          </p>
+    <footer className="border-t border-border mt-16">
+      <div className="app-container py-12 lg:py-16">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+          <div className="space-y-4">
+            <BrandLogo />
+            <p className="text-sm leading-relaxed text-ink-muted max-w-xs">
+              Nền tảng đặt vé tàu trực tuyến hiện đại, kết nối hành trình Bắc-Trung-Nam với trải nghiệm minh bạch và tin cậy.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted mb-4">
+              Đặt vé
+            </p>
+            <ul className="space-y-3">
+              <li><Link href="/search" className="text-sm text-ink-muted hover:text-ink transition-colors">Tìm chuyến</Link></li>
+              <li><Link href="/tickets" className="text-sm text-ink-muted hover:text-ink transition-colors">Danh mục vé</Link></li>
+              <li><Link href="/route-map" className="text-sm text-ink-muted hover:text-ink transition-colors">Bản đồ tuyến</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted mb-4">
+              Cá nhân
+            </p>
+            <ul className="space-y-3">
+              <li><Link href="/login" className="text-sm text-ink-muted hover:text-ink transition-colors">Đăng nhập</Link></li>
+              <li><Link href="/register" className="text-sm text-ink-muted hover:text-ink transition-colors">Tạo tài khoản</Link></li>
+              <li><Link href="/profile/orders" className="text-sm text-ink-muted hover:text-ink transition-colors">Đơn của tôi</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted mb-4">
+              Hỗ trợ
+            </p>
+            <ul className="space-y-3">
+              <li><span className="text-sm text-ink-muted">Hotline: 1900 0000</span></li>
+              <li><span className="text-sm text-ink-muted">support@vietrail.vn</span></li>
+            </ul>
+          </div>
         </div>
-        <div className="grid gap-2 text-sm text-muted-foreground">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Hành trình
+
+        <div className="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <p className="text-xs text-ink-subtle">
+            © 2026 Vietrail. Tất cả quyền được bảo lưu.
           </p>
-          <Link href="/" className="hover:text-foreground">
-            Trang chủ
-          </Link>
-          <Link href="/search" className="hover:text-foreground">
-            Tìm chuyến
-          </Link>
-          <Link href="/tickets" className="hover:text-foreground">
-            Duyệt vé tàu
-          </Link>
-          <Link href="/profile/orders" className="hover:text-foreground">
-            Đơn của tôi
-          </Link>
-        </div>
-        <div className="grid gap-2 text-sm text-muted-foreground md:justify-self-end">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Cá nhân
+          <p className="text-xs text-ink-subtle">
+            Thiết kế cho hành trình đường sắt hiện đại
           </p>
-          {publicSecondaryLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:text-foreground">
-              {item.label}
-            </Link>
-          ))}
-          <Link href="/login" className="hover:text-foreground">
-            Đăng nhập
-          </Link>
         </div>
       </div>
     </footer>

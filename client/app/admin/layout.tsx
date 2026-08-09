@@ -57,18 +57,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
 function AdminGateMessage({ title }: { title: string }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card variant="elevated" className="w-full max-w-md px-6 py-6">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-screen items-center justify-center bg-background px-4 outline-none"
+    >
+      <Card variant="outlined" padding="xl" className="w-full max-w-md">
         <BrandLogo sublabel="Admin" />
         <div className="mt-6 flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-primary-soft text-primary">
             <Shield className="size-5" />
           </div>
           <div>
-            <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+            <h1 className="font-display text-lg font-semibold tracking-tight text-ink">
               {title}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            <p className="mt-2 text-sm leading-6 text-ink-muted">
               Khu vực admin chỉ dành cho tài khoản có role quản trị.
             </p>
           </div>
