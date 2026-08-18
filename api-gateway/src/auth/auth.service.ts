@@ -12,7 +12,7 @@ import {
   VerifyEmailRequest,
   ResendVerificationRequest,
   SocialLoginGoogleRequest,
-} from '../common/dto/auth.dto';
+} from './auth.dto';
 
 export interface AuthTokens {
   accessToken: string;

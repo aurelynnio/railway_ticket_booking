@@ -1,10 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { OrdersModule } from '../src/orders.module';
+import { OrderModule } from '../src/order.module';
 
-describe('OrdersModule (e2e)', () => {
+describe('OrderModule (e2e)', () => {
   it('should compile the root module', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [OrdersModule],
+      imports: [OrderModule],
     }).compile();
 
     expect(moduleRef).toBeDefined();

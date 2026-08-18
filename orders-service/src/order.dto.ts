@@ -224,6 +224,11 @@ export class CreateOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => OrderPassengerPayload)
   passengers?: OrderPassengerPayload[];
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  idempotencyKey?: string;
 }
 
 export class CheckoutOrderRequest extends CreateOrderRequest {

@@ -1,13 +1,13 @@
-jest.mock('./tickets.service', () => ({
-  TicketsService: class TicketsService {},
+jest.mock('./ticket.service', () => ({
+  TicketService: class TicketService {},
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { TicketsController } from './tickets.controller';
-import { TicketsService } from './tickets.service';
+import { TicketController } from './ticket.controller';
+import { TicketService } from './ticket.service';
 
-describe('TicketsController', () => {
-  let controller: TicketsController;
+describe('TicketController', () => {
+  let controller: TicketController;
 
   const ticketsService = {
     health: jest.fn(() => 'ok'),
@@ -15,16 +15,16 @@ describe('TicketsController', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [TicketsController],
+      controllers: [TicketController],
       providers: [
         {
-          provide: TicketsService,
+          provide: TicketService,
           useValue: ticketsService,
         },
       ],
     }).compile();
 
-    controller = module.get<TicketsController>(TicketsController);
+    controller = module.get<TicketController>(TicketController);
   });
 
   afterEach(() => {

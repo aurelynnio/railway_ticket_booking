@@ -8,7 +8,7 @@ import {
   ListUsersQuery,
   UpdateUserRequest,
   UserProfile,
-} from '../common/dto/user.dto';
+} from './user.dto';
 
 @Injectable()
 export class UserService {

@@ -14,7 +14,7 @@ import type {
   ReserveTicketRequest,
   UpdateTicketItemRequest,
   UpdateTicketRequest,
-} from '../common/dto/ticket.dto';
+} from './ticket.dto';
 
 @Injectable()
 export class TicketService {

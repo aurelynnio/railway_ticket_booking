@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { Bell, BellRing, CheckCircle, Mail } from "lucide-react";
 
-import { Panel } from "@/components/app-shell";
+import { Panel } from "@/components/shell/app-shell";
 import {
   EmptyState,
   PaginationBar,
   StatusBadge,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,

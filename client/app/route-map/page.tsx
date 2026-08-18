@@ -1,6 +1,6 @@
-import { AppShell } from "@/components/app-shell";
-import { RouteLine } from "@/components/route-line";
-import { DetailBlock, SectionHeading, SurfaceLink } from "@/components/railway-ui";
+import { AppShell } from "@/components/shell/app-shell";
+import { RouteLine } from "@/components/route/route-line";
+import { DetailBlock, SectionHeading, SurfaceLink } from "@/components/ui/railway-ui";
 
 const routeGroups = [
   {

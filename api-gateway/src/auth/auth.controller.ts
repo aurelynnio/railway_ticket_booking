@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  NotImplementedException,
   Post,
   Query,
   Req,
@@ -18,7 +19,7 @@ import {
   ChangePasswordRequest,
   VerifyEmailRequest,
   ResendVerificationRequest,
-} from '../common/dto/auth.dto';
+} from './auth.dto';
 import { Public } from '../common/decorator/public.decorator';
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -70,6 +71,7 @@ export class AuthController {
 
   @Post(['refresh-token', 'refreshToken'])
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async refreshToken(
     @Req() request: CookieRequest,
     @Res({ passthrough: true }) response: Response,
@@ -163,12 +165,10 @@ export class AuthController {
 
   @Get('google')
   @Public()
-  googleLogin(@Res() res: Response) {
-    const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:3000';
-    const googleClientId = process.env.GOOGLE_CLIENT_ID ?? 'MOCK_CLIENT_ID';
-    const callbackUrl = `${clientOrigin}/auth/google/callback`;
-    const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=email%20profile`;
-    res.redirect(redirectUrl);
+  googleLogin(): never {
+    throw new NotImplementedException(
+      'Google OAuth is not available in this deployment yet.',
+    );
   }
 
   @Get('google/callback')

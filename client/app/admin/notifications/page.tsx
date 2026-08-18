@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Bell, BellRing, CheckCircle, Mail } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { EmptyState, PaginationBar, StatCard, StatusBadge } from "@/components/railway-ui";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { EmptyState, PaginationBar, StatCard, StatusBadge } from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";

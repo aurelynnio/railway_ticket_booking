@@ -6,10 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
-import { FormField } from "@/components/form-field";
+import { FormField } from "@/components/ui/form-field";
 import { SeatMapInteractive, type Seat } from "@/components/motion/seat-map-interactive";
-import { NoticeBox } from "@/components/railway-ui";
-import { TicketCard } from "@/components/ticket-card";
+import { NoticeBox } from "@/components/ui/railway-ui";
+import { TicketCard } from "@/components/ticket/ticket-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,13 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
     itemId: null,
     ids: [],
   });
+  // Stable key per booking session: repeated submits/retries reuse the same
+  // key so the server can deduplicate and avoid creating duplicate orders.
+  const [idempotencyKey] = useState<string>(() =>
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const selectedItemId = selectedItem?.id ?? null;
   const selectedSeatIds = seatSelection.itemId === selectedItemId ? seatSelection.ids : [];
 
@@ -124,6 +131,7 @@ export function BookingTab({ ticket, selectedItem, sessionUserId }: Props) {
       passengers: values.passengerName
         ? [{ fullName: values.passengerName.trim(), passengerType: "ADULT" }]
         : [],
+      idempotencyKey,
     });
     setSubmitted(true);
     const vnpay = await createVnpayPayment.mutateAsync({

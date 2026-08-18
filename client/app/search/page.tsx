@@ -15,13 +15,13 @@ import {
   X,
 } from "lucide-react";
 
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/shell/app-shell";
 import { AnimatedSection } from "@/components/motion/animated-section";
-import { TicketNotch } from "@/components/ticket-notch";
+import { TicketNotch } from "@/components/ticket/ticket-notch";
 import {
   EmptyState,
   PaginationBar,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

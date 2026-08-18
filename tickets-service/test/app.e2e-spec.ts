@@ -1,5 +1,5 @@
-jest.mock('../src/tickets.service', () => ({
-  TicketsService: class TicketsService {},
+jest.mock('../src/ticket.service', () => ({
+  TicketService: class TicketService {},
 }));
 
 jest.mock('@prisma/client', () => ({
@@ -7,12 +7,12 @@ jest.mock('@prisma/client', () => ({
 }));
 
 import { Test } from '@nestjs/testing';
-import { TicketsModule } from '../src/tickets.module';
+import { TicketModule } from '../src/ticket.module';
 
-describe('TicketsModule (e2e)', () => {
+describe('TicketModule (e2e)', () => {
   it('should compile the root module', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [TicketsModule],
+      imports: [TicketModule],
     }).compile();
 
     expect(moduleRef).toBeDefined();

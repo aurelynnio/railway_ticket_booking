@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Shield } from "lucide-react";
 
-import { BrandLogo } from "@/components/brand-logo";
+import { BrandLogo } from "@/components/branding/brand-logo";
 import { Card } from "@/components/ui/card";
 import { useAuthSession } from "@/hooks/auth.hook";
 

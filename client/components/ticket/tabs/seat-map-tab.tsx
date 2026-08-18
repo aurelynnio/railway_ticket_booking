@@ -3,7 +3,7 @@
 import { Armchair } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/railway-ui";
+import { EmptyState } from "@/components/ui/railway-ui";
 import { cn } from "@/lib/utils";
 
 import type { SeatMapResponse } from "@/lib/api-types/ticket";

@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FormField } from "@/components/form-field";
-import { NoticeBox } from "@/components/railway-ui";
+import { FormField } from "@/components/ui/form-field";
+import { NoticeBox } from "@/components/ui/railway-ui";
 import {
   useAddTicketItem,
   useCloseSale,

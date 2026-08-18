@@ -3,14 +3,14 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PrismaClient, Ticket, TicketItem } from '@prisma/client';
 import { RedisCacheService } from './redis/redis.service';
 import { TicketStatus } from './ticket.dto';
-import { TicketsService } from './tickets.service';
+import { TicketService } from './ticket.service';
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: class PrismaClient {},
 }));
 
-describe('TicketsService', () => {
-  let service: TicketsService;
+describe('TicketService', () => {
+  let service: TicketService;
   let prisma: {
     $transaction: jest.Mock;
     ticket: {
@@ -30,9 +30,7 @@ describe('TicketsService', () => {
     patternDel: jest.Mock;
     acquireLock: jest.Mock;
     releaseLock: jest.Mock;
-  };
-  let searchClient: {
-    emit: jest.Mock;
+    using: jest.Mock;
   };
 
   const buildTicketItem = (
@@ -104,16 +102,19 @@ describe('TicketsService', () => {
       patternDel: jest.fn(),
       acquireLock: jest.fn().mockResolvedValue(mockLock),
       releaseLock: jest.fn().mockResolvedValue(undefined),
+      using: jest.fn(
+        async (
+          _resources: string[],
+          _ttlMs: number,
+          _settings: unknown,
+          routine: () => Promise<unknown>,
+        ) => routine(),
+      ),
     };
 
-    searchClient = {
-      emit: jest.fn(),
-    };
-
-    service = new TicketsService(
+    service = new TicketService(
       prisma as unknown as PrismaClient,
       redisCache as unknown as RedisCacheService,
-      searchClient as unknown as any,
     );
   });
 
@@ -301,6 +302,12 @@ describe('TicketsService', () => {
     expect(redisCache.del).toHaveBeenCalledWith('ticket:availability:ticket-1');
     expect(redisCache.del).toHaveBeenCalledWith('ticket:seat-map:ticket-1');
     expect(redisCache.patternDel).not.toHaveBeenCalled();
+    expect(redisCache.using).toHaveBeenCalledWith(
+      ['lock:ticket:reserve:ticket-1:seat:A01'],
+      10000,
+      { retryCount: 100, retryDelay: 50, retryJitter: 0 },
+      expect.any(Function),
+    );
     expect(result.availableSeatLabels).toEqual(['A02']);
     expect(result.stockAvailable).toBe(1);
   });

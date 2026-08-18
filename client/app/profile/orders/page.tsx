@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { Download, ExternalLink, Receipt, MapPin, Clock, Users, Train } from "lucide-react";
 
-import { Panel } from "@/components/app-shell";
+import { Panel } from "@/components/shell/app-shell";
 import {
   EmptyState,
   PaginationBar,
   StatusBadge,
   compactId,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

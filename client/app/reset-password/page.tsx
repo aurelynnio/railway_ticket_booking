@@ -7,9 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { AuthShell } from "@/components/auth-shell";
-import { FormField } from "@/components/form-field";
-import { NoticeBox, StatusBadge } from "@/components/railway-ui";
+import { AuthShell } from "@/components/shell/auth-shell";
+import { FormField } from "@/components/ui/form-field";
+import { NoticeBox, StatusBadge } from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useResetPassword } from "@/hooks/auth.hook";

@@ -8,15 +8,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { FormField } from "@/components/form-field";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { FormField } from "@/components/ui/form-field";
 import {
   EmptyState,
   NoticeBox,
   PaginationBar,
   SectionHeading,
   compactId,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

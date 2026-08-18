@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AlertCircle, ArrowRight, RefreshCw } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/shell/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 

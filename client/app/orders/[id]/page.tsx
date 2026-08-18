@@ -5,9 +5,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, MoreHorizontal } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { QrCode } from "@/components/qr-code";
-import { RouteLine } from "@/components/route-line";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { QrCode } from "@/components/ticket/qr-code";
+import { RouteLine } from "@/components/route/route-line";
 import {
   DetailBlock,
   MetaGrid,
@@ -16,7 +16,7 @@ import {
   SeatCloud,
   StatusBadge,
   compactId,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -50,7 +50,7 @@ import {
   getOrderStatusTone,
   getPaymentStatusTone,
 } from "@/lib/formatters";
-import { CountdownTimer } from "@/components/countdown-timer";
+import { CountdownTimer } from "@/components/motion/countdown-timer";
 
 export default function OrderDetailPage() {
   const pathname = usePathname();

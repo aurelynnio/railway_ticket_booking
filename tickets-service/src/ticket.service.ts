@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Injectable, Inject, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient, Ticket, TicketItem } from '@prisma/client';
-import { ClientProxy } from '@nestjs/microservices';
 import type {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
@@ -22,6 +21,19 @@ import type {
   UpdateTicketRequest,
 } from './ticket.dto';
 import { TicketStatus } from './ticket.dto';
+import type {
+  PaginatedSearchTripResponse,
+  SearchTripResponse,
+  SearchTripsQuery,
+} from './search.dto';
+import {
+  getAvailableSeats,
+  getMinPrice,
+  matchesStationQuery,
+  startOfUtcDay,
+  toIsoString,
+  uniqueValues,
+} from './utils/search.utils';
 import {
   buildTicketItemCreateInput,
   ensureItemCanBeSold,
@@ -44,19 +56,22 @@ import {
   uniqueLabels,
 } from './utils/ticket.utils';
 import { RedisCacheService } from './redis/redis.service';
-import { Lock } from 'redlock';
 
 const TICKETS_LIST_CACHE_TTL_SECONDS = 300;
 const TICKET_DETAIL_CACHE_TTL_SECONDS = 300;
 const TICKET_AVAILABILITY_CACHE_TTL_SECONDS = 15;
 const TICKET_SEAT_MAP_CACHE_TTL_SECONDS = 15;
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Core business logic and database access layer for tickets.
  * Fully decoupled from caching to respect SRP (Single Responsibility Principle).
  */
 @Injectable()
-export class TicketsBaseService {
+export class TicketBaseService {
   constructor(
     protected readonly prisma: PrismaClient,
   ) {}
@@ -754,18 +769,17 @@ export class TicketsBaseService {
 }
 
 /**
- * Decorator-like extension of TicketsBaseService that handles caching.
+ * Decorator-like extension of TicketBaseService that handles caching.
  * Keeps business logic clean of cache concerns (SRP).
  */
 @Injectable()
-export class TicketsService extends TicketsBaseService {
-  private readonly logger = new Logger(TicketsService.name);
+export class TicketService extends TicketBaseService {
+  private readonly logger = new Logger(TicketService.name);
   private readonly pendingFetches = new Map<string, Promise<unknown>>();
 
   constructor(
     prisma: PrismaClient,
     private readonly redisCaching: RedisCacheService,
-    @Inject('search_service') private readonly searchClient: ClientProxy,
   ) {
     super(prisma);
   }
@@ -773,8 +787,163 @@ export class TicketsService extends TicketsBaseService {
   async create(payload: CreateTicketRequest): Promise<TicketResponse> {
     const result = await super.create(payload);
     await this.invalidateTicketListCache();
-    this.publishToSearch('ticket.created', result);
     return result;
+  }
+
+  /*
+   * =========================================================================
+   * Search functionality (previously search-service).
+   * Queries the same Ticket collection directly — no separate read model or
+   * event sync needed, since the data already lives in this service's DB.
+   * =========================================================================
+   */
+
+  async searchTrips(
+    query: SearchTripsQuery,
+  ): Promise<PaginatedSearchTripResponse> {
+    const where: Prisma.TicketWhereInput = {
+      deletedAt: null,
+      status: TicketStatus.Published,
+    };
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    if (query.date) {
+      const start = startOfUtcDay(query.date);
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 1);
+      where.dateStart = {
+        gte: start,
+        lt: end,
+      };
+    }
+
+    const tickets = await this.prisma.ticket.findMany({
+      where,
+      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
+    });
+
+    const matchedTrips = tickets
+      .filter((ticket) => this.matchesRoute(ticket, query))
+      .map((ticket) => this.toSearchTrip(ticket));
+    const total = matchedTrips.length;
+    const startIndex = (page - 1) * limit;
+
+    return {
+      data: matchedTrips.slice(startIndex, startIndex + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async suggestStations(
+    query: string,
+  ): Promise<{ code: string; name: string }[]> {
+    const trimmed = (query || '').trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const tickets = await this.prisma.ticket.findMany({
+        where: {
+          deletedAt: null,
+          status: TicketStatus.Published,
+          OR: [
+            { departureStationCode: { contains: trimmed, mode: 'insensitive' } },
+            { departureStationName: { contains: trimmed, mode: 'insensitive' } },
+            { arrivalStationCode: { contains: trimmed, mode: 'insensitive' } },
+            { arrivalStationName: { contains: trimmed, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          departureStationCode: true,
+          departureStationName: true,
+          arrivalStationCode: true,
+          arrivalStationName: true,
+        },
+        take: 100,
+      });
+
+      const stationsMap = new Map<string, string>();
+      for (const ticket of tickets) {
+        if (ticket.departureStationCode && ticket.departureStationName) {
+          stationsMap.set(
+            ticket.departureStationCode.toUpperCase(),
+            ticket.departureStationName,
+          );
+        }
+        if (ticket.arrivalStationCode && ticket.arrivalStationName) {
+          stationsMap.set(
+            ticket.arrivalStationCode.toUpperCase(),
+            ticket.arrivalStationName,
+          );
+        }
+      }
+
+      return Array.from(stationsMap.entries()).map(([code, name]) => ({
+        code,
+        name,
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Error suggesting stations for query "${query}":`,
+        error instanceof Error ? error.stack : error,
+      );
+      return [];
+    }
+  }
+
+  private matchesRoute(ticket: Ticket, query: SearchTripsQuery) {
+    const fromMatched = matchesStationQuery(
+      query.from,
+      ticket.departureStationCode,
+      ticket.departureStationName,
+    );
+    const toMatched = matchesStationQuery(
+      query.to,
+      ticket.arrivalStationCode,
+      ticket.arrivalStationName,
+    );
+
+    return fromMatched && toMatched;
+  }
+
+  private toSearchTrip(ticket: Ticket): SearchTripResponse {
+    const activeItems = ticket.ticketItems.filter(
+      (item: TicketItem) => !item.deletedAt,
+    );
+    const seatClasses = uniqueValues(activeItems.map((item) => item.seatClass));
+    const seatTypes = uniqueValues(activeItems.map((item) => item.seatType));
+    const minPrice = getMinPrice(activeItems);
+    const availableSeats = activeItems.reduce(
+      (total, item) => total + getAvailableSeats(item),
+      0,
+    );
+    return {
+      ticketId: ticket.id,
+      title: ticket.title,
+      trainNumber: ticket.trainNumber,
+      from: {
+        code: ticket.departureStationCode,
+        name: ticket.departureStationName,
+      },
+      to: {
+        code: ticket.arrivalStationCode,
+        name: ticket.arrivalStationName,
+      },
+      dateStart: toIsoString(ticket.dateStart),
+      dateEnd: toIsoString(ticket.dateEnd),
+      minPrice,
+      availableSeats,
+      seatClasses,
+      seatTypes,
+    };
   }
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
@@ -853,7 +1022,7 @@ export class TicketsService extends TicketsBaseService {
       await this.invalidateTicketCache(ticketId);
       return result;
     } catch (err) {
-      this.logger.error(`Error in reserveSeat: ${err}`);
+      this.logger.error(`Error in reserveSeat: ${getErrorMessage(err)}`);
       throw err;
     }
   }
@@ -953,33 +1122,6 @@ export class TicketsService extends TicketsBaseService {
       this.redisCaching.del(`ticket:availability:${ticketId}`),
       this.redisCaching.del(`ticket:seat-map:${ticketId}`),
     ]);
-    void this.publishTicketUpdate(ticketId);
-  }
-
-  private publishToSearch(pattern: string, payload: unknown): void {
-    try {
-      this.searchClient.emit(pattern, payload);
-    } catch (error) {
-      this.logger.error(`Failed to publish ${pattern} to search service: ${error}`);
-    }
-  }
-
-  private async publishTicketUpdate(ticketId: string) {
-    try {
-      // Use super.findOne to bypass cache layer — we just invalidated the cache,
-      // so re-entering it would refetch+recache unnecessarily.
-      const ticket = await super.findOne(ticketId);
-      this.publishToSearch('ticket.updated', ticket);
-    } catch (error) {
-      const isNotFound =
-        error instanceof HttpException &&
-        error.getStatus() === Number(HttpStatus.NOT_FOUND);
-      if (isNotFound) {
-        this.publishToSearch('ticket.deleted', { ticketId });
-      } else {
-        this.logger.error(`Failed to publish ticket update for ${ticketId}: ${error}`);
-      }
-    }
   }
 
   private async getCachedOrFetchWithLock<T>(
@@ -1021,7 +1163,9 @@ export class TicketsService extends TicketsBaseService {
         return result;
       } finally {
         await this.redisCaching.releaseLock(lock).catch((err) => {
-          this.logger.error(`Failed to release lock for ${lockKey}: ${err}`);
+          this.logger.error(
+            `Failed to release lock for ${lockKey}: ${getErrorMessage(err)}`,
+          );
         });
       }
     })();
@@ -1041,62 +1185,56 @@ export class TicketsService extends TicketsBaseService {
     actionFn: () => Promise<T>,
     lockTtlMs = 10000,
   ): Promise<T> {
-    if (!seatLabels || seatLabels.length === 0) {
-      const lockKey = `lock:ticket:reserve:${ticketId}`;
-      const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 100, 50);
-      if (!lock) {
+    const resources =
+      !seatLabels || seatLabels.length === 0
+        ? [`lock:ticket:reserve:${ticketId}`]
+        : seatLabels.map(
+            (seatLabel) => `lock:ticket:reserve:${ticketId}:seat:${seatLabel}`,
+          );
+
+    try {
+      // redlock.using acquires all resources atomically (no deadlocks) and
+      // AUTO-EXTENDS the lock for as long as the routine runs, so the lock can
+      // no longer expire mid-operation on long reservations. Optimistic locking
+      // (updatedAt check in persistTicketItems) remains the second safety net.
+      return await this.redisCaching.using(
+        resources,
+        lockTtlMs,
+        { retryCount: 100, retryDelay: 50, retryJitter: 0 },
+        () => actionFn(),
+      );
+    } catch (error) {
+      if (this.isLockAcquisitionError(error)) {
+        // Lock acquisition failed after retries — surface a meaningful error.
+        if (!seatLabels || seatLabels.length === 0) {
+          throw new HttpException(
+            'System is busy processing other reservations for this train. Please try again.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
         throw new HttpException(
-          'System is busy processing other reservations for this train. Please try again.',
-          HttpStatus.TOO_MANY_REQUESTS,
+          'One or more selected seats are currently being held by another user. Please choose different seats.',
+          HttpStatus.CONFLICT,
         );
       }
-      try {
-        // Concurrency is guaranteed by:
-        // 1. Redis distributed lock (prevents concurrent access to same ticket)
-        // 2. Optimistic locking via updatedAt check in persistTicketItems
-        // Note: $transaction was removed because actionFn uses this.prisma directly
-        // (not the tx client), making it a no-op wrapper.
-        return await actionFn();
-      } finally {
-        await this.redisCaching.releaseLock(lock).catch((err) => {
-          this.logger.error(`Failed to release lock for ${lockKey}: ${err}`);
-        });
-      }
+      throw error;
     }
+  }
 
-    const locks: Lock[] = [];
-    try {
-      await Promise.all(
-        seatLabels.map(async (seatLabel) => {
-          const lockKey = `lock:ticket:reserve:${ticketId}:seat:${seatLabel}`;
-          const lock = await this.redisCaching.acquireLock(lockKey, lockTtlMs, 100, 50);
-          if (!lock) {
-            throw new Error(`Failed to acquire lock for seat: ${seatLabel}`);
-          }
-          locks.push(lock);
-        }),
-      );
-    } catch {
-      if (locks.length > 0) {
-        await Promise.allSettled(
-          locks.map((lock) => this.redisCaching.releaseLock(lock)),
-        );
-      }
-      throw new HttpException(
-        'One or more selected seats are currently being held by another user. Please choose different seats.',
-        HttpStatus.CONFLICT,
-      );
+  /**
+   * Detects whether a thrown error means the distributed lock could not be
+   * acquired (as opposed to a business error thrown by the routine itself).
+   * redlock v5 signals this with ExecutionError/ResourceLockedError or an
+   * ExecutionError carrying an `attempts` array.
+   */
+  private isLockAcquisitionError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
     }
-
-    try {
-      // See comment above: Redis lock + optimistic locking provide concurrency guarantees.
-      return await actionFn();
-    } finally {
-      if (locks.length > 0) {
-        await Promise.allSettled(
-          locks.map((lock) => this.redisCaching.releaseLock(lock)),
-        );
-      }
+    const name = error.constructor?.name ?? '';
+    if (name === 'ExecutionError' || name === 'ResourceLockedError') {
+      return true;
     }
+    return (error as { attempts?: unknown }).attempts !== undefined;
   }
 }

@@ -1,11 +1,11 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { of, throwError } from 'rxjs';
-import { OrderStatus, type CheckoutOrderRequest } from './orders.dto';
-import { OrdersService } from './orders.service';
+import { OrderStatus, type CheckoutOrderRequest } from './order.dto';
+import { OrderService } from './order.service';
 
-describe('OrdersService', () => {
-  let service: OrdersService;
+describe('OrderService', () => {
+  let service: OrderService;
   let paymentClient: { send: jest.Mock };
   let ticketClient: { send: jest.Mock };
   let expirationClient: { emit: jest.Mock };
@@ -68,7 +68,7 @@ describe('OrdersService', () => {
       send: jest.fn(),
     };
 
-    service = new OrdersService(
+    service = new OrderService(
       prisma as unknown as PrismaClient,
       paymentClient as unknown as any,
       ticketClient as unknown as any,
@@ -365,6 +365,133 @@ describe('OrdersService', () => {
       ),
     );
   });
+
+  it('create should use the payment method from the checkout payload', async () => {
+    ticketClient.send.mockImplementation((pattern: { cmd: string }) => {
+      switch (pattern.cmd) {
+        case 'tickets.find_one':
+          return of(ticketSnapshot);
+        case 'tickets.find_ticket_item':
+          return of(ticketItemSnapshot);
+        case 'tickets.reserve_seat':
+        case 'tickets.reserve':
+          return of({ success: true });
+        default:
+          throw new Error(`Unexpected ticket pattern: ${pattern.cmd}`);
+      }
+    });
+
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.create') {
+        return of({ ...paymentDto, paymentMethod: 'BANKING' });
+      }
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
+
+    await service.checkout({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'ignored-at-checkout',
+      quantity: 2,
+      unitPrice: 0,
+      seatLabels: ['A1'],
+      paymentMethod: 'BANKING',
+    });
+
+    expect(paymentClient.send).toHaveBeenCalledWith(
+      'payments.create',
+      expect.objectContaining({
+        paymentMethod: 'BANKING',
+      }),
+    );
+  });
+
+  it('create should compute totalPrice with BigInt arithmetic to avoid precision loss', async () => {
+    const quantity = 123456789;
+    const unitPrice = 987654321;
+    const exact = BigInt(quantity) * BigInt(unitPrice);
+
+    await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity,
+      unitPrice,
+    });
+
+    const createCall = prisma.order.create.mock.calls[0][0];
+    expect(createCall.data.totalPrice).toBe(exact);
+  });
+
+  it('create should return the existing order when idempotencyKey is reused', async () => {
+    const payload = {
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+      idempotencyKey: 'dup-key',
+    };
+
+    const first = await service.create(payload);
+    const second = await service.create(payload);
+
+    expect(second.id).toBe(first.id);
+  });
+
+  it('checkout should replay an existing order for a repeated idempotencyKey without reserving again', async () => {
+    ticketClient.send.mockImplementation((pattern: { cmd: string }) => {
+      switch (pattern.cmd) {
+        case 'tickets.find_one':
+          return of(ticketSnapshot);
+        case 'tickets.find_ticket_item':
+          return of(ticketItemSnapshot);
+        case 'tickets.reserve_seat':
+        case 'tickets.reserve':
+          return of({ success: true });
+        default:
+          throw new Error(`Unexpected ticket pattern: ${pattern.cmd}`);
+      }
+    });
+
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.create') {
+        return of(paymentDto);
+      }
+      if (pattern === 'payments.listByOrderId') {
+        return of([paymentDto]);
+      }
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
+
+    const payload = {
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'ignored-at-checkout',
+      quantity: 2,
+      unitPrice: 0,
+      seatLabels: ['A1'],
+      paymentMethod: 'VNPAY',
+      idempotencyKey: 'idem-1',
+    };
+
+    await service.checkout(payload);
+    const reservesAfterFirst = ticketClient.send.mock.calls.filter(
+      (call) => call[0].cmd === 'tickets.reserve_seat',
+    ).length;
+
+    const result = await service.checkout(payload);
+    const reservesAfterSecond = ticketClient.send.mock.calls.filter(
+      (call) => call[0].cmd === 'tickets.reserve_seat',
+    ).length;
+
+    expect(result.order.id).toBeTruthy();
+    expect(reservesAfterSecond).toBe(reservesAfterFirst);
+  });
 });
 
 function createMockPrisma() {
@@ -397,6 +524,7 @@ function createMockPrisma() {
     totalPrice: bigint;
     ticketCode: string | null;
     qrPayload: string | null;
+    idempotencyKey: string | null;
     status: number;
     createdAt: Date;
     updatedAt: Date;
@@ -412,10 +540,12 @@ function createMockPrisma() {
       | 'id'
       | 'ticketCode'
       | 'qrPayload'
+      | 'idempotencyKey'
       | 'createdAt'
       | 'updatedAt'
       | 'deletedAt'
     > & {
+      idempotencyKey: string | null;
       seatLabels: { create: Omit<StoredSeatLabel, 'orderId'>[] };
       passengers: { create: Omit<StoredPassenger, 'orderId'>[] };
     };
@@ -456,6 +586,15 @@ function createMockPrisma() {
     order: {
       create: jest.fn(
         ({ data }: CreateOrderArgs): Promise<StoredOrderWithRelations> => {
+          if (
+            data.idempotencyKey &&
+            orders.some(
+              (entry) => entry.idempotencyKey === data.idempotencyKey,
+            )
+          ) {
+            return Promise.reject({ code: 'P2002' });
+          }
+
           const id = `order-${orders.length + 1}`;
           const now = new Date('2026-06-12T08:00:00.000Z');
           const order: StoredOrder = {
@@ -479,6 +618,7 @@ function createMockPrisma() {
             totalPrice: data.totalPrice,
             ticketCode: null,
             qrPayload: null,
+            idempotencyKey: data.idempotencyKey,
             status: data.status,
             createdAt: now,
             updatedAt: now,

@@ -13,9 +13,9 @@ import {
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { BarChart, DonutStat } from "@/components/analytics-chart";
-import { FormField } from "@/components/form-field";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { BarChart, DonutStat } from "@/components/charts/analytics-chart";
+import { FormField } from "@/components/ui/form-field";
 import {
   NoticeBox,
   EmptyState,
@@ -24,7 +24,7 @@ import {
   StatusBadge,
   SurfaceLink,
   compactId,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

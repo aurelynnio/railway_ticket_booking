@@ -5,15 +5,15 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { RouteLine } from "@/components/route-line";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { RouteLine } from "@/components/route/route-line";
 import {
   DetailBlock,
   MetaGrid,
   NoticeBox,
   SeatCloud,
   SectionHeading,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

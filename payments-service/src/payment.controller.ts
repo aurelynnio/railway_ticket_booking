@@ -14,44 +14,44 @@ import {
   MarkProcessingRequest,
   SoftDeletePaymentRequest,
 } from './payment.dto';
-import { PaymentsService } from './payments.service';
+import { PaymentService } from './payment.service';
 
 @Controller()
-export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+export class PaymentController {
+  constructor(private readonly paymentService: PaymentService) {}
 
   @MessagePattern('payments.health')
   health() {
-    return this.paymentsService.health();
+    return this.paymentService.health();
   }
 
   @MessagePattern('payments.create')
   create(@Payload() payload: CreatePaymentRequest) {
-    return this.paymentsService.createPayment(payload);
+    return this.paymentService.createPayment(payload);
   }
 
   @MessagePattern('payments.findOne')
   getPaymentById(@Payload() payload: GetPaymentByIdRequest) {
-    return this.paymentsService.getPaymentById(payload.id);
+    return this.paymentService.getPaymentById(payload.id);
   }
 
   @MessagePattern('payments.findByTransactionId')
   getPaymentByTransactionId(
     @Payload() payload: GetPaymentByTransactionIdRequest,
   ) {
-    return this.paymentsService.getPaymentByTransactionId(
+    return this.paymentService.getPaymentByTransactionId(
       payload.transactionId,
     );
   }
 
   @MessagePattern('payments.listByOrderId')
   listByOrderId(@Payload() payload: ListPaymentsByOrderIdRequest) {
-    return this.paymentsService.listPaymentsByOrderId(payload.orderId);
+    return this.paymentService.listPaymentsByOrderId(payload.orderId);
   }
 
   @MessagePattern('payments.listByUserId')
   listByUserId(@Payload() payload: ListPaymentsByUserIdRequest) {
-    return this.paymentsService.listPaymentsByUserId(
+    return this.paymentService.listPaymentsByUserId(
       payload.userId,
       payload.pagination,
     );
@@ -59,7 +59,7 @@ export class PaymentsController {
 
   @MessagePattern('payments.list')
   list(@Payload() payload: ListPaymentsRequest) {
-    return this.paymentsService.listPayments(
+    return this.paymentService.listPayments(
       payload?.pagination,
       payload?.query,
     );
@@ -67,36 +67,36 @@ export class PaymentsController {
 
   @MessagePattern('payments.markProcessing')
   markProcessing(@Payload() payload: MarkProcessingRequest) {
-    return this.paymentsService.markProcessing(payload);
+    return this.paymentService.markProcessing(payload);
   }
 
   @MessagePattern('payments.markPaid')
   markPaid(@Payload() payload: MarkPaidRequest) {
-    return this.paymentsService.markPaid(payload);
+    return this.paymentService.markPaid(payload);
   }
 
   @MessagePattern('payments.markPaidWorkflow')
   markPaidWorkflow(@Payload() payload: MarkPaidRequest) {
-    return this.paymentsService.markPaidWorkflow(payload);
+    return this.paymentService.markPaidWorkflow(payload);
   }
 
   @MessagePattern('payments.markFailed')
   markFailed(@Payload() payload: MarkFailedRequest) {
-    return this.paymentsService.markFailed(payload);
+    return this.paymentService.markFailed(payload);
   }
 
   @MessagePattern('payments.cancel')
   cancel(@Payload() payload: CancelPaymentRequest) {
-    return this.paymentsService.cancelPayment(payload);
+    return this.paymentService.cancelPayment(payload);
   }
 
   @MessagePattern('payments.expire')
   expire(@Payload() payload: ExpirePaymentRequest) {
-    return this.paymentsService.expirePayment(payload);
+    return this.paymentService.expirePayment(payload);
   }
 
   @MessagePattern('payments.remove')
   remove(@Payload() payload: SoftDeletePaymentRequest) {
-    return this.paymentsService.softDeletePayment(payload);
+    return this.paymentService.softDeletePayment(payload);
   }
 }

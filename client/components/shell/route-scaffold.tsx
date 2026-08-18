@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AppShell, Panel } from "@/components/app-shell";
+import { AppShell, Panel } from "@/components/shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 

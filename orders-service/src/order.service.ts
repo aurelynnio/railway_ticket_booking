@@ -14,7 +14,7 @@ import type {
   PaymentDto,
   TicketSnapshot,
   TicketItemSnapshot,
-} from './orders.contracts';
+} from './order.contracts';
 import type {
   CancelOrderWorkflowResponse,
   CancelOrderRequest,
@@ -28,8 +28,8 @@ import type {
   PaginatedOrdersResponse,
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
-} from './orders.dto';
-import { OrderStatus } from './orders.dto';
+} from './order.dto';
+import { OrderStatus, type OrderPassenger } from './order.dto';
 import {
   assertRequired,
   buildQrPayload,
@@ -44,7 +44,7 @@ import {
   toNullableString,
   toOrderResponse,
   type OrderWithRelations,
-} from './utils/orders.utils';
+} from './utils/order.utils';
 
 const orderInclude = {
   seatLabels: true,
@@ -58,8 +58,8 @@ interface UserEmailResponse {
 }
 
 @Injectable()
-export class OrdersService {
-  private readonly logger = new Logger(OrdersService.name);
+export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -88,6 +88,23 @@ export class OrdersService {
         'seatLabels cannot exceed quantity',
         HttpStatus.BAD_REQUEST,
       );
+    }
+
+    // Idempotency: a repeated checkout with the same idempotencyKey for the
+    // same user returns the already-created order without reserving seats again.
+    const idempotencyKey = payload.idempotencyKey?.trim();
+    if (idempotencyKey) {
+      const existing = await this.prisma.order.findFirst({
+        where: {
+          idempotencyKey,
+          userId: payload.userId.trim(),
+          deletedAt: null,
+        },
+        include: orderInclude,
+      });
+      if (existing) {
+        return this.buildReplayCheckoutResponse(existing);
+      }
     }
 
     const ticket = await this.findTicket(payload.ticketId);
@@ -131,6 +148,7 @@ export class OrdersService {
         unitPrice: ticketItem.priceFlash ?? ticketItem.priceOriginal ?? 0,
         seatLabels: normalizedSeatLabels,
         passengers: payload.passengers,
+        idempotencyKey: payload.idempotencyKey,
       } satisfies CreateOrderRequest);
 
       orderId = order.id;
@@ -139,7 +157,7 @@ export class OrdersService {
         orderId: order.id,
         userId: order.userId,
         amount: String(order.totalPrice),
-        paymentMethod: 'VNPAY',
+        paymentMethod: payload.paymentMethod?.trim() || 'VNPAY',
       });
 
       try {
@@ -147,7 +165,9 @@ export class OrdersService {
           orderId: order.id,
         });
       } catch (err) {
-        this.logger.error(`Failed to emit orders.expire_check event: ${err}`);
+        this.logger.error(
+          `Failed to emit orders.expire_check event: ${this.getErrorMessage(err)}`,
+        );
       }
 
       // Fetch user email for notification
@@ -165,7 +185,7 @@ export class OrdersService {
         }
       } catch (err) {
         this.logger.error(
-          `Failed to fetch user profile for userId ${order.userId} during checkout email notification: ${err}`,
+          `Failed to fetch user profile for userId ${order.userId} during checkout email notification: ${this.getErrorMessage(err)}`,
         );
       }
 
@@ -180,7 +200,7 @@ export class OrdersService {
         });
       } catch (err) {
         this.logger.error(
-          `Failed to emit notification.order_created event: ${err}`,
+          `Failed to emit notification.order_created event: ${this.getErrorMessage(err)}`,
         );
       }
 
@@ -242,6 +262,7 @@ export class OrdersService {
     );
     const seatLabels = normalizeSeatLabels(payload.seatLabels);
     const passengers = normalizePassengers(payload.passengers);
+    const idempotencyKey = payload.idempotencyKey?.trim() || null;
 
     if (seatLabels.length > quantity) {
       throw new HttpException(
@@ -263,8 +284,8 @@ export class OrdersService {
     );
     const arrivalTime = toNullableDate(payload.arrivalTime, 'arrivalTime');
 
-    const order = await this.prisma.order.create({
-      data: {
+    const order = await this.createOrder(
+      {
         userId: payload.userId.trim(),
         ticketItemId: payload.ticketItemId.trim(),
         ticketId: payload.ticketId.trim(),
@@ -281,24 +302,100 @@ export class OrdersService {
         seatType: toNullableString(payload.seatType),
         quantity,
         unitPrice: BigInt(unitPrice),
-        totalPrice: BigInt(quantity * unitPrice),
+        totalPrice: BigInt(quantity) * BigInt(unitPrice),
         status: OrderStatus.PendingPayment,
-        seatLabels: {
-          create: seatLabels.map((seatLabel) => ({ seatLabel })),
-        },
-        passengers: {
-          create: passengers.map((passenger) => ({
-            fullName: passenger.fullName,
-            passengerType: passenger.passengerType,
-            identityNumber: passenger.identityNumber,
-            phoneNumber: passenger.phoneNumber,
-          })),
-        },
+        idempotencyKey,
+        seatLabels,
+        passengers,
       },
-      include: orderInclude,
-    });
+      idempotencyKey,
+    );
 
     return toOrderResponse(order);
+  }
+
+  private async createOrder(
+    data: {
+      userId: string;
+      ticketItemId: string;
+      ticketId: string;
+      ticketTitle: string;
+      trainNumber: string | null;
+      departureStationCode: string | null;
+      departureStationName: string | null;
+      arrivalStationCode: string | null;
+      arrivalStationName: string | null;
+      departureTime: Date | null;
+      arrivalTime: Date | null;
+      coachCode: string | null;
+      seatClass: string | null;
+      seatType: string | null;
+      quantity: number;
+      unitPrice: bigint;
+      totalPrice: bigint;
+      status: OrderStatus;
+      idempotencyKey: string | null;
+      seatLabels: string[];
+      passengers: OrderPassenger[];
+    },
+    idempotencyKey: string | null,
+  ) {
+    try {
+      return await this.prisma.order.create({
+        data: {
+          userId: data.userId,
+          ticketItemId: data.ticketItemId,
+          ticketId: data.ticketId,
+          ticketTitle: data.ticketTitle,
+          trainNumber: data.trainNumber,
+          departureStationCode: data.departureStationCode,
+          departureStationName: data.departureStationName,
+          arrivalStationCode: data.arrivalStationCode,
+          arrivalStationName: data.arrivalStationName,
+          departureTime: data.departureTime,
+          arrivalTime: data.arrivalTime,
+          coachCode: data.coachCode,
+          seatClass: data.seatClass,
+          seatType: data.seatType,
+          quantity: data.quantity,
+          unitPrice: data.unitPrice,
+          totalPrice: data.totalPrice,
+          status: data.status,
+          idempotencyKey: data.idempotencyKey,
+          seatLabels: {
+            create: data.seatLabels.map((seatLabel) => ({ seatLabel })),
+          },
+          passengers: {
+            create: data.passengers.map((passenger) => ({
+              fullName: passenger.fullName,
+              passengerType: passenger.passengerType,
+              identityNumber: passenger.identityNumber,
+              phoneNumber: passenger.phoneNumber,
+            })),
+          },
+        },
+        include: orderInclude,
+      });
+    } catch (error) {
+      // Concurrent duplicate with the same idempotencyKey: another request
+      // already created this order, so return the existing one.
+      if (
+        idempotencyKey &&
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code: string }).code === 'P2002'
+      ) {
+        const existing = await this.prisma.order.findFirst({
+          where: { idempotencyKey, deletedAt: null },
+          include: orderInclude,
+        });
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 
   /*
@@ -509,7 +606,7 @@ export class OrdersService {
         }
       } catch (err) {
         this.logger.error(
-          `Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification: ${err}`,
+          `Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification: ${this.getErrorMessage(err)}`,
         );
       }
 
@@ -523,7 +620,7 @@ export class OrdersService {
         });
       } catch (err) {
         this.logger.error(
-          `Failed to emit notification.payment_paid event: ${err}`,
+          `Failed to emit notification.payment_paid event: ${this.getErrorMessage(err)}`,
         );
       }
     }
@@ -749,6 +846,37 @@ export class OrdersService {
     );
   }
 
+  private async buildReplayCheckoutResponse(
+    order: OrderWithRelations,
+  ): Promise<OrderCheckoutResponse> {
+    const payment = await this.fetchPaymentForOrder(order.id);
+    return {
+      order: toOrderResponse(order),
+      payment,
+      reservation: {
+        ticketId: order.ticketId,
+        ticketItemId: order.ticketItemId,
+        reservedSeatLabels: order.seatLabels.map((entry) => entry.seatLabel),
+        reservedQuantity: order.quantity,
+      },
+    };
+  }
+
+  private async fetchPaymentForOrder(orderId: string): Promise<PaymentDto> {
+    try {
+      const payments = await this.sendPayment<PaymentDto[]>(
+        'payments.listByOrderId',
+        { orderId },
+      );
+      return payments[0];
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        return undefined as unknown as PaymentDto;
+      }
+      throw error;
+    }
+  }
+
   private async findTicketItem(ticketId: string, ticketItemId: string) {
     return this.sendTicket<TicketItemSnapshot>(
       { cmd: 'tickets.find_ticket_item' },
@@ -958,7 +1086,7 @@ export class OrdersService {
       }
     } catch (error) {
       this.logger.error(
-        `Error processing order expire check for order ${data.orderId}: ${error}`,
+        `Error processing order expire check for order ${data.orderId}: ${this.getErrorMessage(error)}`,
       );
     }
   }

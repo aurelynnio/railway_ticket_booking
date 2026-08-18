@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 
-import { Panel } from "@/components/app-shell";
+import { Panel } from "@/components/shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";

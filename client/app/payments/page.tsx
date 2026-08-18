@@ -5,7 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
+import { AppShell, Panel } from "@/components/shell/app-shell";
 import {
   EmptyState,
   FilterBar,
@@ -13,7 +13,7 @@ import {
   SectionHeading,
   StatusBadge,
   compactId,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

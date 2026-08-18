@@ -13,7 +13,7 @@ import {
 
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
 import { useMe } from "@/hooks/user.hook";
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/shell/app-shell";
 import { cn } from "@/lib/utils";
 
 const navItems = [

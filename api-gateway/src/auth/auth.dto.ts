@@ -1,11 +1,24 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from 'class-validator';
+
+const PASSWORD_RULE =
+  /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const PASSWORD_MESSAGE =
+  'Password must be at least 8 characters and include both letters and numbers';
 
 export class RegisterRequest {
   @IsEmail()
   email: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @Matches(PASSWORD_RULE, { message: PASSWORD_MESSAGE })
   password: string;
 
   @IsString()
@@ -46,7 +59,8 @@ export class ResetPasswordRequest {
   token: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @Matches(PASSWORD_RULE, { message: PASSWORD_MESSAGE })
   newPassword: string;
 }
 
@@ -62,7 +76,8 @@ export class ChangePasswordRequest {
   oldPassword?: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @Matches(PASSWORD_RULE, { message: PASSWORD_MESSAGE })
   newPassword: string;
 }
 

@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PrismaClient } from '@prisma/client';
-import { OrdersController } from './orders.controller';
-import { OrdersService } from './orders.service';
+import { OrderController } from './order.controller';
+import { OrderService } from './order.service';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -20,7 +20,11 @@ import { ScheduleModule } from '@nestjs/schedule';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'payments_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },
@@ -31,7 +35,11 @@ import { ScheduleModule } from '@nestjs/schedule';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'tickets_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },
@@ -42,7 +50,7 @@ import { ScheduleModule } from '@nestjs/schedule';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'orders_expiration_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
               'x-dead-letter-routing-key': 'orders_expired_process_queue',
@@ -58,24 +66,34 @@ import { ScheduleModule } from '@nestjs/schedule';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'notifications_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },
       {
+        // users-service was merged into auth-service, so user lookups now
+        // go to the auth queue (the users.get_by_id command lives there).
         name: 'users_service',
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'users_queue',
+          queue: 'auth_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },
     ]),
   ],
-  controllers: [OrdersController],
-  providers: [OrdersService, PrismaClient],
+  controllers: [OrderController],
+  providers: [OrderService, PrismaClient],
 })
-export class OrdersModule {}
+export class OrderModule {}

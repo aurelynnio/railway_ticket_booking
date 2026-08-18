@@ -2,11 +2,11 @@
 
 import { TrainFront } from "lucide-react";
 
-import { RouteLine } from "@/components/route-line";
+import { RouteLine } from "@/components/route/route-line";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetaGrid } from "@/components/railway-ui";
-import { TicketCard } from "@/components/ticket-card";
+import { MetaGrid } from "@/components/ui/railway-ui";
+import { TicketCard } from "@/components/ticket/ticket-card";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,

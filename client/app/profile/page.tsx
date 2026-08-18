@@ -6,13 +6,13 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Shield, KeyRound, Mail, UserCog } from "lucide-react";
 
-import { Panel } from "@/components/app-shell";
-import { FormField } from "@/components/form-field";
+import { Panel } from "@/components/shell/app-shell";
+import { FormField } from "@/components/ui/form-field";
 import {
   MetaGrid,
   NoticeBox,
   SectionHeading,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthSession, useChangePassword, useResendVerification, useRevokeAllSessions, useVerifyEmail } from "@/hooks/auth.hook";

@@ -16,13 +16,13 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
+import { AppShell, Panel } from "@/components/shell/app-shell";
 import { AnimatedSection } from "@/components/motion/animated-section";
 import { CountUp } from "@/components/motion/count-up";
-import { TicketNotch } from "@/components/ticket-notch";
+import { TicketNotch } from "@/components/ticket/ticket-notch";
 import {
   EmptyState,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -272,7 +272,7 @@ export default function RootPage() {
                 </div>
               </div>
               <TicketNotch dashed>
-                <Card variant="outlined" className="px-5 py-5 sm:px-6 sm:py-6">
+                <Card variant="outlined" className="iso-card-tilt px-5 py-5 sm:px-6 sm:py-6">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-4">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-primary/20 bg-primary-soft text-primary">
@@ -373,7 +373,7 @@ export default function RootPage() {
                 <Link
                   key={trip.ticketId}
                   href={`/tickets/${trip.ticketId}`}
-                  className="group block border border-border bg-card p-5 transition-colors hover:border-border-strong hover:bg-muted/30"
+                  className="iso-card-tilt group block border border-border bg-card p-5 transition-colors hover:border-border-strong hover:bg-muted/30"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
@@ -454,7 +454,7 @@ export default function RootPage() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="group flex items-start gap-4 border border-border bg-card p-5 transition-colors hover:border-border-strong hover:bg-muted/30"
+                  className="iso-card-tilt group flex items-start gap-4 border border-border bg-card p-5 transition-colors hover:border-border-strong hover:bg-muted/30"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-primary/20 bg-primary-soft text-primary">
                     <Icon className="size-4" />

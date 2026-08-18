@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { startTransition, type ReactNode } from "react";
 import { LogOut } from "lucide-react";
 
-import { BrandLogo } from "@/components/brand-logo";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandLogo } from "@/components/branding/brand-logo";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
 import { adminNavGroups, isActivePath } from "@/components/shell/nav-config";
 import { cn } from "@/lib/utils";

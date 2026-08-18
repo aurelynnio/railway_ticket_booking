@@ -11,9 +11,9 @@ import {
   Wrench,
 } from "lucide-react";
 
-import { AppShell } from "@/components/app-shell";
-import { RouteMap } from "@/components/route-map";
-import { StatusBadge } from "@/components/railway-ui";
+import { AppShell } from "@/components/shell/app-shell";
+import { RouteMap } from "@/components/route/route-map";
+import { StatusBadge } from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PrismaClient } from '@prisma/client';
-import { PaymentsController } from './payments.controller';
-import { PaymentsService } from './payments.service';
+import { PaymentController } from './payment.controller';
+import { PaymentService } from './payment.service';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -18,17 +20,17 @@ import { PaymentsService } from './payments.service';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'orders_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
             arguments: {
-              'x-dead-letter-exchange': 'orders_dead_letter_exchange',
-              'x-dead-letter-routing-key': 'orders_dead_letter_queue',
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
             },
           },
         },
       },
     ]),
   ],
-  controllers: [PaymentsController],
-  providers: [PaymentsService, PrismaClient],
+  controllers: [PaymentController],
+  providers: [PaymentService, PrismaClient],
 })
-export class PaymentsModule {}
+export class PaymentModule {}

@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { ClientProxy } from '@nestjs/microservices';
 import { Prisma, PrismaClient, type Payment } from '@prisma/client';
 import type {
@@ -20,7 +21,11 @@ import {
 } from './utils/payment.utils';
 
 @Injectable()
-export class PaymentsService {
+export class PaymentService {
+  private static readonly OUTBOX_BATCH_SIZE = 50;
+  private static readonly OUTBOX_MAX_ATTEMPTS = 5;
+  private readonly logger = new Logger(PaymentService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     @Inject('order_service') private readonly orderClient: ClientProxy,
@@ -183,24 +188,103 @@ export class PaymentsService {
   async markPaidWorkflow(
     payload: MarkPaidRequest,
   ): Promise<PaymentMarkedPaidResponse> {
-    const payment = await this.markPaid(payload);
-    const emittedAt = new Date().toISOString();
-    await this.emitPaymentPaidEvent({
-      paymentId: payment.id,
-      orderId: payment.orderId,
-      userId: payment.userId,
-      transactionId: payment.transactionId,
-      paidAt: payment.paidAt,
+    const existing = await this.getPaymentOrThrow(payload);
+
+    if (existing.status === Number(PaymentStatus.Paid)) {
+      throw new HttpException(
+        'Payment is already marked as paid',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const paidAt = payload.paidAt ?? new Date();
+
+    // Transactional outbox: write the payment.paid event in the same DB
+    // transaction that marks the payment as paid, so the event can never be
+    // lost if the process crashes between commit and publish. A worker
+    // (processOutbox) publishes due rows and marks them processed.
+    let paidPayment: Payment | undefined;
+    await this.prisma.$transaction(async (tx) => {
+      paidPayment = await tx.payment.update({
+        where: { id: existing.id },
+        data: { status: PaymentStatus.Paid, paidAt },
+      });
+
+      await tx.paymentOutbox.create({
+        data: {
+          paymentId: paidPayment.id,
+          orderId: paidPayment.orderId,
+          userId: paidPayment.userId,
+          transactionId: paidPayment.transactionId,
+          paidAt: paidPayment.paidAt ?? paidAt,
+        },
+      });
     });
 
+    const emittedAt = new Date().toISOString();
+
     return {
-      payment,
+      payment: toPaymentDto(paidPayment as Payment),
       event: {
         name: 'payment.paid',
-        orderId: payment.orderId,
+        orderId: (paidPayment as Payment).orderId,
         emittedAt,
       },
     };
+  }
+
+  /**
+   * Outbox worker: publishes due payment.paid events to RabbitMQ and marks the
+   * row processed on success. On failure it backs off exponentially and marks
+   * the row as failed after reaching the maximum number of attempts.
+   */
+  @Cron('*/10 * * * * *')
+  async processOutbox(): Promise<void> {
+    const now = new Date();
+    const due = await this.prisma.paymentOutbox.findMany({
+      where: { status: 0, nextAttemptAt: { lte: now } },
+      orderBy: { createdAt: 'asc' },
+      take: PaymentService.OUTBOX_BATCH_SIZE,
+    });
+
+    for (const row of due) {
+      try {
+        await this.emitPaymentPaidEvent({
+          paymentId: row.paymentId,
+          orderId: row.orderId,
+          userId: row.userId,
+          transactionId: row.transactionId,
+          paidAt: row.paidAt.toISOString(),
+        });
+        await this.prisma.paymentOutbox.update({
+          where: { id: row.id },
+          data: { status: 1, processedAt: new Date() },
+        });
+      } catch (error) {
+        const attemptCount = row.attemptCount + 1;
+        const reachedMax =
+          attemptCount >= PaymentService.OUTBOX_MAX_ATTEMPTS;
+        await this.prisma.paymentOutbox.update({
+          where: { id: row.id },
+          data: {
+            attemptCount,
+            nextAttemptAt: new Date(
+              Date.now() + this.calculateBackoff(attemptCount),
+            ),
+            ...(reachedMax ? { status: 2 } : {}),
+          },
+        });
+        this.logger.warn(
+          `Failed to publish payment.paid for outbox ${row.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
+  private calculateBackoff(attemptCount: number): number {
+    return Math.min(1000 * 2 ** (attemptCount - 1), 60000);
   }
 
   async markFailed(lookup: PaymentLookupRequest): Promise<PaymentDto> {

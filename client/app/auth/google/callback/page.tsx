@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/shell/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGoogleCallback } from "@/hooks/auth.hook";

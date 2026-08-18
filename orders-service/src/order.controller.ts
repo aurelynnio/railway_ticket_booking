@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
-import { OrdersService } from './orders.service';
-import type { PaymentPaidEventPayload } from './orders.contracts';
+import { OrderService } from './order.service';
+import type { PaymentPaidEventPayload } from './order.contracts';
 import {
   CancelOrderRequest,
   CheckoutOrderRequest,
@@ -10,40 +10,40 @@ import {
   OrderResponse,
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
-} from './orders.dto';
+} from './order.dto';
 
 @Controller()
-export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+export class OrderController {
+  constructor(private readonly orderService: OrderService) {}
 
   @MessagePattern('orders.health')
   health() {
-    return this.ordersService.health();
+    return this.orderService.health();
   }
 
   @MessagePattern('orders.create')
   create(@Payload() payload: CreateOrderRequest) {
-    return this.ordersService.create(payload);
+    return this.orderService.create(payload);
   }
 
   @MessagePattern('orders.checkout')
   checkout(@Payload() payload: CheckoutOrderRequest) {
-    return this.ordersService.checkout(payload);
+    return this.orderService.checkout(payload);
   }
 
   @MessagePattern('orders.list')
   list(@Payload() query: ListOrdersQuery) {
-    return this.ordersService.list(query);
+    return this.orderService.list(query);
   }
 
   @MessagePattern('orders.findOne')
   findOne(@Payload() data: { orderId: string }) {
-    return this.ordersService.findOne(data.orderId);
+    return this.orderService.findOne(data.orderId);
   }
 
   @MessagePattern('orders.summary')
   summary(@Payload() data: { orderId: string }) {
-    return this.ordersService.summary(data.orderId);
+    return this.orderService.summary(data.orderId);
   }
 
   @MessagePattern('orders.updatePassengers')
@@ -54,7 +54,7 @@ export class OrdersController {
       payload: UpdateOrderPassengersRequest;
     },
   ) {
-    return this.ordersService.updatePassengers(data.orderId, data.payload);
+    return this.orderService.updatePassengers(data.orderId, data.payload);
   }
 
   @MessagePattern('orders.updateSeatLabels')
@@ -65,63 +65,63 @@ export class OrdersController {
       payload: UpdateOrderSeatLabelsRequest;
     },
   ) {
-    return this.ordersService.updateSeatLabels(data.orderId, data.payload);
+    return this.orderService.updateSeatLabels(data.orderId, data.payload);
   }
 
   @MessagePattern('orders.markPendingPayment')
   markPendingPayment(@Payload() data: { orderId: string }) {
-    return this.ordersService.markPendingPayment(data.orderId);
+    return this.orderService.markPendingPayment(data.orderId);
   }
 
   @MessagePattern('orders.markPaid')
   markPaid(@Payload() data: { orderId: string }) {
-    return this.ordersService.markPaid(data.orderId);
+    return this.orderService.markPaid(data.orderId);
   }
 
   @EventPattern('payment.paid')
   handlePaymentPaid(@Payload() payload: PaymentPaidEventPayload) {
-    return this.ordersService.handlePaymentPaidEvent(payload);
+    return this.orderService.handlePaymentPaidEvent(payload);
   }
 
   @EventPattern('orders.expire_check')
   handleOrderExpireCheck(@Payload() data: { orderId: string }) {
-    return this.ordersService.handleOrderExpireCheck(data);
+    return this.orderService.handleOrderExpireCheck(data);
   }
 
   @MessagePattern('orders.confirm')
   confirm(@Payload() data: { orderId: string }) {
-    return this.ordersService.confirm(data.orderId);
+    return this.orderService.confirm(data.orderId);
   }
 
   @MessagePattern('orders.issueTicket')
   issueTicket(@Payload() data: { orderId: string }) {
-    return this.ordersService.issueTicket(data.orderId);
+    return this.orderService.issueTicket(data.orderId);
   }
 
   @MessagePattern('orders.cancel')
   cancel(@Payload() data: { orderId: string; payload?: CancelOrderRequest }) {
-    return this.ordersService.cancel(data.orderId, data.payload);
+    return this.orderService.cancel(data.orderId, data.payload);
   }
 
   @MessagePattern('orders.cancelWorkflow')
   cancelWorkflow(
     @Payload() data: { orderId: string; payload?: CancelOrderRequest },
   ) {
-    return this.ordersService.cancelWorkflow(data);
+    return this.orderService.cancelWorkflow(data);
   }
 
   @MessagePattern('orders.expire')
   expire(@Payload() data: { orderId: string }): Promise<OrderResponse> {
-    return this.ordersService.expire(data.orderId);
+    return this.orderService.expire(data.orderId);
   }
 
   @MessagePattern('orders.refund')
   refund(@Payload() data: { orderId: string }): Promise<OrderResponse> {
-    return this.ordersService.refund(data.orderId);
+    return this.orderService.refund(data.orderId);
   }
 
   @MessagePattern('orders.remove')
   remove(@Payload() data: { orderId: string }) {
-    return this.ordersService.remove(data.orderId);
+    return this.orderService.remove(data.orderId);
   }
 }

@@ -2,13 +2,13 @@
 
 import { ArrowRight, QrCode, MapPin, Train, Ticket } from "lucide-react";
 
-import { Panel } from "@/components/app-shell";
-import { TicketNotch } from "@/components/ticket-notch";
+import { Panel } from "@/components/shell/app-shell";
+import { TicketNotch } from "@/components/ticket/ticket-notch";
 import {
   EmptyState,
   SeatCloud,
   StatusBadge,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,

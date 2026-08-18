@@ -5,15 +5,15 @@ import { type ReactNode, useDeferredValue, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowRight, Layers3, MoreHorizontal, Sparkles, TrainFront, MapPin, Calendar } from "lucide-react";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { TicketNotch } from "@/components/ticket-notch";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { TicketNotch } from "@/components/ticket/ticket-notch";
 import {
   EmptyState,
   FilterBar,
   PaginationBar,
   SectionHeading,
   StatusBadge,
-} from "@/components/railway-ui";
+} from "@/components/ui/railway-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -406,7 +406,7 @@ export default function TicketsPage() {
               <div className="grid gap-4">
                 {tickets.map((ticket) => (
                   <TicketNotch key={ticket.id} dashed>
-                    <Card variant="outlined" padding="none" className="overflow-hidden">
+                    <Card variant="outlined" padding="none" className="iso-card-tilt overflow-hidden">
                       <CardContent className="p-0">
                         <div className="grid xl:grid-cols-[minmax(0,1fr)_240px]">
                           <div className="p-5 md:p-6 space-y-4">

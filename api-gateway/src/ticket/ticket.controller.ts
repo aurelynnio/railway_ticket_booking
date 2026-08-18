@@ -22,7 +22,7 @@ import {
   ReserveTicketRequest,
   UpdateTicketItemRequest,
   UpdateTicketRequest,
-} from '../common/dto/ticket.dto';
+} from './ticket.dto';
 import { TicketService } from './ticket.service';
 import { Public } from '../common/decorator/public.decorator';
 import { Roles, UserRole } from '../common/decorator/roles.decorator';
@@ -77,6 +77,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/reserve')
+  @Roles(UserRole.ADMIN)
   reserve(
     @Param('ticketId') ticketId: string,
     @Body() payload: ReserveTicketRequest,
@@ -85,6 +86,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/release')
+  @Roles(UserRole.ADMIN)
   release(
     @Param('ticketId') ticketId: string,
     @Body() payload: ReleaseTicketRequest,
@@ -181,6 +183,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/ticket-items/:ticketItemId/reserve-seat')
+  @Roles(UserRole.ADMIN)
   reserveSeat(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,
@@ -190,6 +193,7 @@ export class TicketController {
   }
 
   @Post(':ticketId/ticket-items/:ticketItemId/release-seat')
+  @Roles(UserRole.ADMIN)
   releaseSeat(
     @Param('ticketId') ticketId: string,
     @Param('ticketItemId') ticketItemId: string,

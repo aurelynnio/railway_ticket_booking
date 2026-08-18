@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { ShieldCheck, Sparkles, Ticket } from "lucide-react";
 
-import { BrandLogo } from "@/components/brand-logo";
-import { RouteLine } from "@/components/route-line";
+import { BrandLogo } from "@/components/branding/brand-logo";
+import { RouteLine } from "@/components/route/route-line";
 
 const benefits = [
   {

@@ -1,6 +1,8 @@
 "use client";
 
 import { TrainFront } from "lucide-react";
+
+import { IsoCuboid } from "@/components/iso/iso-cuboid";
 import { cn } from "@/lib/utils";
 
 type RouteLineStation = {
@@ -80,17 +82,22 @@ export function RouteLine({
               key={station.code ?? station.label ?? index}
               className="relative flex flex-col items-center"
             >
-              <span
-                className={cn(
-                  "size-2.5 rounded-full border-2 transition-[background-color,border-color,box-shadow,transform] duration-300",
-                  isEndpoint
-                    ? "border-primary bg-primary"
-                    : isActive
-                      ? "border-primary/60 bg-primary/30"
-                      : "border-border bg-background",
-                )}
+              <svg
+                width={compact ? 14 : 16}
+                height={compact ? 12 : 14}
+                viewBox="-6.5 -6.5 15 13.5"
                 aria-hidden
-              />
+              >
+                <IsoCuboid
+                  x={0}
+                  y={0}
+                  w={6}
+                  d={5}
+                  h={isEndpoint ? 3.6 : isActive ? 3 : 2.4}
+                  tone={isEndpoint ? "brand" : isActive ? "brand-soft" : "surface"}
+                  strokeWidth={0.7}
+                />
+              </svg>
               {showLabels ? (
                 <span
                   className={cn(

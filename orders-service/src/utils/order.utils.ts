@@ -8,8 +8,8 @@ import type {
   OrderPassenger,
   OrderPassengerPayload,
   OrderResponse,
-} from '../orders.dto';
-import { OrderStatus } from '../orders.dto';
+} from '../order.dto';
+import { OrderStatus } from '../order.dto';
 
 type TicketPayload = Pick<
   OrderResponse,

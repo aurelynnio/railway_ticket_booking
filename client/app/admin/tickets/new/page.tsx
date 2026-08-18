@@ -5,9 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { AppShell, Panel } from "@/components/app-shell";
-import { FormField } from "@/components/form-field";
-import { NoticeBox } from "@/components/railway-ui";
+import { AppShell, Panel } from "@/components/shell/app-shell";
+import { FormField } from "@/components/ui/form-field";
+import { NoticeBox } from "@/components/ui/railway-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

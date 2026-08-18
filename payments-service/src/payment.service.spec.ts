@@ -3,10 +3,10 @@ import type { ClientProxy } from '@nestjs/microservices';
 import type { PrismaClient } from '@prisma/client';
 import { of } from 'rxjs';
 import { PaymentStatus } from './payment.dto';
-import { PaymentsService } from './payments.service';
+import { PaymentService } from './payment.service';
 
-describe('PaymentsService', () => {
-  let service: PaymentsService;
+describe('PaymentService', () => {
+  let service: PaymentService;
   let prisma: {
     payment: {
       create: jest.Mock;
@@ -14,6 +14,11 @@ describe('PaymentsService', () => {
       update: jest.Mock;
       findMany: jest.Mock;
       count: jest.Mock;
+    };
+    paymentOutbox: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      update: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -43,14 +48,27 @@ describe('PaymentsService', () => {
         findMany: jest.fn(),
         count: jest.fn(),
       },
-      $transaction: jest.fn(),
+      paymentOutbox: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+      },
+      $transaction: jest.fn(async (arg: unknown) => {
+        if (typeof arg === 'function') {
+          return (arg as (tx: unknown) => unknown)({
+            payment: prisma.payment,
+            paymentOutbox: prisma.paymentOutbox,
+          });
+        }
+        return Promise.all(arg as Promise<unknown>[]);
+      }),
     };
 
     orderClient = {
       emit: jest.fn(() => of(undefined)),
     };
 
-    service = new PaymentsService(
+    service = new PaymentService(
       prisma as unknown as PrismaClient,
       orderClient as unknown as ClientProxy,
     );
@@ -129,7 +147,7 @@ describe('PaymentsService', () => {
     expect(result.paidAt).toBe(paidAt.toISOString());
   });
 
-  it('markPaidWorkflow should emit the payment.paid event after updating the payment', async () => {
+  it('markPaidWorkflow should persist a payment.paid outbox row in the same transaction without emitting directly', async () => {
     const existing = buildPaymentRecord();
     const paidAt = new Date('2026-06-12T09:00:00.000Z');
 
@@ -141,19 +159,83 @@ describe('PaymentsService', () => {
         updatedAt: paidAt,
       }),
     );
+    prisma.paymentOutbox.create.mockResolvedValue({ id: 'outbox-1' });
 
     const result = await service.markPaidWorkflow({ id: existing.id, paidAt });
 
-    expect(orderClient.emit).toHaveBeenCalledWith('payment.paid', {
-      paymentId: existing.id,
-      orderId: existing.orderId,
-      userId: existing.userId,
-      transactionId: existing.transactionId,
-      paidAt: paidAt.toISOString(),
+    expect(orderClient.emit).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.paymentOutbox.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        paymentId: existing.id,
+        orderId: existing.orderId,
+        userId: existing.userId,
+        transactionId: existing.transactionId,
+        paidAt,
+      }),
     });
     expect(result.payment.status).toBe(PaymentStatus.Paid);
     expect(result.event.name).toBe('payment.paid');
-    expect(result.event.orderId).toBe(existing.orderId);
+  });
+
+  it('processOutbox should publish due payment.paid events and mark them processed', async () => {
+    const paidAt = new Date('2026-06-12T09:00:00.000Z');
+    prisma.paymentOutbox.findMany.mockResolvedValue([
+      {
+        id: 'outbox-1',
+        paymentId: 'payment-1',
+        orderId: 'order-1',
+        userId: 'user-1',
+        transactionId: 'txn-1',
+        paidAt,
+        status: 0,
+        attemptCount: 0,
+      },
+    ]);
+
+    await service.processOutbox();
+
+    expect(orderClient.emit).toHaveBeenCalledWith('payment.paid', {
+      paymentId: 'payment-1',
+      orderId: 'order-1',
+      userId: 'user-1',
+      transactionId: 'txn-1',
+      paidAt: paidAt.toISOString(),
+    });
+    expect(prisma.paymentOutbox.update).toHaveBeenCalledWith({
+      where: { id: 'outbox-1' },
+      data: { status: 1, processedAt: expect.any(Date) },
+    });
+  });
+
+  it('processOutbox should back off and eventually mark a persistently failing row as failed', async () => {
+    const paidAt = new Date('2026-06-12T09:00:00.000Z');
+    prisma.paymentOutbox.findMany.mockResolvedValue([
+      {
+        id: 'outbox-1',
+        paymentId: 'payment-1',
+        orderId: 'order-1',
+        userId: 'user-1',
+        transactionId: 'txn-1',
+        paidAt,
+        status: 0,
+        attemptCount: 4, // one below the max of 5
+      },
+    ]);
+    orderClient.emit.mockImplementation(() => {
+      throw new Error('broker down');
+    });
+
+    await service.processOutbox();
+
+    expect(prisma.paymentOutbox.update).toHaveBeenCalledWith({
+      where: { id: 'outbox-1' },
+      data: expect.objectContaining({
+        attemptCount: 5,
+        nextAttemptAt: expect.any(Date),
+        status: 2,
+      }),
+    });
   });
 
   it('listPayments should build filters and pagination from the incoming query', async () => {

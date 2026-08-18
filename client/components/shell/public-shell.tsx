@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { startTransition, type ReactNode } from "react";
 import { ArrowUpRight, Menu, Search, X } from "lucide-react";
 
-import { BrandLogo } from "@/components/brand-logo";
-import { RouteLine } from "@/components/route-line";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandLogo } from "@/components/branding/brand-logo";
+import { IsoHeroVisual } from "@/components/iso/iso-hero-visual";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
 import {
@@ -246,7 +246,7 @@ function EditorialHero({
 }) {
   return (
     <section className="relative -mt-4 mb-4">
-      <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-16 items-center py-8 lg:py-16 border-b border-border pb-12 lg:pb-20">
+      <div className="grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.15fr)] gap-8 lg:gap-12 items-center py-8 lg:py-16 border-b border-border pb-12 lg:pb-20">
         <div className="space-y-8">
           <div className="space-y-4">
             <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
@@ -277,30 +277,10 @@ function EditorialHero({
           </div>
         </div>
 
-        <div className="relative hidden lg:block">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-border bg-primary-soft/35">
-            {/* Decorative railway illustration */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
-              <div className="w-full space-y-6">
-                <div className="space-y-2 text-center">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-muted">Hành trình Bắc-Nam</p>
-                  <p className="font-display text-2xl font-semibold text-ink">Hà Nội → Sài Gòn</p>
-                </div>
-                <RouteLine animated />
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  {[
-                    { time: "32h", label: "Thời gian" },
-                    { time: "SE2", label: "Tàu nhanh" },
-                    { time: "Từ 750K", label: "Giá vé" },
-                  ].map((item) => (
-                    <div key={item.label} className="space-y-1">
-                      <p className="font-mono text-sm font-semibold text-primary">{item.time}</p>
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">{item.label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div className="relative hidden md:block">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-primary-soft/35">
+            {/* Detailed 2.5D isometric illustration (approved concept) */}
+            <IsoHeroVisual className="absolute inset-0" />
           </div>
           {/* Decorative element */}
           <div className="absolute -bottom-4 -left-4 w-24 h-24 border border-primary/20 -z-10" />
