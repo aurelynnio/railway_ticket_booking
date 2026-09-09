@@ -20,10 +20,17 @@ import type {
   VerifyEmailRequest,
   ResendVerificationRequest,
   SocialLoginGoogleRequest,
+  ListUsersQuery,
+  UpdateUserPayload,
+  CreateUserPayload,
 } from './dto/auth.dto';
 import { PrismaClient } from '@prisma/client';
-import { comparePassword, hashPassword } from './utils/hash-password.util';
-import { TokenService } from './utils/generate-token.util';
+import { comparePassword, hashPassword } from './utils/auth.utils';
+import { TokenService } from './utils/generate-token.utils';
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 @Injectable()
 export class AuthService {
@@ -87,25 +94,28 @@ export class AuthService {
     }
 
     try {
-      await this.generateAndStoreEmailVerificationToken(
+      const token = await this.generateAndStoreEmailVerificationToken(
         newUser.id,
         newUser.email,
       );
-    } catch (error) {
-      this.logger.error(`Failed to generate verification token: ${error}`);
-    }
 
-    try {
-      this.notificationClient.emit('notification.user_registered', {
+      this.emitNotification('notification.email_verification', {
         userId: newUser.id,
         email: newUser.email,
         fullName: newUser.username,
+        token,
       });
     } catch (error) {
       this.logger.error(
-        `Failed to emit notification.user_registered event: ${error}`,
+        `Failed to generate verification token: ${getErrorMessage(error)}`,
       );
     }
+
+    this.emitNotification('notification.user_registered', {
+      userId: newUser.id,
+      email: newUser.email,
+      fullName: newUser.username,
+    });
 
     return newUser;
   }
@@ -121,7 +131,9 @@ export class AuthService {
     }
 
     if (!user.password) {
-      throw new UnauthorizedException('This account uses Google Login');
+      // Same generic message as the wrong-password path so attackers cannot
+      // probe which emails exist (e.g. Google-only accounts).
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const isPasswordValid = await comparePassword(
@@ -148,6 +160,7 @@ export class AuthService {
       role: user.role,
       tokenVersion: user.tokenVersion,
     });
+    await this.storeRefreshToken(refreshToken);
 
     return {
       accessToken,
@@ -163,6 +176,7 @@ export class AuthService {
     const tokenPayload = await this.tokenService.verifyToken(
       payload.refreshToken,
     );
+    await this.ensureRefreshTokenNotRevoked(payload.refreshToken);
     const user = await this.findActiveUserById(tokenPayload.userId);
     if (
       !user ||
@@ -184,6 +198,7 @@ export class AuthService {
       role: user.role,
       tokenVersion: user.tokenVersion ?? 0,
     });
+    await this.storeRefreshToken(refreshToken);
 
     return {
       accessToken,
@@ -213,8 +228,46 @@ export class AuthService {
     };
   }
 
-  logout(payload?: LogoutRequest) {
-    void payload;
+  /*
+   * Revokes the presented refresh token so it can no longer be exchanged for
+   * new credentials. Invalid, expired, or unknown tokens are treated as
+   * already logged out — logout stays idempotent and never fails.
+   */
+  async logout(payload?: LogoutRequest) {
+    const refreshToken = payload?.refreshToken?.trim();
+    if (!refreshToken) {
+      return {
+        success: true,
+        message: 'Logout successful',
+      };
+    }
+
+    try {
+      await this.tokenService.verifyToken(refreshToken);
+    } catch {
+      // Invalid or expired tokens carry no session worth revoking.
+      return {
+        success: true,
+        message: 'Logout successful',
+      };
+    }
+
+    try {
+      await this.prisma.refreshToken.upsert({
+        where: { tokenHash: this.hashToken(refreshToken) },
+        update: { revokedAt: new Date() },
+        create: {
+          tokenHash: this.hashToken(refreshToken),
+          revokedAt: new Date(),
+          expiresAt: this.buildRefreshTokenExpiry(),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke refresh token on logout: ${getErrorMessage(error)}`,
+      );
+    }
+
     return {
       success: true,
       message: 'Logout successful',
@@ -262,15 +315,11 @@ export class AuthService {
       },
     });
 
-    try {
-      this.notificationClient.emit('notification.password_reset', {
-        userId: user.id,
-        email: user.email,
-        token: resetToken,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to emit notification.password_reset event: ${error}`);
-    }
+    this.emitNotification('notification.password_reset', {
+      userId: user.id,
+      email: user.email,
+      token: resetToken,
+    });
 
     // Never return the raw token in the HTTP response — only via email
     return {
@@ -365,6 +414,50 @@ export class AuthService {
 
   private buildPasswordResetExpiry() {
     return new Date(Date.now() + 60 * 60 * 1000);
+  }
+
+  /*
+   * Refresh tokens are stored hashed so a database leak cannot be replayed.
+   * Persistence failures are logged but never block token issuance — the
+   * revocation table is best-effort state layered on top of the stateless
+   * tokenVersion mechanism.
+   */
+  private async storeRefreshToken(refreshToken: string) {
+    try {
+      await this.prisma.refreshToken.create({
+        data: {
+          tokenHash: this.hashToken(refreshToken),
+          expiresAt: this.buildRefreshTokenExpiry(),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to persist refresh token: ${getErrorMessage(error)}`,
+      );
+    }
+  }
+
+  private async ensureRefreshTokenNotRevoked(refreshToken: string) {
+    try {
+      const stored = await this.prisma.refreshToken.findUnique({
+        where: { tokenHash: this.hashToken(refreshToken) },
+      });
+      if (stored?.revokedAt) {
+        throw new UnauthorizedException('Invalid or expired token');
+      }
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      // A missing revocation table (pending migration) must not lock users out.
+      this.logger.error(
+        `Failed to check refresh token revocation: ${getErrorMessage(error)}`,
+      );
+    }
+  }
+
+  private buildRefreshTokenExpiry() {
+    return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // matches refresh token TTL
   }
 
   async changePassword(userId: string, payload: ChangePasswordRequest) {
@@ -473,16 +566,12 @@ export class AuthService {
       user.email,
     );
 
-    // Emit event for notification-service to send the email
-    try {
-      this.notificationClient.emit('notification.user_registered', {
-        userId: user.id,
-        email: user.email,
-        fullName: user.username,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to emit verification email event: ${error}`);
-    }
+    this.emitNotification('notification.email_verification', {
+      userId: user.id,
+      email: user.email,
+      fullName: user.username,
+      token,
+    });
 
     // Never return the raw token in the HTTP response
     return {
@@ -491,24 +580,11 @@ export class AuthService {
     };
   }
 
-  async socialLoginGoogle(payload: SocialLoginGoogleRequest) {
+  socialLoginGoogle(payload: SocialLoginGoogleRequest): never {
     if (!payload.code) {
       throw new BadRequestException('Missing authorization code');
     }
 
-    // Disable Google login if not properly configured
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      throw new BadRequestException(
-        'Google OAuth is not configured. Set GOOGLE_CLIENT_ID environment variable.',
-      );
-    }
-
-    // TODO: Implement real Google OAuth code exchange:
-    // 1. Exchange authorization code for access token via Google API
-    // 2. Fetch user profile from Google userinfo endpoint
-    // 3. Find or create user based on google_id
-    // The previous implementation was a security hole — it accepted any code
-    // and created a fake user with google_id_<code>.
     throw new BadRequestException(
       'Google OAuth is not yet implemented. Please use email/password login.',
     );
@@ -535,6 +611,188 @@ export class AuthService {
       success: true,
       message: 'All sessions revoked successfully',
     };
+  }
+
+  /*
+   * =========================================================================
+   * User management (previously users-service).
+   * All operations run on the AuthAccount table so identity and profile data
+   * stay in a single source of truth, and secrets are never exposed.
+   * =========================================================================
+   */
+
+  async listUsers(query: ListUsersQuery = {}) {
+    const page = this.normalizePositiveInteger(query.page, 1);
+    const limit = this.normalizePositiveInteger(query.limit, 10);
+    const skip = (page - 1) * limit;
+
+    const [total, users] = await this.prisma.$transaction([
+      this.prisma.authAccount.count({
+        where: { deletedAt: null },
+      }),
+      this.prisma.authAccount.findMany({
+        where: { deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: users.map((user) => this.toPublicUser(user)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getUserProfile(userId: string) {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const user = await this.findActiveUserById(userId);
+    return user ? this.toPublicUser(user) : null;
+  }
+
+  async getUserById(userId: string) {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const user = await this.findActiveUserById(userId);
+    return user ? this.toPublicUser(user) : null;
+  }
+
+  async findByEmail(email: string) {
+    if (!email) {
+      throw new BadRequestException('Email is required');
+    }
+
+    const user = await this.findActiveUserByEmail(email);
+    return user ? this.toPublicUser(user) : null;
+  }
+
+  async createUser(payload: CreateUserPayload) {
+    if (!payload.username || !payload.email || !payload.password) {
+      throw new BadRequestException('Username, email and password are required');
+    }
+
+    // Hash on creation so plaintext passwords never reach the database.
+    const hashedPassword = await hashPassword(payload.password);
+
+    try {
+      const user = await this.prisma.authAccount.create({
+        data: {
+          username: payload.username,
+          email: payload.email,
+          password: hashedPassword,
+          role: payload.role ?? 0,
+          emailVerified: false,
+        },
+      });
+      return this.toPublicUser(user);
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException('Email or username already in use');
+      }
+      throw error;
+    }
+  }
+
+  async updateUser(userId: string, payload: UpdateUserPayload) {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const user = await this.findActiveUserById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    try {
+      const updated = await this.prisma.authAccount.update({
+        where: { id: userId },
+        data: {
+          ...(payload.username !== undefined
+            ? { username: payload.username }
+            : {}),
+          ...(payload.email !== undefined ? { email: payload.email } : {}),
+          ...(payload.role !== undefined ? { role: payload.role } : {}),
+        },
+      });
+      return this.toPublicUser(updated);
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException('Email or username already in use');
+      }
+      throw error;
+    }
+  }
+
+  async deleteUser(userId: string) {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const user = await this.findActiveUserById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.authAccount.update({
+      where: { id: userId },
+      data: { deletedAt: new Date() },
+    });
+
+    return { message: `User with ID ${userId} has been deleted` };
+  }
+
+  private toPublicUser(user: {
+    id: string;
+    username: string;
+    email: string;
+    role: number;
+    emailVerified: boolean;
+    googleId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      emailVerified: user.emailVerified,
+      googleId: user.googleId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code: string }).code === 'P2002'
+    );
+  }
+
+  private normalizePositiveInteger(
+    value: number | string | undefined,
+    fallback: number,
+  ) {
+    const parsed = Number(value);
+
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      return fallback;
+    }
+
+    return parsed;
   }
 
   private async generateAndStoreEmailVerificationToken(
@@ -564,8 +822,13 @@ export class AuthService {
     return token;
   }
 
-  sendEmail(to: string, subject: string, text: string): void {
-    // Stub: real email sending is handled by notification-service via RabbitMQ events
-    this.logger.warn(`Email stub called directly — use notification events instead. To: ${to}, Subject: ${subject}`);
+  private emitNotification(pattern: string, payload: unknown): void {
+    this.notificationClient.emit(pattern, payload).subscribe({
+      error: (error: unknown) => {
+        this.logger.error(
+          `Failed to emit ${pattern}: ${getErrorMessage(error)}`,
+        );
+      },
+    });
   }
 }

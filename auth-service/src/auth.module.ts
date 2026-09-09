@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { TokenService } from './utils/generate-token.util';
+import { TokenService } from './utils/generate-token.utils';
 
 @Module({
   imports: [
@@ -18,6 +18,15 @@ import { TokenService } from './utils/generate-token.util';
         const secret = configService.get<string>('JWT_SECRET');
         if (!secret) {
           throw new Error('JWT_SECRET is not configured');
+        }
+
+        if (
+          process.env.NODE_ENV === 'production' &&
+          (secret.length < 32 || secret.toLowerCase().includes('change-me'))
+        ) {
+          throw new Error(
+            'JWT_SECRET must be at least 32 characters and not a placeholder in production',
+          );
         }
 
         return {
@@ -33,7 +42,11 @@ import { TokenService } from './utils/generate-token.util';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'notifications_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },

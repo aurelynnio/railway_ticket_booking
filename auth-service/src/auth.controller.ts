@@ -12,17 +12,15 @@ import {
   VerifyEmailRequest,
   ResendVerificationRequest,
   SocialLoginGoogleRequest,
+  ListUsersQuery,
+  UpdateUserPayload,
+  CreateUserPayload,
 } from './dto/auth.dto';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
-
-  @Get('health')
-  health() {
-    return this.authService.health();
-  }
 
   @MessagePattern({ cmd: 'auth.health' })
   healthMessage() {
@@ -89,5 +87,52 @@ export class AuthController {
   @MessagePattern({ cmd: 'auth.revokeAllSessions' })
   revokeAllSessions(@Payload() payload: { userId: string }) {
     return this.authService.revokeAllSessions(payload.userId);
+  }
+
+  /*
+   * =========================================================================
+   * User management handlers (previously users-service).
+   * Command names match what api-gateway still sends via its /users endpoints.
+   * =========================================================================
+   */
+
+  @MessagePattern({ cmd: 'users.health' })
+  usersHealth() {
+    return this.authService.health();
+  }
+
+  @MessagePattern({ cmd: 'users.list' })
+  listUsers(@Payload() query: ListUsersQuery) {
+    return this.authService.listUsers(query);
+  }
+
+  @MessagePattern({ cmd: 'users.profile' })
+  userProfile(@Payload() data: { userId: string }) {
+    return this.authService.getUserProfile(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'users.get_by_id' })
+  getUserById(@Payload() data: { userId: string }) {
+    return this.authService.getUserById(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'users.find_by_email' })
+  findByEmail(@Payload() data: { email: string }) {
+    return this.authService.findByEmail(data.email);
+  }
+
+  @MessagePattern({ cmd: 'users.create' })
+  createUser(@Payload() data: { payload: CreateUserPayload }) {
+    return this.authService.createUser(data.payload);
+  }
+
+  @MessagePattern({ cmd: 'users.update' })
+  updateUser(@Payload() data: { userId: string; payload: UpdateUserPayload }) {
+    return this.authService.updateUser(data.userId, data.payload);
+  }
+
+  @MessagePattern({ cmd: 'users.delete' })
+  deleteUser(@Payload() data: { userId: string }) {
+    return this.authService.deleteUser(data.userId);
   }
 }

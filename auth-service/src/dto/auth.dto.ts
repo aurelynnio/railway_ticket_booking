@@ -1,8 +1,11 @@
+import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -90,4 +93,54 @@ export class SocialLoginGoogleRequest {
   @IsString()
   @IsNotEmpty()
   code: string;
+}
+
+export class ListUsersQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
+}
+
+export class UpdateUserPayload {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  username?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  role?: number;
+}
+
+export class CreateUserPayload {
+  @IsString()
+  @IsNotEmpty()
+  username: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  role?: number;
 }

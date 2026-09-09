@@ -30,9 +30,4 @@ describe('AuthController', () => {
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
-
-  it('should return the health status', () => {
-    expect(controller.health()).toBe('ok');
-    expect(authService.health).toHaveBeenCalledTimes(1);
-  });
 });

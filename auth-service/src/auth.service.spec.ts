@@ -1,18 +1,28 @@
-jest.mock('./utils/hash-password.util', () => ({
-  hashPassword: jest.fn(),
-  comparePassword: jest.fn(),
+jest.mock('./utils/auth.utils', () => ({
+  hashPassword: jest.fn(async (password: string) => `hashed:${password}`),
+  comparePassword: jest.fn(
+    async (password: string, hashed: string) => hashed === `hashed:${password}`,
+  ),
+}));
+jest.mock('./utils/generate-token.utils', () => ({
+  TokenService: jest.fn().mockImplementation(() => ({
+    generateAccessToken: jest.fn(() => 'mock-access-token'),
+    generateRefreshToken: jest.fn(() => 'mock-refresh-token'),
+  })),
 }));
 
 import {
   BadRequestException,
   ConflictException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
-import { comparePassword, hashPassword } from './utils/hash-password.util';
+import { EMPTY } from 'rxjs';
+import { comparePassword, hashPassword } from './utils/auth.utils';
 import { AuthService } from './auth.service';
-import { TokenService } from './utils/generate-token.util';
+import { TokenService } from './utils/generate-token.utils';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -32,6 +42,11 @@ describe('AuthService', () => {
       upsert: jest.Mock;
       findUnique: jest.Mock;
       delete: jest.Mock;
+    };
+    refreshToken: {
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      upsert: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -61,6 +76,11 @@ describe('AuthService', () => {
         findUnique: jest.fn(),
         delete: jest.fn(),
       },
+      refreshToken: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+      },
       $transaction: jest.fn(),
     };
 
@@ -73,7 +93,7 @@ describe('AuthService', () => {
     };
 
     const notificationClient = {
-      emit: jest.fn(),
+      emit: jest.fn(() => EMPTY),
     };
 
     service = new AuthService(
@@ -127,7 +147,7 @@ describe('AuthService', () => {
   });
 
   it('register should reject duplicate emails', async () => {
-    prisma.authAccount.findUnique.mockResolvedValue({ id: 'existing-user' });
+    prisma.authAccount.create.mockRejectedValue({ code: 'P2002' });
 
     await expect(
       service.register({
@@ -195,7 +215,48 @@ describe('AuthService', () => {
     });
   });
 
-  it('forgotPassword should persist only the token hash and return the raw token', async () => {
+  it('logout should revoke the presented refresh token and return success', async () => {
+    tokenService.verifyToken.mockResolvedValue({
+      userId: 'user-1',
+      email: 'alice@example.com',
+    });
+    prisma.refreshToken.upsert.mockResolvedValue({ id: 'token-1' });
+
+    const result = await service.logout({ refreshToken: 'refresh-token' });
+
+    expect(tokenService.verifyToken).toHaveBeenCalledWith('refresh-token');
+    expect(prisma.refreshToken.upsert).toHaveBeenCalledWith({
+      where: {
+        tokenHash: createHash('sha256').update('refresh-token').digest('hex'),
+      },
+      update: expect.objectContaining({ revokedAt: expect.any(Date) }),
+      create: expect.objectContaining({
+        tokenHash: createHash('sha256').update('refresh-token').digest('hex'),
+        revokedAt: expect.any(Date),
+        expiresAt: expect.any(Date),
+      }),
+    });
+    expect(result).toEqual({
+      success: true,
+      message: 'Logout successful',
+    });
+  });
+
+  it('logout should still succeed when the token is invalid or revocation fails', async () => {
+    tokenService.verifyToken.mockRejectedValue(
+      new UnauthorizedException('Invalid or expired token'),
+    );
+
+    const result = await service.logout({ refreshToken: 'bad-token' });
+
+    expect(prisma.refreshToken.upsert).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      success: true,
+      message: 'Logout successful',
+    });
+  });
+
+  it('forgotPassword should persist only the token hash and return a neutral response', async () => {
     prisma.authAccount.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'alice@example.com',
@@ -221,7 +282,10 @@ describe('AuthService', () => {
         expiresAt: expect.any(Date),
       }),
     });
-    expect(result).toBe('reset-token');
+    expect(result).toEqual({
+      success: true,
+      message: 'If the email exists, a reset link has been sent.',
+    });
   });
 
   it('resetPassword should replace the password and delete the reset token record', async () => {
@@ -429,7 +493,7 @@ describe('AuthService', () => {
       });
       expect(prisma.emailVerificationToken.upsert).toHaveBeenCalled();
       expect(result.success).toBe(true);
-      expect(result.token).toBe('new-token');
+      expect(result).not.toHaveProperty('token');
     });
 
     it('should throw BadRequestException if email is already verified', async () => {
@@ -446,54 +510,10 @@ describe('AuthService', () => {
   });
 
   describe('socialLoginGoogle', () => {
-    it('should login existing user with Google ID and issue tokens', async () => {
-      prisma.authAccount.findUnique.mockResolvedValue({
-        id: 'user-google',
-        email: 'google-user@gmail.com',
-        role: 0,
-        tokenVersion: 0,
-        deletedAt: null,
-      });
-      tokenService.generateAccessToken.mockResolvedValue('access-token');
-      tokenService.generateRefreshToken.mockResolvedValue('refresh-token');
-
-      const result = await service.socialLoginGoogle({ code: 'google-user' });
-
-      expect(prisma.authAccount.findUnique).toHaveBeenCalledWith({
-        where: { googleId: 'google_id_google-user' },
-      });
-      expect(result).toEqual({
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-      });
-    });
-
-    it('should create new user if email/googleId not found', async () => {
-      prisma.authAccount.findUnique.mockResolvedValue(null); // googleId and email search
-      prisma.authAccount.create.mockResolvedValue({
-        id: 'new-user',
-        email: 'google-user@gmail.com',
-        role: 0,
-        tokenVersion: 0,
-        deletedAt: null,
-      });
-      tokenService.generateAccessToken.mockResolvedValue('access-token');
-      tokenService.generateRefreshToken.mockResolvedValue('refresh-token');
-
-      const result = await service.socialLoginGoogle({ code: 'google-user' });
-
-      expect(prisma.authAccount.create).toHaveBeenCalledWith({
-        data: {
-          email: 'google-user@gmail.com',
-          username: 'google_user_google-user',
-          googleId: 'google_id_google-user',
-          emailVerified: true,
-        },
-      });
-      expect(result).toEqual({
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-      });
+    it('rejects a Google authorization code until the real exchange is implemented', () => {
+      expect(() => service.socialLoginGoogle({ code: 'google-user' })).toThrow(
+        BadRequestException,
+      );
     });
   });
 
