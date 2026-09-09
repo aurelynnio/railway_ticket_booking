@@ -8,8 +8,8 @@ import type {
   OrderPassenger,
   OrderPassengerPayload,
   OrderResponse,
-} from '../order.dto';
-import { OrderStatus } from '../order.dto';
+} from '../dto/order.dto';
+import { OrderStatus } from '../dto/order.dto';
 
 type TicketPayload = Pick<
   OrderResponse,
@@ -111,6 +111,21 @@ export function normalizePassengers(
   });
 }
 
+export interface OrderContact {
+  contactEmail: string | null;
+  contactPhone: string | null;
+}
+
+export function normalizeContact(
+  contactEmail: string | null | undefined,
+  contactPhone: string | null | undefined,
+): OrderContact {
+  return {
+    contactEmail: toNullableString(contactEmail),
+    contactPhone: toNullableString(contactPhone),
+  };
+}
+
 export function normalizeOptionalStatus(value: number | string | undefined) {
   if (value === undefined || value === '') {
     return undefined;
@@ -175,10 +190,13 @@ export function toOrderResponse(order: OrderWithRelations): OrderResponse {
     seatClass: order.seatClass,
     seatType: order.seatType,
     quantity: order.quantity,
-    unitPrice: Number(order.unitPrice),
-    totalPrice: Number(order.totalPrice),
+    unitPrice: order.unitPrice.toString(),
+    totalPrice: order.totalPrice.toString(),
     ticketCode: order.ticketCode,
     qrPayload: order.qrPayload,
+    contactEmail: order.contactEmail,
+    contactPhone: order.contactPhone,
+    cancelReason: order.cancelReason,
     status: order.status,
     seatLabels: order.seatLabels.map((entry: OrderSeatLabel) => entry.seatLabel),
     passengers: order.passengers.map((passenger: PrismaOrderPassenger) => ({

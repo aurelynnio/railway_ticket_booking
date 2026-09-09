@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { of, throwError } from 'rxjs';
-import { OrderStatus, type CheckoutOrderRequest } from './order.dto';
+import { OrderStatus, type CheckoutOrderRequest } from './dto/order.dto';
 import { OrderService } from './order.service';
 
 describe('OrderService', () => {
@@ -102,9 +102,38 @@ describe('OrderService', () => {
     expect(order.userId).toBe('user-1');
     expect(order.ticketId).toBe('ticket-1');
     expect(order.ticketItemId).toBe('item-1');
-    expect(order.totalPrice).toBe(180000);
+    expect(order.totalPrice).toBe('180000');
     expect(order.status).toBe(OrderStatus.PendingPayment);
     expect(order.seatLabels).toEqual(['A1', 'A2']);
+  });
+
+  it('create should calculate discounts for special passenger types (child, student, senior)', async () => {
+    const order = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 3,
+      unitPrice: 100000,
+      seatLabels: ['A1', 'A2', 'A3'],
+      passengers: [
+        {
+          fullName: 'Em Be',
+          passengerType: 'CHILD', // 75% -> 75,000
+        },
+        {
+          fullName: 'Sinh Vien',
+          passengerType: 'STUDENT', // 90% -> 90,000
+        },
+        {
+          fullName: 'Nguoi Cao Tuoi',
+          passengerType: 'SENIOR', // 85% -> 85,000
+        },
+      ],
+    });
+
+    // 75,000 + 90,000 + 85,000 = 250,000
+    expect(order.totalPrice).toBe('250000');
   });
 
   it('checkout should reserve inventory and create a payment', async () => {
@@ -152,7 +181,7 @@ describe('OrderService', () => {
     const result = await service.checkout(payload);
 
     expect(result.order.ticketTitle).toBe(ticketSnapshot.title);
-    expect(result.order.totalPrice).toBe(180000);
+    expect(result.order.totalPrice).toBe('180000');
     expect(result.reservation.reservedSeatLabels).toEqual(['A1']);
     expect(result.reservation.reservedQuantity).toBe(2);
 

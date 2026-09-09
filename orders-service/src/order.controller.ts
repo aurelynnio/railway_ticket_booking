@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { OrderService } from './order.service';
-import type { PaymentPaidEventPayload } from './order.contracts';
+import type { PaymentPaidEventPayload } from './dto/order.contracts';
 import {
   CancelOrderRequest,
   CheckoutOrderRequest,
@@ -10,7 +10,7 @@ import {
   OrderResponse,
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
-} from './order.dto';
+} from './dto/order.dto';
 
 @Controller()
 export class OrderController {

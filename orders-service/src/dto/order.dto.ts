@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
+  IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -65,10 +66,13 @@ export interface OrderResponse {
   seatClass: string | null;
   seatType: string | null;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitPrice: string;
+  totalPrice: string;
   ticketCode: string | null;
   qrPayload: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  cancelReason: string | null;
   status: OrderStatus;
   seatLabels: string[];
   passengers: OrderPassenger[];
@@ -77,9 +81,7 @@ export interface OrderResponse {
   deletedAt: string | null;
 }
 
-export interface CancelledOrderResponse extends OrderResponse {
-  cancelReason: string | null;
-}
+export interface CancelledOrderResponse extends OrderResponse {}
 
 export interface OrderSummaryResponse {
   orderId: string;
@@ -87,8 +89,8 @@ export interface OrderSummaryResponse {
   ticketId: string;
   ticketItemId: string;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitPrice: string;
+  totalPrice: string;
   seatCount: number;
   passengerCount: number;
   status: OrderStatus;
@@ -225,6 +227,16 @@ export class CreateOrderRequest {
   @Type(() => OrderPassengerPayload)
   passengers?: OrderPassengerPayload[];
 
+  /** Contact for e-ticket/order email delivery (falls back to account email). */
+  @IsOptional()
+  @IsEmail()
+  contactEmail?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  contactPhone?: string | null;
+
   @IsOptional()
   @IsString()
   @IsNotEmpty()
@@ -297,3 +309,4 @@ export class CancelOrderRequest {
   @IsNotEmpty()
   reason?: string;
 }
+

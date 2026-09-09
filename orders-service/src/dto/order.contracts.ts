@@ -31,8 +31,8 @@ export interface TicketItemSnapshot {
   coachCode: string | null;
   seatClass: string | null;
   seatType: string | null;
-  priceOriginal: number | null;
-  priceFlash: number | null;
+  priceOriginal: string | null;
+  priceFlash: string | null;
 }
 
 export interface PaymentPaidEventPayload {
@@ -42,3 +42,4 @@ export interface PaymentPaidEventPayload {
   transactionId?: string;
   paidAt?: string | null;
 }
+

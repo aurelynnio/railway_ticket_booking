@@ -14,7 +14,7 @@ import type {
   PaymentDto,
   TicketSnapshot,
   TicketItemSnapshot,
-} from './order.contracts';
+} from './dto/order.contracts';
 import type {
   CancelOrderWorkflowResponse,
   CancelOrderRequest,
@@ -28,8 +28,8 @@ import type {
   PaginatedOrdersResponse,
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
-} from './order.dto';
-import { OrderStatus, type OrderPassenger } from './order.dto';
+} from './dto/order.dto';
+import { OrderStatus, type OrderPassenger } from './dto/order.dto';
 import {
   assertRequired,
   buildQrPayload,
@@ -37,6 +37,7 @@ import {
   normalizeNonNegativeInteger,
   normalizeOptionalStatus,
   normalizePageValue,
+  normalizeContact,
   normalizePassengers,
   normalizePositiveInteger,
   normalizeSeatLabels,
@@ -145,9 +146,13 @@ export class OrderService {
         seatClass: ticketItem.seatClass,
         seatType: ticketItem.seatType,
         quantity: payload.quantity,
-        unitPrice: ticketItem.priceFlash ?? ticketItem.priceOriginal ?? 0,
+        unitPrice: Number(
+          ticketItem.priceFlash ?? ticketItem.priceOriginal ?? 0,
+        ),
         seatLabels: normalizedSeatLabels,
         passengers: payload.passengers,
+        contactEmail: payload.contactEmail,
+        contactPhone: payload.contactPhone,
         idempotencyKey: payload.idempotencyKey,
       } satisfies CreateOrderRequest);
 
@@ -170,23 +175,26 @@ export class OrderService {
         );
       }
 
-      // Fetch user email for notification
-      let email = `user-${order.userId}@example.com`;
-      try {
-        const observable = this.usersClient.send<UserEmailResponse>(
-          { cmd: 'users.get_by_id' },
-          { userId: order.userId },
-        );
-        if (observable) {
-          const userObj = await lastValueFrom(observable);
-          if (userObj && userObj.email) {
-            email = userObj.email;
+      // Fetch user email for notification — prefer the contact email supplied
+      // at checkout (e-ticket delivery address), fall back to account email.
+      let email = order.contactEmail?.trim() || `user-${order.userId}@example.com`;
+      if (!order.contactEmail?.trim()) {
+        try {
+          const observable = this.usersClient.send<UserEmailResponse>(
+            { cmd: 'users.get_by_id' },
+            { userId: order.userId },
+          );
+          if (observable) {
+            const userObj = await lastValueFrom(observable);
+            if (userObj && userObj.email) {
+              email = userObj.email;
+            }
           }
+        } catch (err) {
+          this.logger.error(
+            `Failed to fetch user profile for userId ${order.userId} during checkout email notification: ${this.getErrorMessage(err)}`,
+          );
         }
-      } catch (err) {
-        this.logger.error(
-          `Failed to fetch user profile for userId ${order.userId} during checkout email notification: ${this.getErrorMessage(err)}`,
-        );
       }
 
       try {
@@ -262,6 +270,10 @@ export class OrderService {
     );
     const seatLabels = normalizeSeatLabels(payload.seatLabels);
     const passengers = normalizePassengers(payload.passengers);
+    const contact = normalizeContact(
+      payload.contactEmail,
+      payload.contactPhone,
+    );
     const idempotencyKey = payload.idempotencyKey?.trim() || null;
 
     if (seatLabels.length > quantity) {
@@ -284,6 +296,24 @@ export class OrderService {
     );
     const arrivalTime = toNullableDate(payload.arrivalTime, 'arrivalTime');
 
+    let calculatedTotalPrice = BigInt(0);
+    if (passengers.length > 0) {
+      for (const passenger of passengers) {
+        calculatedTotalPrice += BigInt(
+          this.calculateDiscountedPassengerPrice(
+            unitPrice,
+            passenger.passengerType,
+          ),
+        );
+      }
+      const remainingQuantity = quantity - passengers.length;
+      if (remainingQuantity > 0) {
+        calculatedTotalPrice += BigInt(remainingQuantity) * BigInt(unitPrice);
+      }
+    } else {
+      calculatedTotalPrice = BigInt(quantity) * BigInt(unitPrice);
+    }
+
     const order = await this.createOrder(
       {
         userId: payload.userId.trim(),
@@ -302,11 +332,13 @@ export class OrderService {
         seatType: toNullableString(payload.seatType),
         quantity,
         unitPrice: BigInt(unitPrice),
-        totalPrice: BigInt(quantity) * BigInt(unitPrice),
+        totalPrice: calculatedTotalPrice,
         status: OrderStatus.PendingPayment,
         idempotencyKey,
         seatLabels,
         passengers,
+        contactEmail: contact.contactEmail,
+        contactPhone: contact.contactPhone,
       },
       idempotencyKey,
     );
@@ -337,6 +369,8 @@ export class OrderService {
       idempotencyKey: string | null;
       seatLabels: string[];
       passengers: OrderPassenger[];
+      contactEmail?: string | null;
+      contactPhone?: string | null;
     },
     idempotencyKey: string | null,
   ) {
@@ -362,6 +396,8 @@ export class OrderService {
           totalPrice: data.totalPrice,
           status: data.status,
           idempotencyKey: data.idempotencyKey,
+          contactEmail: data.contactEmail ?? null,
+          contactPhone: data.contactPhone ?? null,
           seatLabels: {
             create: data.seatLabels.map((seatLabel) => ({ seatLabel })),
           },
@@ -387,7 +423,11 @@ export class OrderService {
         (error as { code: string }).code === 'P2002'
       ) {
         const existing = await this.prisma.order.findFirst({
-          where: { idempotencyKey, deletedAt: null },
+          where: {
+            idempotencyKey,
+            userId: data.userId,
+            deletedAt: null,
+          },
           include: orderInclude,
         });
         if (existing) {
@@ -591,23 +631,26 @@ export class OrderService {
       currentOrder = await this.issueTicket(currentOrder.id);
       advancedOrderStatuses.push(currentOrder.status);
 
-      // Fetch user email for confirmation notification
-      let email = `user-${currentOrder.userId}@example.com`;
-      try {
-        const observable = this.usersClient.send<UserEmailResponse>(
-          { cmd: 'users.get_by_id' },
-          { userId: currentOrder.userId },
-        );
-        if (observable) {
-          const userObj = await lastValueFrom(observable);
-          if (userObj && userObj.email) {
-            email = userObj.email;
+      // Fetch user email for confirmation notification — prefer the contact
+      // email supplied at checkout (e-ticket delivery address).
+      let email = currentOrder.contactEmail?.trim() || `user-${currentOrder.userId}@example.com`;
+      if (!currentOrder.contactEmail?.trim()) {
+        try {
+          const observable = this.usersClient.send<UserEmailResponse>(
+            { cmd: 'users.get_by_id' },
+            { userId: currentOrder.userId },
+          );
+          if (observable) {
+            const userObj = await lastValueFrom(observable);
+            if (userObj && userObj.email) {
+              email = userObj.email;
+            }
           }
+        } catch (err) {
+          this.logger.error(
+            `Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification: ${this.getErrorMessage(err)}`,
+          );
         }
-      } catch (err) {
-        this.logger.error(
-          `Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification: ${this.getErrorMessage(err)}`,
-        );
       }
 
       try {
@@ -691,13 +734,13 @@ export class OrderService {
       where: { id: order.id },
       data: {
         status: OrderStatus.Cancelled,
+        cancelReason: toNullableString(payload.reason),
       },
       include: orderInclude,
     });
 
     return {
       ...toOrderResponse(updated),
-      cancelReason: toNullableString(payload.reason),
     };
   }
 
@@ -752,11 +795,80 @@ export class OrderService {
 
   async refund(orderId: string): Promise<OrderResponse> {
     const order = await this.getOrderOrThrow(orderId);
-    return this.transitionStatus(order, OrderStatus.Refunded, [
+    const updated = await this.transitionStatus(order, OrderStatus.Refunded, [
       OrderStatus.Paid,
       OrderStatus.Confirmed,
       OrderStatus.TicketIssued,
     ]);
+    const warnings: string[] = [];
+
+    // Compensation: cancel any leftover pending payments, mark settled
+    // payments as refunded, and release the held seats back to inventory.
+    const seatLabels = order.seatLabels.map((entry) => entry.seatLabel);
+    await this.cancelPendingPayments(order.id, warnings);
+    await this.markPaidPaymentsRefunded(order.id, warnings);
+    try {
+      await this.retry(
+        () =>
+          this.releaseReservation(
+            order.ticketId,
+            order.ticketItemId,
+            seatLabels,
+            Math.max(0, order.quantity - seatLabels.length),
+          ),
+        3,
+        500,
+      );
+    } catch (error) {
+      warnings.push(this.getErrorMessage(error));
+      this.logger.error(
+        `CRITICAL seat release failure during refund for order ${order.id}: ${this.getErrorMessage(error)}`,
+      );
+    }
+
+    // Notify the customer — prefer the contact email supplied at checkout.
+    let email =
+      order.contactEmail?.trim() || `user-${order.userId}@example.com`;
+    if (!order.contactEmail?.trim()) {
+      try {
+        const observable = this.usersClient.send<UserEmailResponse>(
+          { cmd: 'users.get_by_id' },
+          { userId: order.userId },
+        );
+        if (observable) {
+          const userObj = await lastValueFrom(observable);
+          if (userObj && userObj.email) {
+            email = userObj.email;
+          }
+        }
+      } catch (err) {
+        this.logger.error(
+          `Failed to fetch user profile for userId ${order.userId} during refund notification: ${this.getErrorMessage(err)}`,
+        );
+      }
+    }
+
+    try {
+      this.notificationClient.emit('notification.order_refunded', {
+        userId: order.userId,
+        email,
+        orderId: order.id,
+        amount: Number(order.totalPrice),
+        trainNumber: order.trainNumber || '',
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to emit notification.order_refunded event: ${this.getErrorMessage(err)}`,
+      );
+    }
+
+    if (warnings.length > 0) {
+      this.logger.warn(
+        `Refund completed with warnings for order ${order.id}: ${warnings.join('; ')}`,
+      );
+    }
+
+    return updated;
   }
 
   async remove(orderId: string) {
@@ -991,7 +1103,11 @@ export class OrderService {
         (p: PaymentDto): string => p.id,
       );
 
-      await this.sendPayment('payments.cancel', { id: pendingPaymentIds });
+      await Promise.all(
+        pendingPaymentIds.map((id) =>
+          this.sendPayment('payments.cancel', { id }),
+        ),
+      );
 
       return pendingPaymentIds;
     } catch (error) {
@@ -1002,6 +1118,70 @@ export class OrderService {
       warnings.push(`load payments: ${this.getErrorMessage(error)}`);
       return [];
     }
+  }
+
+  /**
+   * Mark settled (Paid) payments of a refunded order as Refunded(6). The
+   * actual money movement back to the payer is a VNPay merchant-side refund
+   * (needs credentials) — this flips the bookkeeping so admin/UI see the
+   * payment as refunded consistently with the order status.
+   */
+  private async markPaidPaymentsRefunded(
+    orderId: string,
+    warnings: string[],
+  ): Promise<string[]> {
+    try {
+      const payments = await this.sendPayment<PaymentDto[]>(
+        'payments.listByOrderId',
+        { orderId },
+      );
+
+      const paidPayments = payments.filter(
+        (payment: PaymentDto): boolean => payment.status === 2,
+      );
+
+      const refundedPaymentIds = paidPayments.map(
+        (p: PaymentDto): string => p.id,
+      );
+
+      await Promise.all(
+        refundedPaymentIds.map((id) =>
+          this.sendPayment('payments.markRefunded', { id }),
+        ),
+      );
+
+      return refundedPaymentIds;
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        return [];
+      }
+
+      warnings.push(`mark refunded payments: ${this.getErrorMessage(error)}`);
+      return [];
+    }
+  }
+
+  private calculateDiscountedPassengerPrice(
+    unitPrice: number,
+    passengerType?: string,
+  ): number {
+    let rate = 1.0;
+    switch (passengerType?.toUpperCase()) {
+      case 'CHILD':
+        rate = 0.75;
+        break;
+      case 'STUDENT':
+        rate = 0.9;
+        break;
+      case 'SENIOR':
+        rate = 0.85;
+        break;
+      case 'ADULT':
+      default:
+        rate = 1.0;
+        break;
+    }
+    return Math.round((unitPrice * rate) / 1000) * 1000;
   }
 
   private async tryCancelCompensatingOrder(orderId: string): Promise<void> {
