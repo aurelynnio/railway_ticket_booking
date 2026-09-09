@@ -21,8 +21,8 @@ import {
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
 } from './order.dto';
-import { Public } from '../common/decorator/public.decorator';
-import { Roles, UserRole } from '../common/decorator/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
+import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('orders')
@@ -46,6 +46,7 @@ export class OrderController {
   }
 
   @Post()
+  @Roles(UserRole.ADMIN)
   create(
     @Req() request: { user?: RequestUser },
     @Body() payload: CreateOrderRequest,
@@ -106,20 +107,14 @@ export class OrderController {
   }
 
   @Post(':orderId/mark-pending-payment')
-  async markPendingPayment(
-    @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
-  ) {
-    await this.assertOrderOwnership(request.user, orderId);
+  @Roles(UserRole.ADMIN)
+  markPendingPayment(@Param('orderId') orderId: string) {
     return this.orderService.markPendingPayment({ orderId });
   }
 
   @Post(':orderId/mark-paid')
-  async markPaid(
-    @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
-  ) {
-    await this.assertOrderOwnership(request.user, orderId);
+  @Roles(UserRole.ADMIN)
+  markPaid(@Param('orderId') orderId: string) {
     return this.orderService.markPaid({ orderId });
   }
 

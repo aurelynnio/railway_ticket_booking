@@ -17,6 +17,7 @@ export enum PaymentStatus {
   Failed = 3,
   Cancelled = 4,
   Expired = 5,
+  Refunded = 6,
 }
 
 export interface PaymentDto {
@@ -102,6 +103,18 @@ export class ListPaymentsByUserIdRequest {
 
 export class ListPaymentsQuery {
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   userId?: string;
@@ -161,6 +174,8 @@ export class MarkPaidRequest extends PaymentLookupRequest {
 }
 
 export class MarkFailedRequest extends PaymentLookupRequest {}
+
+export class MarkRefundedRequest extends PaymentLookupRequest {}
 
 export class CancelPaymentRequest extends PaymentLookupRequest {}
 

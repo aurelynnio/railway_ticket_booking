@@ -13,7 +13,11 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'auth_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },

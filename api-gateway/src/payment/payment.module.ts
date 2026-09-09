@@ -18,14 +18,18 @@ import { OrderModule } from '../order/order.module';
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'payments_queue',
           queueOptions: {
-            durable: false,
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
           },
         },
       },
     ]),
     VnpayModule.register({
-      tmnCode: process.env.VNPAY_TMN_CODE || 'TEST_TMN_CODE',
-      secureSecret: process.env.VNPAY_SECURE_SECRET || 'TEST_SECURE_SECRET',
+      tmnCode: process.env.VNPAY_TMN_CODE || '',
+      secureSecret: process.env.VNPAY_SECURE_SECRET || '',
       vnpayHost: process.env.VNPAY_HOST || 'https://sandbox.vnpayment.vn',
       testMode: process.env.VNPAY_TEST_MODE === 'true',
       hashAlgorithm: HashAlgorithm.SHA512,

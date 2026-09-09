@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { NotificationService } from './notification.service';
-import { Roles, UserRole } from '../common/decorator/roles.decorator';
+import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('notifications')
@@ -16,8 +16,8 @@ export class NotificationController {
     const userId = request.user?.userId ?? '';
     return this.notificationService.listByUser(
       userId,
-      page ? Number(page) : 1,
-      limit ? Number(limit) : 10,
+      this.sanitizePage(page),
+      this.sanitizeLimit(limit, 10),
     );
   }
 
@@ -29,9 +29,22 @@ export class NotificationController {
     @Query('type') type?: string,
   ) {
     return this.notificationService.listAll(
-      page ? Number(page) : 1,
-      limit ? Number(limit) : 20,
+      this.sanitizePage(page),
+      this.sanitizeLimit(limit, 20),
       type,
     );
+  }
+
+  private sanitizePage(value?: string) {
+    const parsed = Number.parseInt(value ?? '', 10);
+    return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
+  }
+
+  private sanitizeLimit(value?: string, fallback = 10, max = 50) {
+    const parsed = Number.parseInt(value ?? '', 10);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      return fallback;
+    }
+    return Math.min(parsed, max);
   }
 }

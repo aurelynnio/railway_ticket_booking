@@ -12,7 +12,13 @@ import { TicketService } from './ticket.service';
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: 'tickets_queue',
-          queueOptions: { durable: false },
+          queueOptions: {
+            durable: true,
+            arguments: {
+              'x-dead-letter-exchange': '',
+              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+            },
+          },
         },
       },
     ]),

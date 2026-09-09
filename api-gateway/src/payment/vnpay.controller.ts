@@ -12,12 +12,13 @@ import {
 import { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { VnpayPaymentService, type VnpayQuery } from './vnpay.service';
-import { Public } from '../common/decorator/public.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { OrderService } from '../order/order.service';
 import type { OrderResponse } from '../order/order.dto';
 import { OrderStatus } from '../order/order.dto';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
+import { UserRole } from '../common/decorators/roles.decorator';
 
 class CreateVnpayPaymentDto {
   @IsString()
@@ -67,7 +68,7 @@ export class VnpayController {
       throw new ForbiddenException('Order not found');
     }
 
-    if (role !== 1 && order.userId !== userId) {
+    if (role !== UserRole.ADMIN && order.userId !== userId) {
       throw new ForbiddenException(
         'You do not have permission to pay for this order',
       );

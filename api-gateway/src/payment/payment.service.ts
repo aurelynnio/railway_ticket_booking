@@ -12,6 +12,7 @@ import {
   MarkFailedRequest,
   MarkPaidRequest,
   MarkProcessingRequest,
+  MarkRefundedRequest,
   SoftDeletePaymentRequest,
 } from './payment.dto';
 
@@ -61,6 +62,10 @@ export class PaymentService {
 
   markFailed(payload: MarkFailedRequest) {
     return this.paymentClient.send('payments.markFailed', payload);
+  }
+
+  markRefunded(payload: MarkRefundedRequest) {
+    return this.paymentClient.send('payments.markRefunded', payload);
   }
 
   cancelPayment(payload: CancelPaymentRequest) {

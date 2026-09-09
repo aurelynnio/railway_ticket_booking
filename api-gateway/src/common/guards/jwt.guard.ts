@@ -9,7 +9,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { Reflector } from '@nestjs/core';
 import { firstValueFrom } from 'rxjs';
 import { ACCESS_TOKEN_COOKIE_NAME } from '../../auth/auth.constants';
-import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { Request } from 'express';
 import type { RequestUser } from '../interfaces/request-user.interface';
 
@@ -32,10 +32,6 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (isPublic) {
-      return true;
-    }
-
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const cookieToken = request.cookies?.[ACCESS_TOKEN_COOKIE_NAME];
     const authHeader = request.headers['authorization'];
@@ -44,6 +40,23 @@ export class JwtAuthGuard implements CanActivate {
         ? this.extractBearerToken(authHeader)
         : undefined;
     const token = cookieToken ?? bearerToken;
+
+    if (isPublic) {
+      if (token) {
+        try {
+          const user = await firstValueFrom<RequestUser>(
+            this.authClient.send<RequestUser>(
+              { cmd: 'auth.validate_token' },
+              { token },
+            ),
+          );
+          request.user = user;
+        } catch {
+          // Public routes ignore invalid/expired tokens and proceed as guest
+        }
+      }
+      return true;
+    }
 
     if (!token) {
       throw new UnauthorizedException('Missing authentication token');

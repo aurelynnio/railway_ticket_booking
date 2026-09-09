@@ -20,7 +20,7 @@ import {
   VerifyEmailRequest,
   ResendVerificationRequest,
 } from './auth.dto';
-import { Public } from '../common/decorator/public.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   ACCESS_TOKEN_MAX_AGE_MS,
@@ -109,6 +109,7 @@ export class AuthController {
   }
 
   @Get('session')
+  @Public()
   session(
     @Req()
     request: {

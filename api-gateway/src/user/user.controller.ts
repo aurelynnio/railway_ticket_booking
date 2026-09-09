@@ -17,8 +17,8 @@ import {
   UpdateProfilePayload,
   UpdateUserPayload,
 } from './user.dto';
-import { Public } from '../common/decorator/public.decorator';
-import { Roles, UserRole } from '../common/decorator/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
+import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('users')

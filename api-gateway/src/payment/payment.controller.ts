@@ -17,13 +17,14 @@ import {
   ExpirePaymentRequest,
   ListPaymentsQuery,
   MarkFailedRequest,
+  MarkRefundedRequest,
   MarkPaidRequest,
   MarkProcessingRequest,
   PaginationQuery,
   PaymentDto,
 } from './payment.dto';
-import { Public } from '../common/decorator/public.decorator';
-import { Roles, UserRole } from '../common/decorator/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
+import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @Controller('payments')
@@ -125,6 +126,12 @@ export class PaymentController {
     return this.paymentService.markFailed(payload);
   }
 
+  @Post('mark-refunded')
+  @Roles(UserRole.ADMIN)
+  markRefunded(@Body() payload: MarkRefundedRequest) {
+    return this.paymentService.markRefunded(payload);
+  }
+
   @Post('cancel')
   @Roles(UserRole.ADMIN)
   cancelPayment(@Body() payload: CancelPaymentRequest) {
@@ -169,9 +176,7 @@ export class PaymentController {
       throw new ForbiddenException('Payment not found');
     }
 
-    // Payment có thể có userId = null (tạo bởi system)
-    // Chỉ chặn nếu payment có userId và không khớp
-    if (payment.userId && payment.userId !== user.userId) {
+    if (!payment.userId || payment.userId !== user.userId) {
       throw new ForbiddenException(
         'You do not have permission to access this payment',
       );

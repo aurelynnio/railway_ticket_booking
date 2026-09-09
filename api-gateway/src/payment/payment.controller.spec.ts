@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { of } from 'rxjs';
-import { UserRole } from '../common/decorator/roles.decorator';
+import { UserRole } from '../common/decorators/roles.decorator';
 import { PaymentStatus } from './payment.dto';
 import { PaymentController } from './payment.controller';
 import { PaymentService } from './payment.service';

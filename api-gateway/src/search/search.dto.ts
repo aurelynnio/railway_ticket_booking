@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -20,6 +21,21 @@ export class SearchTripsQuery {
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['recommended', 'price', 'departure'])
+  sort?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['morning', 'afternoon', 'evening'])
+  timeOfDay?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['seat', 'sleeper'])
+  seatClass?: string;
 
   @IsOptional()
   @Type(() => Number)

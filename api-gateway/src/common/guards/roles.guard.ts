@@ -5,7 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY, UserRole } from '../decorator/roles.decorator';
+import { ROLES_KEY, UserRole } from '../decorators/roles.decorator';
 import type { Request } from 'express';
 import type { RequestUser } from '../interfaces/request-user.interface';
 

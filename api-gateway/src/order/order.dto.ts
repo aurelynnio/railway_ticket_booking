@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
+  IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -69,6 +70,9 @@ export interface OrderResponse {
   totalPrice: number;
   ticketCode: string | null;
   qrPayload: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  cancelReason: string | null;
   status: OrderStatus;
   seatLabels: string[];
   passengers: OrderPassenger[];
@@ -77,9 +81,7 @@ export interface OrderResponse {
   deletedAt: string | null;
 }
 
-export interface CancelledOrderResponse extends OrderResponse {
-  cancelReason: string | null;
-}
+export interface CancelledOrderResponse extends OrderResponse {}
 
 export interface OrderSummaryResponse {
   orderId: string;
@@ -225,6 +227,21 @@ export class CreateOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => OrderPassengerPayload)
   passengers?: OrderPassengerPayload[];
+
+  /** Contact for e-ticket/order email delivery (falls back to account email). */
+  @IsOptional()
+  @IsEmail()
+  contactEmail?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  contactPhone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  idempotencyKey?: string;
 }
 
 export class CheckoutOrderRequest extends CreateOrderRequest {
