@@ -19,6 +19,7 @@ model Payment {
   /// 3 = failed
   /// 4 = cancelled
   /// 5 = expired
+  /// 6 = refunded
   status        Int       @default(0)
   transactionId String    @unique @map("transaction_id") @db.Uuid
   paidAt        DateTime? @map("paid_at")
@@ -30,4 +31,25 @@ model Payment {
   @@index([userId])
   @@index([status])
   @@map("payments")
+}
+
+/// Transactional outbox for the `payment.paid` event. The event row is
+/// written in the same DB transaction that marks the payment as paid, so the
+/// event can never be lost. A worker publishes due rows and marks them processed.
+model PaymentOutbox {
+  id           String    @id @default(uuid()) @db.Uuid
+  paymentId    String    @map("payment_id") @db.Uuid
+  orderId      String    @map("order_id") @db.Uuid
+  userId       String?   @map("user_id") @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  paidAt       DateTime  @map("paid_at")
+  /// 0 = pending, 1 = processed, 2 = failed
+  status       Int       @default(0)
+  attemptCount Int       @default(0) @map("attempt_count")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  processedAt  DateTime? @map("processed_at")
+
+  @@index([status, nextAttemptAt], map: "payment_outbox_status_next_attempt_at_idx")
+  @@map("payment_outbox")
 }

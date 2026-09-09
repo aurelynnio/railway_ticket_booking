@@ -19,6 +19,7 @@ export enum PaymentStatus {
   Failed = 3,
   Cancelled = 4,
   Expired = 5,
+  Refunded = 6,
 }
 
 export interface PaymentDto {
@@ -165,6 +166,8 @@ export class MarkPaidRequest extends PaymentLookupRequest {
 
 export class MarkFailedRequest extends PaymentLookupRequest {}
 
+export class MarkRefundedRequest extends PaymentLookupRequest {}
+
 export class CancelPaymentRequest extends PaymentLookupRequest {}
 
 export class ExpirePaymentRequest extends PaymentLookupRequest {}
@@ -208,3 +211,4 @@ export interface PaymentMarkedPaidResponse {
     emittedAt: string;
   };
 }
+

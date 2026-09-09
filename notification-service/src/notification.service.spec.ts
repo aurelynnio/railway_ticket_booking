@@ -73,6 +73,6 @@ describe('NotificationService', () => {
     expect(createArgs.data.recipientEmail).toBe('alice@example.com');
     expect(createArgs.data.type).toBe('user_registered');
     expect(createArgs.data.subject).toBe('Welcome to Railway Ticket Booking!');
-    expect(createArgs.data.status).toBe('sent');
+    expect(createArgs.data.status).toBe('skipped');
   });
 });

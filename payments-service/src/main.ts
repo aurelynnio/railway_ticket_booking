@@ -2,7 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { PaymentModule } from './payment.module';
 import { Transport } from '@nestjs/microservices';
-import { RmqAckInterceptor } from './rmq-ack.interceptor';
+import { RmqAckInterceptor } from './common/interceptors/rmq-ack.interceptor';
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(PaymentModule, {
     transport: Transport.RMQ,

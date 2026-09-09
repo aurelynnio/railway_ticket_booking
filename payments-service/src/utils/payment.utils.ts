@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type { Payment } from '@prisma/client';
-import type { PaymentDto } from '../payment.dto';
+import type { PaymentDto } from '../dto/payment.dto';
 
 export function parseAmount(value: string): bigint {
   if (typeof value !== 'string' || !value.trim()) {

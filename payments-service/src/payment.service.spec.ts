@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import type { ClientProxy } from '@nestjs/microservices';
 import type { PrismaClient } from '@prisma/client';
 import { of } from 'rxjs';
-import { PaymentStatus } from './payment.dto';
+import { PaymentStatus } from './dto/payment.dto';
 import { PaymentService } from './payment.service';
 
 describe('PaymentService', () => {

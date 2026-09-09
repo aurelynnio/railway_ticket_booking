@@ -12,8 +12,9 @@ import {
   MarkFailedRequest,
   MarkPaidRequest,
   MarkProcessingRequest,
+  MarkRefundedRequest,
   SoftDeletePaymentRequest,
-} from './payment.dto';
+} from './dto/payment.dto';
 import { PaymentService } from './payment.service';
 
 @Controller()
@@ -83,6 +84,11 @@ export class PaymentController {
   @MessagePattern('payments.markFailed')
   markFailed(@Payload() payload: MarkFailedRequest) {
     return this.paymentService.markFailed(payload);
+  }
+
+  @MessagePattern('payments.markRefunded')
+  markRefunded(@Payload() payload: MarkRefundedRequest) {
+    return this.paymentService.markRefunded(payload);
   }
 
   @MessagePattern('payments.cancel')

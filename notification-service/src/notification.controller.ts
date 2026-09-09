@@ -20,6 +20,19 @@ export class NotificationController {
     await this.notificationService.handlePasswordReset(data);
   }
 
+  @EventPattern('notification.email_verification')
+  async handleEmailVerification(
+    @Payload()
+    data: {
+      userId?: string;
+      email: string;
+      fullName: string;
+      token: string;
+    },
+  ) {
+    await this.notificationService.handleEmailVerification(data);
+  }
+
   @EventPattern('notification.order_created')
   async handleOrderCreated(
     @Payload()
@@ -47,6 +60,20 @@ export class NotificationController {
     },
   ) {
     await this.notificationService.handlePaymentPaid(data);
+  }
+
+  @EventPattern('notification.order_refunded')
+  async handleOrderRefunded(
+    @Payload()
+    data: {
+      userId?: string;
+      email: string;
+      orderId: string;
+      amount: number;
+      trainNumber: string;
+    },
+  ) {
+    await this.notificationService.handleOrderRefunded(data);
   }
 
   @MessagePattern({ cmd: 'notifications.list_by_user' })

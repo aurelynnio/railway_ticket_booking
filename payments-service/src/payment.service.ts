@@ -13,8 +13,8 @@ import type {
   PaymentPaidEventPayload,
   PaginatedPaymentsResponse,
   PaginationQuery,
-} from './payment.dto';
-import { PaymentStatus } from './payment.dto';
+} from './dto/payment.dto';
+import { PaymentStatus } from './dto/payment.dto';
 import {
   parseAmount,
   toPaymentDto,
@@ -289,6 +289,10 @@ export class PaymentService {
 
   async markFailed(lookup: PaymentLookupRequest): Promise<PaymentDto> {
     return this.updatePaymentStatus(lookup, PaymentStatus.Failed);
+  }
+
+  async markRefunded(lookup: PaymentLookupRequest): Promise<PaymentDto> {
+    return this.updatePaymentStatus(lookup, PaymentStatus.Refunded);
   }
 
   async cancelPayment(lookup: PaymentLookupRequest): Promise<PaymentDto> {

@@ -12,8 +12,14 @@ export class NotificationService {
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
+    const smtpIsPlaceholder = [smtpHost, smtpUser, smtpPass].some(
+      (value) =>
+        !value ||
+        value.toLowerCase().includes('example.com') ||
+        value.toLowerCase().startsWith('replace-with'),
+    );
 
-    if (smtpHost && smtpUser && smtpPass) {
+    if (!smtpIsPlaceholder) {
       this.transporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
@@ -28,8 +34,12 @@ export class NotificationService {
       );
     } else {
       this.logger.warn(
-        'SMTP settings are missing. Emails will be logged to console instead.',
+        'SMTP settings are missing. Emails will be persisted with skipped status.',
       );
+
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('SMTP settings must be configured in production');
+      }
     }
   }
 
@@ -59,16 +69,10 @@ export class NotificationService {
         this.logger.error(`Failed to send email to ${data.email}:`, error);
       }
     } else {
-      this.logger.log(`
-========================================
-[MOCK EMAIL DISPATCHED]
-From: ${from}
-To: ${data.email}
-Subject: ${subject}
-----------------------------------------
-${text}
-========================================
-`);
+      status = 'skipped';
+      this.logger.warn(
+        `SMTP is not configured; skipped ${data.type} email for ${data.email}.`,
+      );
     }
 
     try {
@@ -120,6 +124,21 @@ ${text}
     );
   }
 
+  async handleEmailVerification(data: {
+    userId?: string;
+    email: string;
+    fullName: string;
+    token: string;
+  }) {
+    const subject = 'Verify Your Railway Ticket Booking Email';
+    const text = `Hello ${data.fullName || 'User'},\n\nUse this verification token in your profile to verify your email address:\n\n${data.token}\n\nThis token expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
+    await this.sendAndPersist(
+      { userId: data.userId, email: data.email, type: 'email_verification' },
+      subject,
+      text,
+    );
+  }
+
   async handleOrderCreated(data: {
     userId?: string;
     email: string;
@@ -148,6 +167,22 @@ ${text}
     const text = `Hello,\n\nWe have received your payment of ${data.amount} VND for order #${data.orderId}.\n\nYour booking is confirmed! Your ticket code is: ${data.ticketCode}.\n\nPlease show this code at the station to board your train.\n\nThank you for choosing Railway Ticket Booking!\n\nBest regards,\nRailway Ticket Booking Team`;
     await this.sendAndPersist(
       { userId: data.userId, email: data.email, type: 'payment_paid' },
+      subject,
+      text,
+    );
+  }
+
+  async handleOrderRefunded(data: {
+    userId?: string;
+    email: string;
+    orderId: string;
+    amount: number;
+    trainNumber: string;
+  }) {
+    const subject = `Order Refunded: #${data.orderId}`;
+    const text = `Hello,\n\nOrder #${data.orderId} (train ${data.trainNumber || 'N/A'}) has been refunded.\n\nRefunded amount: ${data.amount} VND.\n\nIf you have any questions about this refund, please contact our support team.\n\nBest regards,\nRailway Ticket Booking Team`;
+    await this.sendAndPersist(
+      { userId: data.userId, email: data.email, type: 'order_refunded' },
       subject,
       text,
     );
