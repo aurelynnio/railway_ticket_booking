@@ -4,11 +4,9 @@ $ErrorActionPreference = "Stop"
 
 $services = @(
   "auth-service",
-  "users-service",
   "orders-service",
   "payments-service",
   "notification-service",
-  "search-service",
   "tickets-service",
   "api-gateway",
   "client"

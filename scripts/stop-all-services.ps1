@@ -27,8 +27,6 @@ function Write-Warn2($msg){ Write-Host "    [!]  $msg" -ForegroundColor Yellow }
 # ---------------------------------------------------------------------------
 $servicePatterns = @(
   'auth-service',
-  'users-service',
-  'search-service',
   'tickets-service',
   'orders-service',
   'payments-service',

@@ -1,10 +1,30 @@
 import { PrismaClient as AuthPrisma } from '../auth-service/node_modules/@prisma/client/index.js';
-import { PrismaClient as UsersPrisma } from '../users-service/node_modules/@prisma/client/index.js';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const PASSWORD = "Demo@2026";
-// Pre-computed bcrypt hash for "Demo@2026"
-const HASHED_PASSWORD = "$2b$10$av.0y3quGJKU.AVe3XeszOfNMbuwyEi4D.RZ8yM8t.kuAuPjPgW6K";
+const PASSWORD = process.env.DEMO_PASSWORD;
+if (!PASSWORD) {
+  console.error("Set DEMO_PASSWORD env");
+  process.exit(1);
+}
+
+// Read DATABASE_URL from auth-service/.env instead of hardcoding (project convention).
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const authEnvPath = join(scriptDir, '..', 'auth-service', '.env');
+const DATABASE_URL = (() => {
+  const content = readFileSync(authEnvPath, 'utf8');
+  const match = content.match(/^DATABASE_URL=["']?([^"'\r\n]+)["']?/m);
+  if (!match) throw new Error('DATABASE_URL not found in auth-service/.env');
+  return match[1];
+})();
+// Hash is computed at runtime from DEMO_PASSWORD (reuses auth-service's bcrypt)
+// so the seeded accounts always match whatever password was provided.
+const require = createRequire(import.meta.url);
+const bcrypt = require('../auth-service/node_modules/bcrypt');
+const HASHED_PASSWORD = bcrypt.hashSync(PASSWORD, 10);
 
 const now = new Date();
 const isoAt = (dayOffset, hour, minute = 0) => {
@@ -42,19 +62,11 @@ const SEED_USERS = [
 let globalCookies = [];
 
 async function dbSeedUsers() {
-  console.log("Connecting to PostgreSQL databases via Prisma...");
+  console.log("Connecting to PostgreSQL database via Prisma...");
   const authPrisma = new AuthPrisma({
     datasources: {
       db: {
-        url: "postgresql://postgres.qjeymrlotmdtktfdieqs:Myhabit2004%40@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres?schema=railway_auth"
-      }
-    }
-  });
-
-  const usersPrisma = new UsersPrisma({
-    datasources: {
-      db: {
-        url: "postgresql://postgres.qjeymrlotmdtktfdieqs:Myhabit2004%40@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres?schema=railway_users"
+        url: DATABASE_URL
       }
     }
   });
@@ -62,8 +74,8 @@ async function dbSeedUsers() {
   try {
     for (const u of SEED_USERS) {
       console.log(`Upserting user: ${u.username} (${u.email})`);
-      
-      // Upsert in AuthAccount
+
+      // AuthAccount is now the single source of truth for users
       await authPrisma.authAccount.upsert({
         where: { email: u.email },
         update: {
@@ -80,31 +92,13 @@ async function dbSeedUsers() {
           emailVerified: true,
         }
       });
-
-      // Upsert in User profile
-      await usersPrisma.user.upsert({
-        where: { email: u.email },
-        update: {
-          username: u.username,
-          password: HASHED_PASSWORD,
-          role: u.role,
-        },
-        create: {
-          id: u.id,
-          username: u.username,
-          email: u.email,
-          password: HASHED_PASSWORD,
-          role: u.role,
-        }
-      });
     }
-    console.log("Successfully synchronized users in both databases!");
+    console.log("Successfully seeded users!");
   } catch (err) {
     console.error("Database seed failed:", err);
     throw err;
   } finally {
     await authPrisma.$disconnect();
-    await usersPrisma.$disconnect();
   }
 }
 
@@ -366,8 +360,24 @@ async function seedApiData() {
 
   console.log("Seeding tickets, orders, and payments via Gateway...");
   
+  // Idempotency: reuse tickets created by previous runs instead of duplicating.
+  // Prefer an exact trainNumber + dateStart match; fall back to trainNumber so
+  // a re-run never creates a duplicate for the same train.
+  const ticketsPage = await request("/tickets?limit=100");
+  const existingTickets = Array.isArray(ticketsPage) ? ticketsPage : ticketsPage?.data ?? [];
+  const findExistingTicket = (ticket) =>
+    existingTickets.find(
+      (t) => t.trainNumber === ticket.trainNumber && t.dateStart === ticket.dateStart,
+    ) ?? existingTickets.find((t) => t.trainNumber === ticket.trainNumber);
+
   const createdTickets = [];
   for (const ticket of tickets) {
+    const existing = findExistingTicket(ticket);
+    if (existing) {
+      console.log(`Ticket "${ticket.title}" already exists (ID: ${existing.id}) — skipping creation.`);
+      createdTickets.push(existing);
+      continue;
+    }
     console.log(`Creating ticket: "${ticket.title}"...`);
     const created = await request("/tickets", {
       method: "POST",
@@ -422,9 +432,23 @@ async function seedApiData() {
     ]),
   ];
 
+  // Fixed deterministic idempotency key per demo order so re-runs replay
+  // instead of creating duplicates.
+  orderInputs.forEach((input, index) => {
+    input.idempotencyKey = `demo-seed-order-${index + 1}`;
+  });
+
   console.log("Creating orders...");
   const createdOrders = [];
   for (const [index, input] of orderInputs.entries()) {
+    // Idempotency: skip if an order for this ticket already exists (re-run).
+    const ordersPage = await request(`/orders?ticketId=${input.ticketId}&limit=50`);
+    const existingOrders = Array.isArray(ordersPage) ? ordersPage : ordersPage?.data ?? [];
+    if (existingOrders.length > 0) {
+      console.log(`Order for ticket ${input.ticketId} already exists (ID: ${existingOrders[0].id}) — skipping.`);
+      createdOrders.push(existingOrders[0]);
+      continue;
+    }
     console.log(`Reserving seats for order ${index + 1}: ${JSON.stringify(input.seatLabels)}...`);
     await reserveSeats(input.ticketId, input.ticketItemId, input.seatLabels, `demo-order-${index + 1}`);
     console.log(`Seats reserved. Submitting order ${index + 1} to Gateway...`);
@@ -439,6 +463,13 @@ async function seedApiData() {
   console.log("Creating payments...");
   const createdPayments = [];
   for (const [index, order] of createdOrders.entries()) {
+    // Idempotency: reuse an existing payment for this order (re-run).
+    const existingPayments = await request(`/payments/order/${order.id}`);
+    if (Array.isArray(existingPayments) && existingPayments.length > 0) {
+      console.log(`Payment for order ${order.id} already exists (ID: ${existingPayments[0].id}) — skipping.`);
+      createdPayments.push(existingPayments[0]);
+      continue;
+    }
     console.log(`Submitting payment for order ${index + 1} (ID: ${order.id})...`);
     const p = await request("/payments", {
       method: "POST",
@@ -454,8 +485,9 @@ async function seedApiData() {
   }
 
   // Complete one order fully (issue ticket with QR payload)
+  // optional(): re-runs against already-processed payments must not abort the seed.
   console.log("Completing payment for first order...");
-  await request("/payments/mark-paid", {
+  await optional("/payments/mark-paid", {
     method: "POST",
     body: { id: createdPayments[0].id, paidAt: new Date().toISOString() },
   });
@@ -467,14 +499,14 @@ async function seedApiData() {
 
   // Make second order payment processing
   console.log("Setting second order payment to processing...");
-  await request("/payments/mark-processing", {
+  await optional("/payments/mark-processing", {
     method: "POST",
     body: { id: createdPayments[1].id },
   });
 
   // Make third order failed/cancelled
   console.log("Setting third order payment to failed and cancelling order...");
-  await request("/payments/mark-failed", {
+  await optional("/payments/mark-failed", {
     method: "POST",
     body: { id: createdPayments[2].id },
   });
@@ -483,10 +515,7 @@ async function seedApiData() {
     body: { reason: "Demo failed payment" },
   });
 
-  // Sync to search indexes
-  console.log("Syncing search indexes...");
-  await optional("/search/sync", { method: "POST" });
-
+  // Search now queries the tickets DB directly — no separate index to sync.
   console.log("Seeding Completed Successfully!");
   console.log("----------------------------------------");
   console.log("Login Details:");

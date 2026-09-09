@@ -1,7 +1,11 @@
 const API_URL =
   process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-const PASSWORD = process.env.DEMO_PASSWORD || "Demo@2026";
+const PASSWORD = process.env.DEMO_PASSWORD;
+if (!PASSWORD) {
+  console.error("Set DEMO_PASSWORD env");
+  process.exit(1);
+}
 
 const now = new Date();
 const isoAt = (dayOffset, hour, minute = 0) => {
@@ -14,15 +18,25 @@ const isoAt = (dayOffset, hour, minute = 0) => {
 const saleStart = isoAt(-1, 0);
 const saleEnd = isoAt(45, 23, 59);
 
+let authCookies = "";
+
 async function request(path, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(authCookies ? { Cookie: authCookies } : {}),
+    ...(options.headers || {}),
+  };
+
   const response = await fetch(`${API_URL}${path}`, {
     method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
+
+  const setCookie = response.headers.get("set-cookie");
+  if (setCookie) {
+    authCookies = setCookie.split(";")[0];
+  }
 
   const text = await response.text();
   const data = text ? safeJson(text) : null;
@@ -59,22 +73,47 @@ async function ensureGateway() {
 }
 
 async function findOrCreateUser(user) {
-  const existing = await optional(`/users/by-email?email=${encodeURIComponent(user.email)}`);
-  if (existing?.id) {
-    return existing;
-  }
-
-  return request("/users", {
-    method: "POST",
-    body: {
-      payload: {
+  let userId = null;
+  try {
+    const created = await request("/auth/register", {
+      method: "POST",
+      body: {
         username: user.username,
         email: user.email,
         password: PASSWORD,
-        role: user.role,
       },
-    },
-  });
+    });
+    // POST /auth/register returns the created account: { id, username, email, role, ... }
+    userId = created?.id ?? null;
+  } catch {
+    // User may already exist
+  }
+
+  if (user.role === 1) {
+    try {
+      await request("/auth/login", {
+        method: "POST",
+        body: {
+          email: user.email,
+          password: PASSWORD,
+        },
+      });
+      console.log(`Authenticated as admin: ${user.email}`);
+    } catch (err) {
+      console.warn(`Admin login note: ${err.message}`);
+    }
+  }
+
+  return {
+    // Real account id from the register response when the account was created
+    // on this run. When it already existed we cannot recover it here, so fall
+    // back to the username; note POST /orders overrides userId from the JWT,
+    // so order ownership is not affected by this fallback.
+    id: userId || user.username,
+    email: user.email,
+    username: user.username,
+    role: user.role,
+  };
 }
 
 function seatRange(prefix, count) {
@@ -291,8 +330,24 @@ async function seed() {
     createdUsers.push(await findOrCreateUser(user));
   }
 
+  // Idempotency: reuse tickets created by previous runs instead of duplicating.
+  // Prefer an exact trainNumber + dateStart match; fall back to trainNumber so
+  // a re-run never creates a duplicate for the same train.
+  const ticketsPage = await request("/tickets?limit=100");
+  const existingTickets = Array.isArray(ticketsPage) ? ticketsPage : ticketsPage?.data ?? [];
+  const findExistingTicket = (ticket) =>
+    existingTickets.find(
+      (t) => t.trainNumber === ticket.trainNumber && t.dateStart === ticket.dateStart,
+    ) ?? existingTickets.find((t) => t.trainNumber === ticket.trainNumber);
+
   const createdTickets = [];
   for (const ticket of tickets) {
+    const existing = findExistingTicket(ticket);
+    if (existing) {
+      console.log(`Ticket "${ticket.title}" already exists (ID: ${existing.id}) — skipping creation.`);
+      createdTickets.push(existing);
+      continue;
+    }
     const created = await request("/tickets", {
       method: "POST",
       body: ticket,
@@ -343,8 +398,22 @@ async function seed() {
     ]),
   ];
 
+  // Fixed deterministic idempotency key per demo order so re-runs replay
+  // instead of creating duplicates.
+  orderInputs.forEach((input, index) => {
+    input.idempotencyKey = `demo-seed-order-${index + 1}`;
+  });
+
   const createdOrders = [];
   for (const [index, input] of orderInputs.entries()) {
+    // Idempotency: skip if an order for this ticket already exists (re-run).
+    const ordersPage = await request(`/orders?ticketId=${input.ticketId}&limit=50`);
+    const existingOrders = Array.isArray(ordersPage) ? ordersPage : ordersPage?.data ?? [];
+    if (existingOrders.length > 0) {
+      console.log(`Order for ticket ${input.ticketId} already exists (ID: ${existingOrders[0].id}) — skipping.`);
+      createdOrders.push(existingOrders[0]);
+      continue;
+    }
     await reserveSeats(input.ticketId, input.ticketItemId, input.seatLabels, `demo-order-${index + 1}`);
     createdOrders.push(
       await request("/orders", {
@@ -356,6 +425,13 @@ async function seed() {
 
   const createdPayments = [];
   for (const order of createdOrders) {
+    // Idempotency: reuse an existing payment for this order (re-run).
+    const existingPayments = await request(`/payments/order/${order.id}`);
+    if (Array.isArray(existingPayments) && existingPayments.length > 0) {
+      console.log(`Payment for order ${order.id} already exists (ID: ${existingPayments[0].id}) — skipping.`);
+      createdPayments.push(existingPayments[0]);
+      continue;
+    }
     createdPayments.push(
       await request("/payments", {
         method: "POST",
@@ -369,7 +445,8 @@ async function seed() {
     );
   }
 
-  await request("/payments/mark-paid", {
+  // optional(): re-runs against already-processed payments must not abort the seed.
+  await optional("/payments/mark-paid", {
     method: "POST",
     body: { id: createdPayments[0].id, paidAt: new Date().toISOString() },
   });
@@ -377,12 +454,12 @@ async function seed() {
   await optional(`/orders/${createdOrders[0].id}/confirm`, { method: "POST" });
   await optional(`/orders/${createdOrders[0].id}/issue-ticket`, { method: "POST" });
 
-  await request("/payments/mark-processing", {
+  await optional("/payments/mark-processing", {
     method: "POST",
     body: { id: createdPayments[1].id },
   });
 
-  await request("/payments/mark-failed", {
+  await optional("/payments/mark-failed", {
     method: "POST",
     body: { id: createdPayments[2].id },
   });
@@ -391,7 +468,7 @@ async function seed() {
     body: { reason: "Demo failed payment" },
   });
 
-  await optional("/search/sync", { method: "POST" });
+  // Search now queries the tickets DB directly — no separate index to sync.
 
   console.log("");
   console.log("Demo data created:");

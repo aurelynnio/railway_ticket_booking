@@ -2,7 +2,9 @@
 # VNPay Payment Flow - Automated Test Script
 # Test: auth, ownership check, VNPay create/return/IPN verification
 # =============================================================================
-$BASE = "http://localhost:8080"
+param(
+    [string]$BASE = "http://localhost:8080"
+)
 $PASS = 0
 $FAIL = 0
 $RESULTS = @()
@@ -70,12 +72,26 @@ Test-Case "Register User B" ($regB.status -eq 200 -or $regB.status -eq 201) "sta
 # =============================================================================
 Write-Host "`n>>> 3. Login Users (cookie-based)" -ForegroundColor Yellow
 $sessionA = $null
-$loginA = Invoke-WebRequest -Uri "$BASE/auth/login" -Method POST -Body ($userA | ConvertTo-Json) -ContentType "application/json" -UseBasicParsing -SessionVariable sessionA -TimeoutSec 15
+try {
+    $loginA = Invoke-WebRequest -Uri "$BASE/auth/login" -Method POST -Body ($userA | ConvertTo-Json) -ContentType "application/json" -UseBasicParsing -SessionVariable sessionA -TimeoutSec 15
+} catch {
+    Write-Host "ERROR: Login User A failed at $BASE/auth/login" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Make sure the API gateway is running at $BASE, then retry." -ForegroundColor Red
+    exit 1
+}
 $hasTokenA = $sessionA.Cookies.GetCookies("$BASE/auth/login") | Where-Object { $_.Name -eq "accessToken" }
 Test-Case "Login User A (cookie)" ($null -ne $hasTokenA) "hasAccessToken=$($null -ne $hasTokenA)"
 
 $sessionB = $null
-$loginB = Invoke-WebRequest -Uri "$BASE/auth/login" -Method POST -Body ($userB | ConvertTo-Json) -ContentType "application/json" -UseBasicParsing -SessionVariable sessionB -TimeoutSec 15
+try {
+    $loginB = Invoke-WebRequest -Uri "$BASE/auth/login" -Method POST -Body ($userB | ConvertTo-Json) -ContentType "application/json" -UseBasicParsing -SessionVariable sessionB -TimeoutSec 15
+} catch {
+    Write-Host "ERROR: Login User B failed at $BASE/auth/login" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Make sure the API gateway is running at $BASE, then retry." -ForegroundColor Red
+    exit 1
+}
 $hasTokenB = $sessionB.Cookies.GetCookies("$BASE/auth/login") | Where-Object { $_.Name -eq "accessToken" }
 Test-Case "Login User B (cookie)" ($null -ne $hasTokenB) "hasAccessToken=$($null -ne $hasTokenB)"
 

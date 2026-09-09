@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   - Ensures RabbitMQ is up via infra/docker/docker-compose.dev.yml (the only
-    infrastructure we still need Docker for; Postgres/Mongo/Redis are cloud-hosted).
+    infrastructure we still need Docker for; Postgres/Redis are cloud-hosted).
   - Opens each NestJS microservice and the Next.js client in its own PowerShell
     window running the watch-mode dev script.
 
@@ -26,8 +26,6 @@ Set-Location $repoRoot
 
 $services = @(
   'auth-service',
-  'users-service',
-  'search-service',
   'tickets-service',
   'orders-service',
   'payments-service',
