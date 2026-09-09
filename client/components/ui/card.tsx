@@ -4,16 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const cardVariants = cva(
-  "group/card flex flex-col overflow-hidden rounded-lg text-sm text-card-foreground transition-colors duration-150",
+  "group/card flex flex-col overflow-hidden rounded-xl text-sm text-card-foreground transition-all duration-200",
   {
     variants: {
       variant: {
         outlined:
-          "border border-border bg-card",
+          "bg-card shadow-sm hover:shadow-md",
         elevated:
-          "border border-border bg-card shadow-sm",
-        flat: "border border-transparent bg-secondary",
-        quiet: "border border-transparent bg-transparent",
+          "bg-card shadow-md hover:shadow-lg",
+        flat: "bg-secondary",
+        quiet: "bg-transparent",
+        glass: "bg-white/60 backdrop-blur-md shadow-sm",
       },
       padding: {
         none: "",
@@ -23,7 +24,7 @@ const cardVariants = cva(
         xl: "p-8 gap-8",
       },
       interactive: {
-        true: "cursor-pointer transition-[background-color,border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:bg-muted/30 hover:shadow-sm",
+        true: "cursor-pointer transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md",
         false: "",
       },
     },
@@ -117,7 +118,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center border-t border-border bg-muted/30 -mt-2 -mx-5 mb-[-1.25rem] mt-auto px-5 py-3",
+        "flex items-center bg-muted/40 -mt-2 -mx-5 mb-[-1.25rem] mt-auto px-5 py-3.5",
         "[.group\/card[data-padding=lg]_&]:-mx-6 [.group\/card[data-padding=lg]_&]:mb-[-1.5rem] [.group\/card[data-padding=lg]_&]:px-6 [.group\/card[data-padding=lg]_&]:py-4",
         "[.group\/card[data-padding=sm]_&]:-mx-4 [.group\/card[data-padding=sm]_&]:mb-[-1rem] [.group\/card[data-padding=sm]_&]:px-4 [.group\/card[data-padding=sm]_&]:py-2.5",
         "[.group\/card[data-padding=none]_&]:m-0 [.group\/card[data-padding=none]_&]:px-4 [.group\/card[data-padding=none]_&]:py-3",

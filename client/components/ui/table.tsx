@@ -5,19 +5,29 @@ import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+export type TableDensity = "comfortable" | "dense"
+
+const TableDensityContext = React.createContext<TableDensity>("comfortable")
+
+function Table({
+  className,
+  density = "comfortable",
+  ...props
+}: React.ComponentProps<"table"> & { density?: TableDensity }) {
   return (
-    <Card
-      data-slot="table-container"
-      padding="none"
-      className="relative w-full overflow-x-auto"
-    >
-      <table
-        data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
-        {...props}
-      />
-    </Card>
+    <TableDensityContext.Provider value={density}>
+      <Card
+        data-slot="table-container"
+        padding="none"
+        className="relative w-full overflow-x-auto"
+      >
+        <table
+          data-slot="table"
+          className={cn("w-full caption-bottom text-sm", className)}
+          {...props}
+        />
+      </Card>
+    </TableDensityContext.Provider>
   )
 }
 
@@ -35,7 +45,7 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn("[&_tr:nth-child(even)]:bg-muted/30", className)}
       {...props}
     />
   )
@@ -59,7 +69,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b border-border/60 transition-colors hover:bg-muted/45 has-aria-expanded:bg-muted data-[state=selected]:bg-muted last:border-b-0",
+        "transition-colors hover:bg-muted/45 has-aria-expanded:bg-muted data-[state=selected]:bg-muted",
         className
       )}
       {...props}
@@ -68,11 +78,13 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
 }
 
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
+  const density = React.useContext(TableDensityContext);
   return (
     <th
       data-slot="table-head"
       className={cn(
-        "h-11 px-4 text-left align-middle text-xs font-medium uppercase tracking-wider whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        "px-4 text-left align-middle text-xs font-medium uppercase tracking-wider whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        density === "dense" ? "h-9" : "h-11",
         className
       )}
       {...props}
@@ -81,11 +93,13 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+  const density = React.useContext(TableDensityContext);
   return (
     <td
       data-slot="table-cell"
       className={cn(
-        "px-4 py-3.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-4 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        density === "dense" ? "py-2 text-[13px]" : "py-3.5",
         className
       )}
       {...props}

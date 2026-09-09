@@ -9,13 +9,17 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-primary/20 bg-primary/8 text-primary",
+        default: "border-primary/20 bg-primary-soft text-primary",
+        accent: "border-accent/20 bg-accent-soft text-accent",
+        gold: "border-gold/25 bg-gold-soft text-gold",
         secondary: "border-transparent bg-muted text-ink-muted",
-        destructive: "border-destructive/20 bg-destructive/8 text-destructive",
-        success: "border-success/20 bg-success/8 text-success",
-        warning: "border-warning/20 bg-warning/8 text-warning",
-        outline: "border-border bg-transparent text-ink-muted",
+        destructive: "border-destructive/20 bg-destructive-soft text-destructive",
+        success: "border-success/20 bg-success-soft text-success",
+        warning: "border-warning/20 bg-warning-soft text-warning",
+        info: "border-info/20 bg-info-soft text-info",
+        outline: "bg-secondary/50 text-ink-muted",
         solid: "border-transparent bg-primary text-primary-foreground",
+        "solid-accent": "border-transparent bg-accent text-accent-foreground",
       },
     },
     defaultVariants: {

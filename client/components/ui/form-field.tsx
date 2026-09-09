@@ -1,21 +1,26 @@
-import type { ReactNode } from "react";
+import * as React from "react";
 import { Asterisk } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 type FormFieldProps = {
   label: string;
-  children: ReactNode;
+  children: React.ReactNode;
   error?: string;
   hint?: string;
   htmlFor?: string;
   className?: string;
-  aside?: ReactNode;
+  aside?: React.ReactNode;
   required?: boolean;
   descriptionId?: string;
   errorId?: string;
 };
 
+/**
+ * Form field wrapper (Direction B, a11y): wires `aria-describedby` (hint +
+ * error) and `aria-invalid` onto the child control automatically via id-based
+ * cloning, so screen readers announce validation state without call-site work.
+ */
 export function FormField({
   label,
   children,
@@ -29,10 +34,25 @@ export function FormField({
   errorId,
 }: FormFieldProps) {
   const hasError = Boolean(error);
+  const generatedId = React.useId();
+  const resolvedDescriptionId = descriptionId ?? `${generatedId}-hint`;
+  const resolvedErrorId = errorId ?? `${generatedId}-error`;
   const describedBy =
-    [hint ? descriptionId : null, hasError ? errorId : null]
+    [hint ? resolvedDescriptionId : null, hasError ? resolvedErrorId : null]
       .filter(Boolean)
       .join(" ") || undefined;
+
+  const child = React.isValidElement<
+    React.HTMLAttributes<HTMLElement> & { id?: string }
+  >(children)
+    ? React.cloneElement(children, {
+        id: htmlFor && !children.props.id ? htmlFor : children.props.id,
+        "aria-describedby":
+          children.props["aria-describedby"] ?? describedBy,
+        "aria-invalid":
+          children.props["aria-invalid"] ?? (hasError || undefined),
+      })
+    : children;
 
   return (
     <div className={cn("grid gap-2", className)}>
@@ -52,10 +72,10 @@ export function FormField({
         </label>
         {aside}
       </div>
-      <div data-describedby={describedBy}>{children}</div>
+      <div data-describedby={describedBy}>{child}</div>
       {hasError ? (
         <p
-          id={errorId}
+          id={resolvedErrorId}
           className="text-xs font-medium text-destructive"
           role="alert"
         >
@@ -63,7 +83,7 @@ export function FormField({
         </p>
       ) : hint ? (
         <p
-          id={descriptionId}
+          id={resolvedDescriptionId}
           className="text-xs leading-relaxed text-ink-muted"
         >
           {hint}

@@ -5,13 +5,9 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "api.qrserver.com",
-        pathname: "/v1/create-qr-code/**",
-      },
-    ],
+    // Allow high-quality re-encoding (default only permits 75, which made the
+    // hero illustration look soft/blurry). Keep 75 as a lower tier for thumbs.
+    qualities: [100, 75],
   },
 };
 
