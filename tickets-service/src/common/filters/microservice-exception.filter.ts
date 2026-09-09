@@ -36,3 +36,4 @@ export class MicroserviceExceptionFilter implements RpcExceptionFilter {
     return throwError(() => errorResponse);
   }
 }
+

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { Prisma, PrismaClient, Ticket, TicketItem } from '@prisma/client';
+import { Prisma, PrismaClient, TicketItem } from '@prisma/client';
 import type {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
@@ -19,17 +19,19 @@ import type {
   TicketResponse,
   UpdateTicketItemRequest,
   UpdateTicketRequest,
-} from './ticket.dto';
-import { TicketStatus } from './ticket.dto';
+} from './dto/ticket.dto';
+import { TicketStatus } from './dto/ticket.dto';
 import type {
   PaginatedSearchTripResponse,
   SearchTripResponse,
   SearchTripsQuery,
-} from './search.dto';
+} from './dto/search.dto';
 import {
   getAvailableSeats,
   getMinPrice,
+  matchesSeatClass,
   matchesStationQuery,
+  matchesTimeOfDay,
   startOfUtcDay,
   toIsoString,
   uniqueValues,
@@ -51,9 +53,10 @@ import {
   sortSeatLabels,
   toNullableString,
   toTicketItemResponse,
-  toTicketItemSetInput,
+  toTicketItemUpdateData,
   toTicketResponse,
   uniqueLabels,
+  type TicketWithItems,
 } from './utils/ticket.utils';
 import { RedisCacheService } from './redis/redis.service';
 
@@ -62,19 +65,34 @@ const TICKET_DETAIL_CACHE_TTL_SECONDS = 300;
 const TICKET_AVAILABILITY_CACHE_TTL_SECONDS = 15;
 const TICKET_SEAT_MAP_CACHE_TTL_SECONDS = 15;
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
+
 /**
  * Core business logic and database access layer for tickets.
  * Fully decoupled from caching to respect SRP (Single Responsibility Principle).
+ *
+ * PostgreSQL persistence model:
+ * - `tickets` and `ticket_items` live in separate tables (1:N relation).
+ * - All read-then-write flows (reserve/release/update stock) run inside a
+ *   transaction that first takes a row lock (`SELECT ... FOR UPDATE`) on the
+ *   ticket row, serializing concurrent mutations of the same train — this is
+ *   the source of truth for correctness, replacing the old Mongo pattern of
+ *   optimistic `updatedAt` checks + full embedded-array overwrites.
  */
 @Injectable()
 export class TicketBaseService {
-  constructor(
-    protected readonly prisma: PrismaClient,
-  ) {}
+  constructor(protected readonly prisma: PrismaClient) {}
 
   health() {
     return {
@@ -94,7 +112,7 @@ export class TicketBaseService {
         buildTicketItemCreateInput(ticketId, item, now),
       ) ?? [];
 
-    const created = await this.prisma.ticket.create({
+    const createdTicket = await this.prisma.ticket.create({
       data: {
         id: ticketId,
         title: payload.title?.trim() || null,
@@ -107,21 +125,26 @@ export class TicketBaseService {
         dateStart: parseOptionalDate(payload.dateStart, 'dateStart'),
         dateEnd: parseOptionalDate(payload.dateEnd, 'dateEnd'),
         status: payload.status ?? TicketStatus.Draft,
-        ticketItems: { set: ticketItems },
         createdAt: now,
         updatedAt: now,
       },
     });
 
-    return toTicketResponse(created);
+    if (ticketItems.length > 0) {
+      await this.prisma.ticketItem.createMany({
+        data: ticketItems,
+      });
+    }
+
+    return toTicketResponse({
+      ...createdTicket,
+      ticketItems,
+    });
   }
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
     const where: Prisma.TicketWhereInput = {
-      OR: [
-        { deletedAt: null },
-        { deletedAt: { isSet: false } },
-      ],
+      deletedAt: null,
     };
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
@@ -163,13 +186,14 @@ export class TicketBaseService {
       this.prisma.ticket.findMany({
         where,
         orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
+        include: { ticketItems: true },
         skip: (page - 1) * limit,
         take: limit,
       }),
     ]);
 
     return {
-      data: tickets.map((ticket: Ticket) => toTicketResponse(ticket)),
+      data: tickets.map((ticket) => toTicketResponse(ticket)),
       pagination: {
         page,
         limit,
@@ -206,6 +230,7 @@ export class TicketBaseService {
         status: payload.status,
         updatedAt: new Date(),
       },
+      include: { ticketItems: true },
     });
 
     return toTicketResponse(updated);
@@ -255,29 +280,34 @@ export class TicketBaseService {
     }
 
     const quantity = normalizeQuantity(payload.quantity);
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, payload.ticketItemId);
 
-    ensureItemCanBeSold(item);
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, payload.ticketItemId);
 
-    const available = item.stockAvailable ?? item.availableSeatLabels.length;
-    if (available < quantity) {
-      throw new HttpException(
-        'Not enough stock available',
-        HttpStatus.CONFLICT,
-      );
-    }
+        ensureItemCanBeSold(item);
 
-    const nextStock = available - quantity;
-    const updatedItem = mergeTicketItem(item, {
-      stockAvailable: nextStock,
-      updatedAt: new Date(),
-    });
+        const available = item.stockAvailable ?? item.availableSeatLabels.length;
+        if (available < quantity) {
+          throw new HttpException(
+            'Not enough stock available',
+            HttpStatus.CONFLICT,
+          );
+        }
 
-    const updated = await this.replaceTicketItem(ticket, updatedItem);
-    return toTicketItemResponse(
-      getActiveItemOrThrow(updated, payload.ticketItemId),
+        const nextItem = mergeTicketItem(item, {
+          stockAvailable: available - quantity,
+          updatedAt: new Date(),
+        });
+
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
     );
+
+    return toTicketItemResponse(updatedItem);
   }
 
   async addTicketItem(
@@ -288,21 +318,9 @@ export class TicketBaseService {
     const now = new Date();
     const item = buildTicketItemCreateInput(ticket.id, payload, now);
 
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticket.id },
-      data: {
-        ticketItems: {
-          set: [
-            ...ticket.ticketItems.map((entry: TicketItem) =>
-              toTicketItemSetInput(entry),
-            ),
-            item,
-          ],
-        },
-        updatedAt: now,
-      },
-    });
+    await this.prisma.ticketItem.create({ data: item });
 
+    const updated = await this.getTicketOrThrow(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -311,60 +329,68 @@ export class TicketBaseService {
     ticketItemId: string,
     payload: UpdateTicketItemRequest,
   ): Promise<TicketItemResponse> {
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, ticketItemId);
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, ticketItemId);
 
-    ensureSaleDates(payload.saleStartTime, payload.saleEndTime);
+        ensureSaleDates(payload.saleStartTime, payload.saleEndTime);
 
-    const updatedItem = mergeTicketItem(item, {
-      name: pickNullableString(payload.name, item.name),
-      description: pickNullableString(payload.description, item.description),
-      coachCode: pickNullableString(payload.coachCode, item.coachCode),
-      seatClass: pickNullableString(payload.seatClass, item.seatClass),
-      seatType: pickNullableString(payload.seatType, item.seatType),
-      seatLabels: payload.seatLabels
-        ? uniqueLabels(payload.seatLabels)
-        : item.seatLabels,
-      availableSeatLabels: payload.availableSeatLabels
-        ? uniqueLabels(payload.availableSeatLabels)
-        : item.availableSeatLabels,
-      stockInitial: payload.stockInitial ?? item.stockInitial,
-      stockAvailable: payload.stockAvailable ?? item.stockAvailable,
-      stockPrepared: payload.stockPrepared ?? item.stockPrepared,
-      priceOriginal: pickBigInt(payload.priceOriginal, item.priceOriginal),
-      priceFlash: pickBigInt(payload.priceFlash, item.priceFlash),
-      saleStartTime:
-        payload.saleStartTime !== undefined
-          ? parseOptionalDate(payload.saleStartTime, 'saleStartTime')
-          : item.saleStartTime,
-      saleEndTime:
-        payload.saleEndTime !== undefined
-          ? parseOptionalDate(payload.saleEndTime, 'saleEndTime')
-          : item.saleEndTime,
-      deletedAt:
-        payload.deletedAt !== undefined
-          ? parseOptionalDate(payload.deletedAt, 'deletedAt')
-          : item.deletedAt,
-      updatedAt: new Date(),
-    });
+        const mergedItem = mergeTicketItem(item, {
+          name: pickNullableString(payload.name, item.name),
+          description: pickNullableString(payload.description, item.description),
+          coachCode: pickNullableString(payload.coachCode, item.coachCode),
+          seatClass: pickNullableString(payload.seatClass, item.seatClass),
+          seatType: pickNullableString(payload.seatType, item.seatType),
+          seatLabels: payload.seatLabels
+            ? uniqueLabels(payload.seatLabels)
+            : item.seatLabels,
+          availableSeatLabels: payload.availableSeatLabels
+            ? uniqueLabels(payload.availableSeatLabels)
+            : item.availableSeatLabels,
+          stockInitial: payload.stockInitial ?? item.stockInitial,
+          stockAvailable: payload.stockAvailable ?? item.stockAvailable,
+          stockPrepared: payload.stockPrepared ?? item.stockPrepared,
+          priceOriginal: pickBigInt(payload.priceOriginal, item.priceOriginal),
+          priceFlash: pickBigInt(payload.priceFlash, item.priceFlash),
+          saleStartTime:
+            payload.saleStartTime !== undefined
+              ? parseOptionalDate(payload.saleStartTime, 'saleStartTime')
+              : item.saleStartTime,
+          saleEndTime:
+            payload.saleEndTime !== undefined
+              ? parseOptionalDate(payload.saleEndTime, 'saleEndTime')
+              : item.saleEndTime,
+          deletedAt:
+            payload.deletedAt !== undefined
+              ? parseOptionalDate(payload.deletedAt, 'deletedAt')
+              : item.deletedAt,
+          updatedAt: new Date(),
+        });
 
-    const normalizedItem = normalizeTicketItemStock(updatedItem);
-    const updated = await this.replaceTicketItem(ticket, normalizedItem);
+        const nextItem = normalizeTicketItemStock(mergedItem);
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
+    );
 
-    return toTicketItemResponse(getActiveItemOrThrow(updated, ticketItemId));
+    return toTicketItemResponse(updatedItem);
   }
 
   async removeTicketItem(ticketId: string, ticketItemId: string) {
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, ticketItemId);
+    await this.withTicketRowLock(ticketId, async (tx) => {
+      const ticket = await this.getTicketOrThrow(ticketId, tx);
+      const item = getActiveItemOrThrow(ticket, ticketItemId);
 
-    await this.replaceTicketItem(
-      ticket,
-      mergeTicketItem(item, {
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      }),
-    );
+      await this.updateTicketItemRow(
+        tx,
+        mergeTicketItem(item, {
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      );
+    });
 
     return {
       message: `Ticket item ${ticketItemId} has been deleted`,
@@ -385,31 +411,35 @@ export class TicketBaseService {
     }
 
     const quantity = normalizeQuantity(payload.quantity);
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, payload.ticketItemId);
 
-    const stockInitial = item.stockInitial ?? item.availableSeatLabels.length;
-    const current = item.stockAvailable ?? item.availableSeatLabels.length;
-    const next = current + quantity;
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, payload.ticketItemId);
 
-    if (next > stockInitial) {
-      throw new HttpException(
-        'Release quantity exceeds initial stock',
-        HttpStatus.CONFLICT,
-      );
-    }
+        const stockInitial = item.stockInitial ?? item.availableSeatLabels.length;
+        const current = item.stockAvailable ?? item.availableSeatLabels.length;
+        const next = current + quantity;
 
-    const updated = await this.replaceTicketItem(
-      ticket,
-      mergeTicketItem(item, {
-        stockAvailable: next,
-        updatedAt: new Date(),
-      }),
+        if (next > stockInitial) {
+          throw new HttpException(
+            'Release quantity exceeds initial stock',
+            HttpStatus.CONFLICT,
+          );
+        }
+
+        const nextItem = mergeTicketItem(item, {
+          stockAvailable: next,
+          updatedAt: new Date(),
+        });
+
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
     );
 
-    return toTicketItemResponse(
-      getActiveItemOrThrow(updated, payload.ticketItemId),
-    );
+    return toTicketItemResponse(updatedItem);
   }
 
   async publish(ticketId: string): Promise<TicketResponse> {
@@ -420,6 +450,7 @@ export class TicketBaseService {
         status: TicketStatus.Published,
         updatedAt: new Date(),
       },
+      include: { ticketItems: true },
     });
 
     return toTicketResponse(updated);
@@ -433,6 +464,7 @@ export class TicketBaseService {
         status: TicketStatus.Draft,
         updatedAt: new Date(),
       },
+      include: { ticketItems: true },
     });
 
     return toTicketResponse(updated);
@@ -442,38 +474,43 @@ export class TicketBaseService {
     ticketId: string,
     payload: PrepareStockRequest,
   ): Promise<TicketResponse> {
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const targetIds = payload.ticketItemId
-      ? new Set([payload.ticketItemId])
-      : new Set(getActiveItems(ticket).map((item: TicketItem) => item.id));
+    await this.withTicketRowLock(ticketId, async (tx) => {
+      const ticket = await this.getTicketOrThrow(ticketId, tx);
+      const targetIds = payload.ticketItemId
+        ? new Set([payload.ticketItemId])
+        : new Set(getActiveItems(ticket).map((item: TicketItem) => item.id));
 
-    const updatedItems = ticket.ticketItems.map((item: TicketItem) => {
-      if (!targetIds.has(item.id) || item.deletedAt) {
-        return item;
+      for (const item of ticket.ticketItems) {
+        if (!targetIds.has(item.id) || item.deletedAt) {
+          continue;
+        }
+
+        const seatLabels = payload.availableSeatLabels?.length
+          ? uniqueLabels(payload.availableSeatLabels)
+          : uniqueLabels(item.seatLabels);
+        const stockInitial =
+          payload.stockInitial ?? item.stockInitial ?? seatLabels.length;
+        const stockAvailable =
+          seatLabels.length > 0 ? seatLabels.length : stockInitial;
+
+        await this.updateTicketItemRow(
+          tx,
+          normalizeTicketItemStock(
+            mergeTicketItem(item, {
+              seatLabels: seatLabels.length > 0 ? seatLabels : item.seatLabels,
+              availableSeatLabels:
+                seatLabels.length > 0 ? seatLabels : item.availableSeatLabels,
+              stockInitial,
+              stockAvailable,
+              stockPrepared: true,
+              updatedAt: new Date(),
+            }),
+          ),
+        );
       }
-
-      const seatLabels = payload.availableSeatLabels?.length
-        ? uniqueLabels(payload.availableSeatLabels)
-        : uniqueLabels(item.seatLabels);
-      const stockInitial =
-        payload.stockInitial ?? item.stockInitial ?? seatLabels.length;
-      const stockAvailable =
-        seatLabels.length > 0 ? seatLabels.length : stockInitial;
-
-      return normalizeTicketItemStock(
-        mergeTicketItem(item, {
-          seatLabels: seatLabels.length > 0 ? seatLabels : item.seatLabels,
-          availableSeatLabels:
-            seatLabels.length > 0 ? seatLabels : item.availableSeatLabels,
-          stockInitial,
-          stockAvailable,
-          stockPrepared: true,
-          updatedAt: new Date(),
-        }),
-      );
     });
 
-    const updated = await this.persistTicketItems(ticketId, updatedItems);
+    const updated = await this.getTicketOrThrow(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -481,48 +518,58 @@ export class TicketBaseService {
     ticketId: string,
     payload: OpenSaleRequest,
   ): Promise<TicketResponse> {
-    const ticket = await this.getTicketOrThrow(ticketId);
     ensureSaleDates(payload.saleStartTime, payload.saleEndTime);
 
-    const targetIds = payload.ticketItemId
-      ? new Set([payload.ticketItemId])
-      : new Set(getActiveItems(ticket).map((item: TicketItem) => item.id));
-    const saleStartTime =
-      parseOptionalDate(payload.saleStartTime, 'saleStartTime') ?? new Date();
-    const saleEndTime = parseOptionalDate(payload.saleEndTime, 'saleEndTime');
+    await this.withTicketRowLock(ticketId, async (tx) => {
+      const ticket = await this.getTicketOrThrow(ticketId, tx);
+      const targetIds = payload.ticketItemId
+        ? new Set([payload.ticketItemId])
+        : new Set(getActiveItems(ticket).map((item: TicketItem) => item.id));
+      const saleStartTime =
+        parseOptionalDate(payload.saleStartTime, 'saleStartTime') ?? new Date();
+      const saleEndTime = parseOptionalDate(payload.saleEndTime, 'saleEndTime');
 
-    const updatedItems = ticket.ticketItems.map((item: TicketItem) => {
-      if (!targetIds.has(item.id) || item.deletedAt) {
-        return item;
+      for (const item of ticket.ticketItems) {
+        if (!targetIds.has(item.id) || item.deletedAt) {
+          continue;
+        }
+
+        await this.updateTicketItemRow(
+          tx,
+          mergeTicketItem(item, {
+            saleStartTime,
+            saleEndTime,
+            updatedAt: new Date(),
+          }),
+        );
       }
-
-      return mergeTicketItem(item, {
-        saleStartTime,
-        saleEndTime,
-        updatedAt: new Date(),
-      });
     });
 
-    const updated = await this.persistTicketItems(ticketId, updatedItems);
+    const updated = await this.getTicketOrThrow(ticketId);
     return toTicketResponse(updated);
   }
 
   async closeSale(ticketId: string): Promise<TicketResponse> {
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const now = new Date();
+    await this.withTicketRowLock(ticketId, async (tx) => {
+      const ticket = await this.getTicketOrThrow(ticketId, tx);
+      const now = new Date();
 
-    const updatedItems = ticket.ticketItems.map((item: TicketItem) => {
-      if (item.deletedAt) {
-        return item;
+      for (const item of ticket.ticketItems) {
+        if (item.deletedAt) {
+          continue;
+        }
+
+        await this.updateTicketItemRow(
+          tx,
+          mergeTicketItem(item, {
+            saleEndTime: now,
+            updatedAt: now,
+          }),
+        );
       }
-
-      return mergeTicketItem(item, {
-        saleEndTime: now,
-        updatedAt: now,
-      });
     });
 
-    const updated = await this.persistTicketItems(ticketId, updatedItems);
+    const updated = await this.getTicketOrThrow(ticketId);
     return toTicketResponse(updated);
   }
 
@@ -570,39 +617,48 @@ export class TicketBaseService {
       throw new HttpException('seatLabel is required', HttpStatus.BAD_REQUEST);
     }
 
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, ticketItemId);
-    ensureItemCanBeSold(item);
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, ticketItemId);
+        ensureItemCanBeSold(item);
 
-    const seatLabel = payload.seatLabel.trim();
-    if (!item.seatLabels.includes(seatLabel)) {
-      throw new HttpException(
-        'Seat label does not exist',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-    if (!item.availableSeatLabels.includes(seatLabel)) {
-      throw new HttpException('Seat is not available', HttpStatus.CONFLICT);
-    }
+        const seatLabel = payload.seatLabel.trim();
+        if (!item.seatLabels.includes(seatLabel)) {
+          throw new HttpException(
+            'Seat label does not exist',
+            HttpStatus.NOT_FOUND,
+          );
+        }
+        if (!item.availableSeatLabels.includes(seatLabel)) {
+          throw new HttpException(
+            'Seat is not available',
+            HttpStatus.CONFLICT,
+          );
+        }
 
-    const nextAvailable = item.availableSeatLabels.filter(
-      (label: string) => label !== seatLabel,
+        const nextAvailable = item.availableSeatLabels.filter(
+          (label: string) => label !== seatLabel,
+        );
+
+        const nextItem = normalizeTicketItemStock(
+          mergeTicketItem(item, {
+            availableSeatLabels: nextAvailable,
+            stockAvailable:
+              item.stockAvailable !== null && item.stockAvailable !== undefined
+                ? item.stockAvailable - 1
+                : nextAvailable.length,
+            updatedAt: new Date(),
+          }),
+        );
+
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
     );
-    const updated = await this.replaceTicketItem(
-      ticket,
-      normalizeTicketItemStock(
-        mergeTicketItem(item, {
-          availableSeatLabels: nextAvailable,
-          stockAvailable:
-            item.stockAvailable !== null && item.stockAvailable !== undefined
-              ? item.stockAvailable - 1
-              : nextAvailable.length,
-          updatedAt: new Date(),
-        }),
-      ),
-    );
 
-    return toTicketItemResponse(getActiveItemOrThrow(updated, ticketItemId));
+    return toTicketItemResponse(updatedItem);
   }
 
   async releaseSeat(
@@ -614,40 +670,48 @@ export class TicketBaseService {
       throw new HttpException('seatLabel is required', HttpStatus.BAD_REQUEST);
     }
 
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, ticketItemId);
-    const seatLabel = payload.seatLabel.trim();
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, ticketItemId);
+        const seatLabel = payload.seatLabel.trim();
 
-    if (!item.seatLabels.includes(seatLabel)) {
-      throw new HttpException(
-        'Seat label does not exist',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-    if (item.availableSeatLabels.includes(seatLabel)) {
-      throw new HttpException('Seat is already available', HttpStatus.CONFLICT);
-    }
+        if (!item.seatLabels.includes(seatLabel)) {
+          throw new HttpException(
+            'Seat label does not exist',
+            HttpStatus.NOT_FOUND,
+          );
+        }
+        if (item.availableSeatLabels.includes(seatLabel)) {
+          throw new HttpException(
+            'Seat is already available',
+            HttpStatus.CONFLICT,
+          );
+        }
 
-    const nextAvailable = sortSeatLabels(
-      [...item.availableSeatLabels, seatLabel],
-      item.seatLabels,
+        const nextAvailable = sortSeatLabels(
+          [...item.availableSeatLabels, seatLabel],
+          item.seatLabels,
+        );
+
+        const nextItem = normalizeTicketItemStock(
+          mergeTicketItem(item, {
+            availableSeatLabels: nextAvailable,
+            stockAvailable:
+              item.stockAvailable !== null && item.stockAvailable !== undefined
+                ? item.stockAvailable + 1
+                : nextAvailable.length,
+            updatedAt: new Date(),
+          }),
+        );
+
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
     );
 
-    const updated = await this.replaceTicketItem(
-      ticket,
-      normalizeTicketItemStock(
-        mergeTicketItem(item, {
-          availableSeatLabels: nextAvailable,
-          stockAvailable:
-            item.stockAvailable !== null && item.stockAvailable !== undefined
-              ? item.stockAvailable + 1
-              : nextAvailable.length,
-          updatedAt: new Date(),
-        }),
-      ),
-    );
-
-    return toTicketItemResponse(getActiveItemOrThrow(updated, ticketItemId));
+    return toTicketItemResponse(updatedItem);
   }
 
   async changePrice(
@@ -655,19 +719,24 @@ export class TicketBaseService {
     ticketItemId: string,
     payload: ChangePriceRequest,
   ): Promise<TicketItemResponse> {
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, ticketItemId);
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, ticketItemId);
 
-    const updated = await this.replaceTicketItem(
-      ticket,
-      mergeTicketItem(item, {
-        priceOriginal: pickBigInt(payload.priceOriginal, item.priceOriginal),
-        priceFlash: pickBigInt(payload.priceFlash, item.priceFlash),
-        updatedAt: new Date(),
-      }),
+        const nextItem = mergeTicketItem(item, {
+          priceOriginal: pickBigInt(payload.priceOriginal, item.priceOriginal),
+          priceFlash: pickBigInt(payload.priceFlash, item.priceFlash),
+          updatedAt: new Date(),
+        });
+
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
     );
 
-    return toTicketItemResponse(getActiveItemOrThrow(updated, ticketItemId));
+    return toTicketItemResponse(updatedItem);
   }
 
   async changeSaleWindow(
@@ -675,38 +744,45 @@ export class TicketBaseService {
     ticketItemId: string,
     payload: ChangeSaleWindowRequest,
   ): Promise<TicketItemResponse> {
-    const ticket = await this.getTicketOrThrow(ticketId);
-    const item = getActiveItemOrThrow(ticket, ticketItemId);
     ensureSaleDates(payload.saleStartTime, payload.saleEndTime);
 
-    const updated = await this.replaceTicketItem(
-      ticket,
-      mergeTicketItem(item, {
-        saleStartTime: parseOptionalDate(
-          payload.saleStartTime,
-          'saleStartTime',
-        ),
-        saleEndTime: parseOptionalDate(payload.saleEndTime, 'saleEndTime'),
-        updatedAt: new Date(),
-      }),
+    const updatedItem = await this.withTicketRowLock(
+      ticketId,
+      async (tx) => {
+        const ticket = await this.getTicketOrThrow(ticketId, tx);
+        const item = getActiveItemOrThrow(ticket, ticketItemId);
+
+        const nextItem = mergeTicketItem(item, {
+          saleStartTime: parseOptionalDate(
+            payload.saleStartTime,
+            'saleStartTime',
+          ),
+          saleEndTime: parseOptionalDate(payload.saleEndTime, 'saleEndTime'),
+          updatedAt: new Date(),
+        });
+
+        await this.updateTicketItemRow(tx, nextItem);
+        return nextItem;
+      },
     );
 
-    return toTicketItemResponse(getActiveItemOrThrow(updated, ticketItemId));
+    return toTicketItemResponse(updatedItem);
   }
 
-  protected async getTicketOrThrow(ticketId: string): Promise<Ticket> {
+  protected async getTicketOrThrow(
+    ticketId: string,
+    client: PrismaClientLike = this.prisma,
+  ): Promise<TicketWithItems> {
     if (!ticketId.trim()) {
       throw new HttpException('ticketId is required', HttpStatus.BAD_REQUEST);
     }
 
-    const ticket = await this.prisma.ticket.findFirst({
+    const ticket = await client.ticket.findFirst({
       where: {
         id: ticketId,
-        OR: [
-          { deletedAt: null },
-          { deletedAt: { isSet: false } },
-        ],
+        deletedAt: null,
       },
+      include: { ticketItems: true },
     });
 
     if (!ticket) {
@@ -719,52 +795,41 @@ export class TicketBaseService {
     return ticket;
   }
 
-  protected async replaceTicketItem(ticket: Ticket, updatedItem: TicketItem) {
-    const items = ticket.ticketItems.map((item: TicketItem) =>
-      item.id === updatedItem.id ? updatedItem : item,
-    );
-
-    return this.persistTicketItems(ticket.id, items, ticket.updatedAt);
-  }
-
-  protected async persistTicketItems(
+  /**
+   * Runs `fn` inside a transaction that first locks the ticket row
+   * (`SELECT ... FOR UPDATE`). All concurrent stock mutations for the same
+   * ticket are serialized by PostgreSQL itself, which removes the
+   * read-then-write race the old Mongo implementation guarded against with
+   * optimistic `updatedAt` checks.
+   */
+  protected async withTicketRowLock<T>(
     ticketId: string,
-    items: TicketItem[],
-    oldUpdatedAt?: Date | null,
-  ) {
-    const now = new Date();
-    const result = await this.prisma.ticket.updateMany({
-      where: {
-        id: ticketId,
-        updatedAt: oldUpdatedAt || undefined,
-      },
-      data: {
-        ticketItems: {
-          set: items.map((item) => toTicketItemSetInput(item)),
-        },
-        updatedAt: now,
-      },
-    });
-
-    if (result.count === 0) {
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (!isValidUuid(ticketId)) {
       throw new HttpException(
-        'Ticket was updated by another transaction. Please try again.',
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const updated = await this.prisma.ticket.findUnique({
-      where: { id: ticketId },
-    });
-
-    if (!updated) {
-      throw new HttpException(
-        `Ticket ${ticketId} was not found after update`,
+        `Ticket ${ticketId} was not found`,
         HttpStatus.NOT_FOUND,
       );
     }
 
-    return updated;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${ticketId}::uuid FOR UPDATE`;
+      return fn(tx);
+    });
+  }
+
+  /**
+   * Persists a computed TicketItem back to its own row with a single UPDATE.
+   */
+  protected async updateTicketItemRow(
+    client: PrismaClientLike,
+    item: TicketItem,
+  ): Promise<void> {
+    await client.ticketItem.update({
+      where: { id: item.id },
+      data: toTicketItemUpdateData(item),
+    });
   }
 }
 
@@ -793,7 +858,7 @@ export class TicketService extends TicketBaseService {
   /*
    * =========================================================================
    * Search functionality (previously search-service).
-   * Queries the same Ticket collection directly — no separate read model or
+   * Queries the same tickets tables directly — no separate read model or
    * event sync needed, since the data already lives in this service's DB.
    * =========================================================================
    */
@@ -818,25 +883,82 @@ export class TicketService extends TicketBaseService {
       };
     }
 
+    const andClauses: Prisma.TicketWhereInput[] = [];
+
+    if (query.from?.trim()) {
+      const from = query.from.trim();
+      andClauses.push({
+        OR: [
+          { departureStationCode: { equals: from, mode: 'insensitive' } },
+          { departureStationName: { contains: from, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (query.to?.trim()) {
+      const to = query.to.trim();
+      andClauses.push({
+        OR: [
+          { arrivalStationCode: { equals: to, mode: 'insensitive' } },
+          { arrivalStationName: { contains: to, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andClauses.length > 0) {
+      where.AND = andClauses;
+    }
+
+    // Fetch the full matching set, then filter + sort + paginate in memory so
+    // ordering (price / departure / recommended) and totals are honest across
+    // pages (server-side sort/filter, Direction B locked decision).
     const tickets = await this.prisma.ticket.findMany({
       where,
       orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
-      take: 200,
+      include: { ticketItems: true },
     });
 
-    const matchedTrips = tickets
-      .filter((ticket) => this.matchesRoute(ticket, query))
-      .map((ticket) => this.toSearchTrip(ticket));
-    const total = matchedTrips.length;
-    const startIndex = (page - 1) * limit;
+    const trips = tickets.map((ticket) => this.toSearchTrip(ticket));
+
+    // Server-side filters (time of day + seat class) — mirror of the former
+    // client-side filters, so pagination totals are honest end-to-end.
+    const filteredTrips = trips.filter(
+      (trip) =>
+        matchesTimeOfDay(trip.dateStart, query.timeOfDay) &&
+        matchesSeatClass(trip.seatClasses, query.seatClass),
+    );
+
+    switch (query.sort ?? 'recommended') {
+      case 'price':
+        filteredTrips.sort(
+          (a, b) =>
+            Number(a.minPrice ?? Number.MAX_SAFE_INTEGER) -
+            Number(b.minPrice ?? Number.MAX_SAFE_INTEGER),
+        );
+        break;
+      case 'departure':
+        filteredTrips.sort((a, b) =>
+          (a.dateStart ?? '').localeCompare(b.dateStart ?? ''),
+        );
+        break;
+      case 'recommended':
+      default:
+        filteredTrips.sort(
+          (a, b) => (b.availableSeats ?? 0) - (a.availableSeats ?? 0),
+        );
+        break;
+    }
 
     return {
-      data: matchedTrips.slice(startIndex, startIndex + limit),
+      data: filteredTrips.slice((page - 1) * limit, page * limit),
       pagination: {
         page,
         limit,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        total: filteredTrips.length,
+        totalPages:
+          filteredTrips.length === 0
+            ? 0
+            : Math.ceil(filteredTrips.length / limit),
       },
     };
   }
@@ -899,7 +1021,7 @@ export class TicketService extends TicketBaseService {
     }
   }
 
-  private matchesRoute(ticket: Ticket, query: SearchTripsQuery) {
+  private matchesRoute(ticket: TicketWithItems, query: SearchTripsQuery) {
     const fromMatched = matchesStationQuery(
       query.from,
       ticket.departureStationCode,
@@ -914,7 +1036,7 @@ export class TicketService extends TicketBaseService {
     return fromMatched && toMatched;
   }
 
-  private toSearchTrip(ticket: Ticket): SearchTripResponse {
+  private toSearchTrip(ticket: TicketWithItems): SearchTripResponse {
     const activeItems = ticket.ticketItems.filter(
       (item: TicketItem) => !item.deletedAt,
     );
@@ -970,12 +1092,14 @@ export class TicketService extends TicketBaseService {
   ): Promise<TicketResponse> {
     const result = await super.update(ticketId, payload);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
   async remove(ticketId: string) {
     const result = await super.remove(ticketId);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
@@ -1027,12 +1151,38 @@ export class TicketService extends TicketBaseService {
     }
   }
 
+  async release(
+    ticketId: string,
+    payload: ReleaseTicketRequest,
+  ): Promise<TicketItemResponse> {
+    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+    const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
+      super.release(ticketId, payload),
+    );
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
+  async releaseSeat(
+    ticketId: string,
+    ticketItemId: string,
+    payload: ReleaseSeatRequest,
+  ): Promise<TicketItemResponse> {
+    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+    const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
+      super.releaseSeat(ticketId, ticketItemId, payload),
+    );
+    await this.invalidateTicketCache(ticketId);
+    return result;
+  }
+
   async addTicketItem(
     ticketId: string,
     payload: CreateTicketItemRequest,
   ): Promise<TicketResponse> {
     const result = await super.addTicketItem(ticketId, payload);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
@@ -1043,24 +1193,28 @@ export class TicketService extends TicketBaseService {
   ): Promise<TicketItemResponse> {
     const result = await super.updateTicketItem(ticketId, ticketItemId, payload);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
   async removeTicketItem(ticketId: string, ticketItemId: string) {
     const result = await super.removeTicketItem(ticketId, ticketItemId);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
   async publish(ticketId: string): Promise<TicketResponse> {
     const result = await super.publish(ticketId);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
   async unpublish(ticketId: string): Promise<TicketResponse> {
     const result = await super.unpublish(ticketId);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
@@ -1070,6 +1224,7 @@ export class TicketService extends TicketBaseService {
   ): Promise<TicketResponse> {
     const result = await super.prepareStock(ticketId, payload);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
@@ -1079,22 +1234,14 @@ export class TicketService extends TicketBaseService {
   ): Promise<TicketResponse> {
     const result = await super.openSale(ticketId, payload);
     await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
   async closeSale(ticketId: string): Promise<TicketResponse> {
     const result = await super.closeSale(ticketId);
     await this.invalidateTicketCache(ticketId);
-    return result;
-  }
-
-  protected async persistTicketItems(
-    ticketId: string,
-    items: TicketItem[],
-    oldUpdatedAt?: Date | null,
-  ) {
-    const result = await super.persistTicketItems(ticketId, items, oldUpdatedAt);
-    await this.invalidateTicketCache(ticketId);
+    await this.invalidateTicketListCache();
     return result;
   }
 
@@ -1179,6 +1326,13 @@ export class TicketService extends TicketBaseService {
     }
   }
 
+  /**
+   * Redlock wrapper around reservation flows. PostgreSQL row locks
+   * (SELECT ... FOR UPDATE inside withTicketRowLock) are the correctness
+   * guarantee; this distributed lock adds a second layer that sheds load
+   * before requests even reach the database and produces friendly
+   * "seat is being held" errors for concurrent seat selections.
+   */
   private async executeWithReservationLock<T>(
     ticketId: string,
     seatLabels: string[],
@@ -1194,9 +1348,7 @@ export class TicketService extends TicketBaseService {
 
     try {
       // redlock.using acquires all resources atomically (no deadlocks) and
-      // AUTO-EXTENDS the lock for as long as the routine runs, so the lock can
-      // no longer expire mid-operation on long reservations. Optimistic locking
-      // (updatedAt check in persistTicketItems) remains the second safety net.
+      // AUTO-EXTENDS the lock for as long as the routine runs.
       return await this.redisCaching.using(
         resources,
         lockTtlMs,

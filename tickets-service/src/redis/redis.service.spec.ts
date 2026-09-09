@@ -8,6 +8,7 @@ describe('RedisCacheService', () => {
     get: jest.Mock;
     set: jest.Mock;
     del: jest.Mock;
+    unlink: jest.Mock;
     scan: jest.Mock;
     eval: jest.Mock;
     evalsha: jest.Mock;
@@ -18,6 +19,7 @@ describe('RedisCacheService', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
+      unlink: jest.fn(),
       scan: jest.fn(),
       eval: jest.fn(),
       evalsha: jest.fn().mockRejectedValue(new Error('NOSCRIPT No matching script')),
@@ -52,7 +54,7 @@ describe('RedisCacheService', () => {
     redis.scan
       .mockResolvedValueOnce(['1', ['tickets:1', 'tickets:2']])
       .mockResolvedValueOnce(['0', ['tickets:3']]);
-    redis.del.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+    redis.unlink.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
 
     const deleted = await service.patternDel('tickets:*');
 
@@ -72,8 +74,8 @@ describe('RedisCacheService', () => {
       'COUNT',
       100,
     );
-    expect(redis.del).toHaveBeenNthCalledWith(1, 'tickets:1', 'tickets:2');
-    expect(redis.del).toHaveBeenNthCalledWith(2, 'tickets:3');
+    expect(redis.unlink).toHaveBeenNthCalledWith(1, 'tickets:1', 'tickets:2');
+    expect(redis.unlink).toHaveBeenNthCalledWith(2, 'tickets:3');
     expect(deleted).toBe(3);
   });
 
@@ -82,7 +84,7 @@ describe('RedisCacheService', () => {
 
     const deleted = await service.patternDel('tickets:*');
 
-    expect(redis.del).not.toHaveBeenCalled();
+    expect(redis.unlink).not.toHaveBeenCalled();
     expect(deleted).toBe(0);
   });
 
@@ -105,5 +107,32 @@ describe('RedisCacheService', () => {
     } as unknown as Lock;
     await service.releaseLock(mockLock);
     expect(mockLock.release).toHaveBeenCalled();
+  });
+
+  it('using should delegate to redlock.using so the lock auto-extends during the routine', async () => {
+    const routine = jest.fn().mockResolvedValue('result');
+    const usingSpy = jest
+      .spyOn(
+        service.redlock as unknown as {
+          using: (...args: unknown[]) => Promise<unknown>;
+        },
+        'using',
+      )
+      .mockResolvedValue('result');
+
+    const result = await service.using(
+      ['lock:ticket:reserve:ticket-1:seat:A01'],
+      10000,
+      { retryCount: 100, retryDelay: 50, retryJitter: 0 },
+      routine,
+    );
+
+    expect(usingSpy).toHaveBeenCalledWith(
+      ['lock:ticket:reserve:ticket-1:seat:A01'],
+      10000,
+      { retryCount: 100, retryDelay: 50, retryJitter: 0 },
+      routine,
+    );
+    expect(result).toBe('result');
   });
 });

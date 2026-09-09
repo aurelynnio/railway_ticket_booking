@@ -1,18 +1,27 @@
 import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { Prisma, Ticket, TicketItem } from '@prisma/client';
+import { Prisma, TicketItem } from '@prisma/client';
 import type {
   CreateTicketItemRequest,
   TicketItemResponse,
   TicketResponse,
-} from '../ticket.dto';
+} from '../dto/ticket.dto';
 
-export function getActiveItems(ticket: Ticket): TicketItem[] {
+/**
+ * Ticket together with its related ticket_items rows.
+ * PostgreSQL stores ticket items in a separate table, so every read that
+ * previously relied on the Mongo embedded array now needs `include`.
+ */
+export type TicketWithItems = Prisma.TicketGetPayload<{
+  include: { ticketItems: true };
+}>;
+
+export function getActiveItems(ticket: TicketWithItems): TicketItem[] {
   return ticket.ticketItems.filter((item: TicketItem) => !item.deletedAt);
 }
 
 export function getActiveItemOrThrow(
-  ticket: Ticket,
+  ticket: TicketWithItems,
   ticketItemId: string,
 ): TicketItem {
   const item = ticket.ticketItems.find(
@@ -33,7 +42,7 @@ export function buildTicketItemCreateInput(
   ticketId: string,
   payload: CreateTicketItemRequest,
   now: Date,
-): Prisma.TicketItemCreateInput {
+): TicketItem {
   ensureSaleDates(payload.saleStartTime, payload.saleEndTime);
 
   const seatLabels = uniqueLabels(payload.seatLabels ?? []);
@@ -51,32 +60,36 @@ export function buildTicketItemCreateInput(
   return normalizeTicketItemStock({
     id: randomUUID(),
     ticketId,
-    name: toNullableString(payload.name),
-    description: toNullableString(payload.description),
-    coachCode: toNullableString(payload.coachCode),
-    seatClass: toNullableString(payload.seatClass),
-    seatType: toNullableString(payload.seatType),
+    name: toNullableString(payload.name) ?? null,
+    description: toNullableString(payload.description) ?? null,
+    coachCode: toNullableString(payload.coachCode) ?? null,
+    seatClass: toNullableString(payload.seatClass) ?? null,
+    seatType: toNullableString(payload.seatType) ?? null,
     seatLabels,
     availableSeatLabels,
     stockInitial,
     stockAvailable,
     stockPrepared: payload.stockPrepared ?? availableSeatLabels.length > 0,
-    priceOriginal: toOptionalBigInt(payload.priceOriginal),
-    priceFlash: toOptionalBigInt(payload.priceFlash),
-    saleStartTime: parseOptionalDate(payload.saleStartTime, 'saleStartTime'),
-    saleEndTime: parseOptionalDate(payload.saleEndTime, 'saleEndTime'),
+    priceOriginal: toOptionalBigInt(payload.priceOriginal) ?? null,
+    priceFlash: toOptionalBigInt(payload.priceFlash) ?? null,
+    saleStartTime:
+      parseOptionalDate(payload.saleStartTime, 'saleStartTime') ?? null,
+    saleEndTime: parseOptionalDate(payload.saleEndTime, 'saleEndTime') ?? null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
   });
 }
 
-export function toTicketItemSetInput(
+/**
+ * Mutable column set used when persisting a computed TicketItem row back to
+ * PostgreSQL. Replaces the old Mongo "overwrite the whole embedded array"
+ * strategy (`ticketItems: { set: [...] }`) with a single-row UPDATE.
+ */
+export function toTicketItemUpdateData(
   item: TicketItem,
-): Prisma.TicketItemCreateInput {
+): Prisma.TicketItemUpdateInput {
   return {
-    id: item.id,
-    ticketId: item.ticketId,
     name: item.name,
     description: item.description,
     coachCode: item.coachCode,
@@ -91,9 +104,8 @@ export function toTicketItemSetInput(
     priceFlash: item.priceFlash,
     saleStartTime: item.saleStartTime,
     saleEndTime: item.saleEndTime,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
     deletedAt: item.deletedAt,
+    updatedAt: item.updatedAt,
   };
 }
 
@@ -107,16 +119,10 @@ export function mergeTicketItem(
   };
 }
 
-export function normalizeTicketItemStock(item: TicketItem): TicketItem;
-export function normalizeTicketItemStock(
-  item: Prisma.TicketItemCreateInput,
-): Prisma.TicketItemCreateInput;
-export function normalizeTicketItemStock(
-  item: Prisma.TicketItemCreateInput | TicketItem,
-) {
-  const seatLabels = uniqueLabels((item.seatLabels as string[]) ?? []);
+export function normalizeTicketItemStock(item: TicketItem): TicketItem {
+  const seatLabels = uniqueLabels((item.seatLabels) ?? []);
   const availableSeatLabels = sortSeatLabels(
-    uniqueLabels((item.availableSeatLabels as string[]) ?? []),
+    uniqueLabels((item.availableSeatLabels) ?? []),
     seatLabels,
   );
   const stockInitial =
@@ -136,7 +142,7 @@ export function normalizeTicketItemStock(
   };
 }
 
-export function toTicketResponse(ticket: Ticket): TicketResponse {
+export function toTicketResponse(ticket: TicketWithItems): TicketResponse {
   return {
     id: ticket.id,
     title: ticket.title,
@@ -175,8 +181,8 @@ export function toTicketItemResponse(item: TicketItem): TicketItemResponse {
     stockInitial: item.stockInitial,
     stockAvailable: item.stockAvailable,
     stockPrepared: item.stockPrepared,
-    priceOriginal: toNumber(item.priceOriginal),
-    priceFlash: toNumber(item.priceFlash),
+    priceOriginal: toPriceString(item.priceOriginal),
+    priceFlash: toPriceString(item.priceFlash),
     saleStartTime: toIsoString(item.saleStartTime),
     saleEndTime: toIsoString(item.saleEndTime),
     createdAt: toIsoString(item.createdAt),
@@ -338,6 +344,6 @@ export function toIsoString(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
 
-export function toNumber(value: bigint | null | undefined) {
-  return value === null || value === undefined ? null : Number(value);
+export function toPriceString(value: bigint | null | undefined) {
+  return value === null || value === undefined ? null : value.toString();
 }

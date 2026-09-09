@@ -1,26 +1,34 @@
 import 'reflect-metadata';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { PrismaClient, Ticket, TicketItem } from '@prisma/client';
+import type { PrismaClient, TicketItem } from '@prisma/client';
 import { RedisCacheService } from './redis/redis.service';
-import { TicketStatus } from './ticket.dto';
+import { TicketStatus } from './dto/ticket.dto';
 import { TicketService } from './ticket.service';
+import type { TicketWithItems } from './utils/ticket.utils';
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: class PrismaClient {},
 }));
 
+const TICKET_UUID = '11111111-1111-4111-8111-111111111111';
+const ITEM_UUID = '22222222-2222-4222-8222-222222222222';
+
 describe('TicketService', () => {
   let service: TicketService;
   let prisma: {
     $transaction: jest.Mock;
+    $queryRaw: jest.Mock;
     ticket: {
       create: jest.Mock;
       count: jest.Mock;
       findMany: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
-      updateMany: jest.Mock;
-      findUnique: jest.Mock;
+    };
+    ticketItem: {
+      create: jest.Mock;
+      createMany: jest.Mock;
+      update: jest.Mock;
     };
   };
   let redisCache: {
@@ -36,8 +44,8 @@ describe('TicketService', () => {
   const buildTicketItem = (
     overrides: Partial<TicketItem> = {},
   ): TicketItem => ({
-    id: 'ticket-item-1',
-    ticketId: 'ticket-1',
+    id: ITEM_UUID,
+    ticketId: TICKET_UUID,
     name: 'Khoang 1',
     description: 'Ghe mem dieu hoa',
     coachCode: 'A1',
@@ -58,8 +66,10 @@ describe('TicketService', () => {
     ...overrides,
   });
 
-  const buildTicket = (overrides: Partial<Ticket> = {}): Ticket => ({
-    id: 'ticket-1',
+  const buildTicket = (
+    overrides: Partial<TicketWithItems> = {},
+  ): TicketWithItems => ({
+    id: TICKET_UUID,
     title: 'Tau Sai Gon - Nha Trang',
     trainNumber: 'SE1',
     departureStationCode: 'SG',
@@ -79,15 +89,20 @@ describe('TicketService', () => {
 
   beforeEach(() => {
     prisma = {
-      $transaction: jest.fn().mockImplementation(async (callback) => callback()),
+      // Interactive transaction mock: pass the prisma mock itself as `tx`.
+      $transaction: jest.fn().mockImplementation(async (callback) => callback(prisma)),
+      $queryRaw: jest.fn().mockResolvedValue([{ id: TICKET_UUID }]),
       ticket: {
         create: jest.fn(),
         count: jest.fn(),
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
-        updateMany: jest.fn(),
-        findUnique: jest.fn(),
+      },
+      ticketItem: {
+        create: jest.fn(),
+        createMany: jest.fn(),
+        update: jest.fn(),
       },
     };
 
@@ -126,9 +141,10 @@ describe('TicketService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should create a ticket, normalize fields, and invalidate list cache', async () => {
+  it('should create a ticket + item rows, normalize fields, and invalidate list cache', async () => {
     const created = buildTicket();
     prisma.ticket.create.mockResolvedValue(created);
+    prisma.ticketItem.createMany.mockResolvedValue({ count: 1 });
     redisCache.patternDel.mockResolvedValue(1);
 
     const result = await service.create({
@@ -153,27 +169,28 @@ describe('TicketService', () => {
     expect(prisma.ticket.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          id: expect.any(String),
           title: 'Tau Sai Gon - Nha Trang',
           trainNumber: 'SE1',
           departureStationCode: 'SG',
           arrivalStationCode: 'NT',
           journeyNote: 'Dem',
           status: TicketStatus.Draft,
-          ticketItems: {
-            set: [
-              expect.objectContaining({
-                ticketId: expect.any(String),
-                seatLabels: ['A01', 'A02'],
-                availableSeatLabels: ['A01', 'A02'],
-                stockInitial: 2,
-                stockAvailable: 2,
-                stockPrepared: true,
-              }),
-            ],
-          },
         }),
       }),
     );
+    expect(prisma.ticketItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          ticketId: expect.any(String),
+          seatLabels: ['A01', 'A02'],
+          availableSeatLabels: ['A01', 'A02'],
+          stockInitial: 2,
+          stockAvailable: 2,
+          stockPrepared: true,
+        }),
+      ],
+    });
     expect(redisCache.patternDel).toHaveBeenCalledWith('tickets:*');
     expect(result.id).toBe(created.id);
     expect(result.ticketItems).toHaveLength(1);
@@ -183,7 +200,7 @@ describe('TicketService', () => {
     const cached = {
       data: [
         {
-          id: 'ticket-1',
+          id: TICKET_UUID,
           title: 'Cached ticket',
         },
       ],
@@ -224,7 +241,7 @@ describe('TicketService', () => {
 
     expect(prisma.ticket.count).toHaveBeenCalledWith({
       where: {
-        OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
+        deletedAt: null,
         departureStationCode: 'SG',
         arrivalStationCode: 'NT',
         status: TicketStatus.Draft,
@@ -236,7 +253,7 @@ describe('TicketService', () => {
     });
     expect(prisma.ticket.findMany).toHaveBeenCalledWith({
       where: {
-        OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
+        deletedAt: null,
         departureStationCode: 'SG',
         arrivalStationCode: 'NT',
         status: TicketStatus.Draft,
@@ -246,6 +263,7 @@ describe('TicketService', () => {
         },
       },
       orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
+      include: { ticketItems: true },
       skip: 5,
       take: 5,
     });
@@ -263,53 +281,64 @@ describe('TicketService', () => {
     expect(result.data[0].id).toBe(ticket.id);
   });
 
-  it('should reserve a seat and invalidate derived caches', async () => {
+  it('should reserve a seat inside a FOR UPDATE row lock and invalidate derived caches', async () => {
     const ticket = buildTicket();
-    const updated = buildTicket({
-      ticketItems: [
-        buildTicketItem({
-          availableSeatLabels: ['A02'],
-          stockAvailable: 1,
-        }),
-      ],
-    });
     prisma.ticket.findFirst.mockResolvedValue(ticket);
-    prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
-    prisma.ticket.findUnique.mockResolvedValue(updated);
+    prisma.ticketItem.update.mockResolvedValue(
+      buildTicketItem({
+        availableSeatLabels: ['A02'],
+        stockAvailable: 1,
+      }),
+    );
     redisCache.del.mockResolvedValue(1);
     redisCache.patternDel.mockResolvedValue(1);
 
-    const result = await service.reserveSeat('ticket-1', 'ticket-item-1', {
+    const result = await service.reserveSeat(TICKET_UUID, ITEM_UUID, {
       seatLabel: 'A01',
     });
 
-    expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ticket-1', updatedAt: ticket.updatedAt },
-      data: {
-        ticketItems: {
-          set: [
-            expect.objectContaining({
-              id: 'ticket-item-1',
-              availableSeatLabels: ['A02'],
-              stockAvailable: 1,
-            }),
-          ],
-        },
-        updatedAt: expect.any(Date),
-      },
+    // Row lock taken on the ticket row before reading/writing
+    expect(prisma.$queryRaw).toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+
+    // Single-row UPDATE on ticket_items — no more full-array overwrite
+    expect(prisma.ticketItem.update).toHaveBeenCalledWith({
+      where: { id: ITEM_UUID },
+      data: expect.objectContaining({
+        availableSeatLabels: ['A02'],
+        stockAvailable: 1,
+      }),
     });
-    expect(redisCache.del).toHaveBeenCalledWith('ticket:ticket-1');
-    expect(redisCache.del).toHaveBeenCalledWith('ticket:availability:ticket-1');
-    expect(redisCache.del).toHaveBeenCalledWith('ticket:seat-map:ticket-1');
+    expect(prisma.ticket.update).not.toHaveBeenCalled();
+
+    expect(redisCache.del).toHaveBeenCalledWith(`ticket:${TICKET_UUID}`);
+    expect(redisCache.del).toHaveBeenCalledWith(
+      `ticket:availability:${TICKET_UUID}`,
+    );
+    expect(redisCache.del).toHaveBeenCalledWith(
+      `ticket:seat-map:${TICKET_UUID}`,
+    );
     expect(redisCache.patternDel).not.toHaveBeenCalled();
     expect(redisCache.using).toHaveBeenCalledWith(
-      ['lock:ticket:reserve:ticket-1:seat:A01'],
+      [`lock:ticket:reserve:${TICKET_UUID}:seat:A01`],
       10000,
       { retryCount: 100, retryDelay: 50, retryJitter: 0 },
       expect.any(Function),
     );
     expect(result.availableSeatLabels).toEqual(['A02']);
     expect(result.stockAvailable).toBe(1);
+  });
+
+  it('should reject non-UUID ticket ids before touching the database', async () => {
+    await expect(
+      service.reserveSeat('not-a-uuid', ITEM_UUID, { seatLabel: 'A01' }),
+    ).rejects.toMatchObject({
+      message: 'Ticket not-a-uuid was not found',
+      status: HttpStatus.NOT_FOUND,
+    });
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
   });
 
   it('should reject releasing aggregate stock beyond the initial amount', async () => {
@@ -326,8 +355,8 @@ describe('TicketService', () => {
     );
 
     await expect(
-      service.release('ticket-1', {
-        ticketItemId: 'ticket-item-1',
+      service.release(TICKET_UUID, {
+        ticketItemId: ITEM_UUID,
         quantity: 1,
       }),
     ).rejects.toMatchObject({
@@ -335,14 +364,14 @@ describe('TicketService', () => {
       status: HttpStatus.CONFLICT,
     });
 
-    expect(prisma.ticket.updateMany).not.toHaveBeenCalled();
+    expect(prisma.ticketItem.update).not.toHaveBeenCalled();
   });
 
   it('should fail-fast (throw 503) if lock acquisition fails during cache miss', async () => {
     redisCache.get.mockResolvedValue(null);
     redisCache.acquireLock.mockResolvedValue(null); // Lock acquisition fails
 
-    await expect(service.findOne('ticket-1')).rejects.toThrow(
+    await expect(service.findOne(TICKET_UUID)).rejects.toThrow(
       new HttpException(
         'The system is currently experiencing high load, please try again.',
         HttpStatus.SERVICE_UNAVAILABLE,
@@ -363,9 +392,9 @@ describe('TicketService', () => {
 
     // Call findOne concurrently multiple times
     const promises = [
-      service.findOne('ticket-1'),
-      service.findOne('ticket-1'),
-      service.findOne('ticket-1'),
+      service.findOne(TICKET_UUID),
+      service.findOne(TICKET_UUID),
+      service.findOne(TICKET_UUID),
     ];
 
     const results = await Promise.all(promises);

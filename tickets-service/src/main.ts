@@ -3,8 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { TicketModule } from './ticket.module';
 import { Transport } from '@nestjs/microservices';
 
-import { MicroserviceExceptionFilter } from './common/filter/microservice-exception.filter';
-import { RmqAckInterceptor } from './rmq-ack.interceptor';
+import { MicroserviceExceptionFilter } from './common/filters/microservice-exception.filter';
+import { RmqAckInterceptor } from './common/interceptors/rmq-ack.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(TicketModule, {

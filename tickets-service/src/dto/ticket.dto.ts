@@ -402,8 +402,8 @@ export interface TicketItemResponse {
   stockInitial: number | null;
   stockAvailable: number | null;
   stockPrepared: boolean;
-  priceOriginal: number | null;
-  priceFlash: number | null;
+  priceOriginal: string | null;
+  priceFlash: string | null;
   saleStartTime: string | null;
   saleEndTime: string | null;
   createdAt: string | null;
@@ -446,3 +446,4 @@ export interface PaginatedTicketResponse {
     totalPages: number;
   };
 }
+

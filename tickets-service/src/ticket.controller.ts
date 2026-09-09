@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TicketService } from './ticket.service';
-import { SearchTripsQuery } from './search.dto';
+import { SearchTripsQuery } from './dto/search.dto';
 import {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
@@ -16,7 +16,7 @@ import {
   ReserveTicketRequest,
   UpdateTicketItemRequest,
   UpdateTicketRequest,
-} from './ticket.dto';
+} from './dto/ticket.dto';
 
 @Controller('tickets')
 export class TicketController {

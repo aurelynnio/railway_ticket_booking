@@ -3,6 +3,27 @@ import { Redis_Client, Redis_Replica_Clients } from './redis.constants';
 import Redis from 'ioredis';
 import Redlock, { Lock } from 'redlock';
 
+// The installed redlock exposes `using` at runtime; declare a local shape so we
+// don't depend on the library's exact TS type resolution for auto-extension.
+type UsingSignal = AbortSignal & { error?: Error };
+
+interface RedlockUsing {
+  using<T>(
+    resources: string[],
+    duration: number,
+    settings: {
+      retryCount?: number;
+      retryDelay?: number;
+      retryJitter?: number;
+    },
+    routine: (signal: UsingSignal) => Promise<T>,
+  ): Promise<T>;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 @Injectable()
 export class RedisCacheService {
   private readonly logger = new Logger(RedisCacheService.name);
@@ -92,7 +113,9 @@ export class RedisCacheService {
         retryJitter: 0,
       });
     } catch (error) {
-      this.logger.warn(`Failed to acquire lock for ${key}: ${error}`);
+      this.logger.warn(
+        `Failed to acquire lock for ${key}: ${getErrorMessage(error)}`,
+      );
       return null;
     }
   }
@@ -102,8 +125,34 @@ export class RedisCacheService {
       await lock.release();
     } catch (error) {
       // Lock may have already expired — safe to ignore
-      this.logger.warn(`Failed to release lock (may have expired): ${error}`);
+      this.logger.warn(
+        `Failed to release lock (may have expired): ${getErrorMessage(error)}`,
+      );
     }
+  }
+
+  /**
+   * Runs `routine` while holding an automatically-extending distributed lock on
+   * all `resources`. redlock keeps the lock alive for as long as the routine
+   * runs (and acquires all resources atomically, avoiding deadlocks), so the
+   * lock can no longer expire mid-operation on long reservations.
+   */
+  async using<T>(
+    resources: string[],
+    ttlMs: number,
+    settings: {
+      retryCount?: number;
+      retryDelay?: number;
+      retryJitter?: number;
+    },
+    routine: (signal: UsingSignal) => Promise<T>,
+  ): Promise<T> {
+    return (this.redlock as unknown as RedlockUsing).using(
+      resources,
+      ttlMs,
+      settings,
+      routine,
+    );
   }
 
   // Expose master & replicas cho ai cần truy cập trực tiếp

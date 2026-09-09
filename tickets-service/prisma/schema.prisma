@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Ticket {
-  id                   String       @id @default(uuid()) @map("_id")
+  id                   String       @id @default(uuid()) @db.Uuid
   title                String?
   trainNumber          String?      @map("train_number")
   departureStationCode String?      @map("departure_station_code")
@@ -27,12 +27,13 @@ model Ticket {
   @@index([status, dateStart])
   @@index([departureStationCode, arrivalStationCode])
   @@index([trainNumber])
-  @@map("ticket")
+  @@map("tickets")
 }
 
-type TicketItem {
-  id                  String    @default(uuid())
-  ticketId            String?   @map("ticket_id")
+model TicketItem {
+  id                  String    @id @default(uuid()) @db.Uuid
+  ticketId            String    @map("ticket_id") @db.Uuid
+  ticket              Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   name                String?
   description         String?
   coachCode           String?   @map("coach_code")
@@ -50,4 +51,7 @@ type TicketItem {
   createdAt           DateTime? @map("created_at")
   updatedAt           DateTime? @map("updated_at")
   deletedAt           DateTime? @map("deleted_at")
+
+  @@index([ticketId])
+  @@map("ticket_items")
 }
