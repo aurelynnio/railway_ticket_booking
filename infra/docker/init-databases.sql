@@ -8,9 +8,6 @@
 CREATE DATABASE railway_auth
   WITH ENCODING 'UTF8' LC_COLLATE 'en_US.utf8' LC_CTYPE 'en_US.utf8' TEMPLATE template0;
 
-CREATE DATABASE railway_users
-  WITH ENCODING 'UTF8' LC_COLLATE 'en_US.utf8' LC_CTYPE 'en_US.utf8' TEMPLATE template0;
-
 CREATE DATABASE railway_orders
   WITH ENCODING 'UTF8' LC_COLLATE 'en_US.utf8' LC_CTYPE 'en_US.utf8' TEMPLATE template0;
 
@@ -20,9 +17,12 @@ CREATE DATABASE railway_payments
 CREATE DATABASE railway_notifications
   WITH ENCODING 'UTF8' LC_COLLATE 'en_US.utf8' LC_CTYPE 'en_US.utf8' TEMPLATE template0;
 
--- Grant access to the application user (created by POSTGRES_USER env)
-GRANT ALL PRIVILEGES ON DATABASE railway_auth TO app;
-GRANT ALL PRIVILEGES ON DATABASE railway_users TO app;
-GRANT ALL PRIVILEGES ON DATABASE railway_orders TO app;
-GRANT ALL PRIVILEGES ON DATABASE railway_payments TO app;
-GRANT ALL PRIVILEGES ON DATABASE railway_notifications TO app;
+CREATE DATABASE railway_tickets
+  WITH ENCODING 'UTF8' LC_COLLATE 'en_US.utf8' LC_CTYPE 'en_US.utf8' TEMPLATE template0;
+
+-- Grant access to the application user created from POSTGRES_USER.
+GRANT ALL PRIVILEGES ON DATABASE railway_auth TO CURRENT_USER;
+GRANT ALL PRIVILEGES ON DATABASE railway_orders TO CURRENT_USER;
+GRANT ALL PRIVILEGES ON DATABASE railway_payments TO CURRENT_USER;
+GRANT ALL PRIVILEGES ON DATABASE railway_notifications TO CURRENT_USER;
+GRANT ALL PRIVILEGES ON DATABASE railway_tickets TO CURRENT_USER;

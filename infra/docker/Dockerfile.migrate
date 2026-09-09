@@ -1,0 +1,33 @@
+FROM node:20-alpine AS dependencies
+
+WORKDIR /workspace
+
+COPY auth-service/package*.json ./auth-service/
+COPY orders-service/package*.json ./orders-service/
+COPY payments-service/package*.json ./payments-service/
+COPY notification-service/package*.json ./notification-service/
+COPY tickets-service/package*.json ./tickets-service/
+
+RUN set -eux; \
+    for service in auth-service orders-service payments-service notification-service tickets-service; do \
+      cd "/workspace/$service"; \
+      npm ci; \
+    done
+
+FROM node:20-alpine AS runner
+
+WORKDIR /workspace
+
+COPY --from=dependencies /workspace ./
+COPY auth-service/prisma ./auth-service/prisma
+COPY auth-service/prisma.config.ts ./auth-service/prisma.config.ts
+COPY orders-service/prisma ./orders-service/prisma
+COPY payments-service/prisma ./payments-service/prisma
+COPY notification-service/prisma ./notification-service/prisma
+COPY tickets-service/prisma ./tickets-service/prisma
+COPY infra/docker/run-migrations.sh /usr/local/bin/run-migrations
+
+RUN chmod 0555 /usr/local/bin/run-migrations
+
+USER node
+ENTRYPOINT ["/usr/local/bin/run-migrations"]

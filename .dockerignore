@@ -1,0 +1,11 @@
+# Build context is the repo root (infra/docker/Dockerfile.migrate uses ../..)
+**/node_modules
+**/dist
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+.git
+**/coverage
+**/*.tsbuildinfo
+client/.next
