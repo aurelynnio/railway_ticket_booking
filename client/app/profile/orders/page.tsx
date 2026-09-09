@@ -2,264 +2,133 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Download, ExternalLink, Receipt, MapPin, Clock, Users, Train } from "lucide-react";
-
-import { Panel } from "@/components/shell/app-shell";
 import {
-  EmptyState,
-  PaginationBar,
-  StatusBadge,
-  compactId,
-} from "@/components/ui/railway-ui";
+  ShoppingCart,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+
+import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-import { useAuthSession } from "@/hooks/auth.hook";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOrders } from "@/hooks/order.hook";
-import {
-  formatCurrency,
-  formatDateTime,
-  formatOrderStatus,
-  getOrderStatusTone,
-} from "@/lib/formatters";
-import { OrderResponse } from "@/lib/api-types";
+import { formatCurrency, formatDateTime, formatOrderStatus, getOrderStatusTone } from "@/lib/formatters";
 
 export default function ProfileOrdersPage() {
-  const sessionQuery = useAuthSession();
   const [page, setPage] = useState(1);
-  const sessionUserId = sessionQuery.data?.userId;
-
-  const query = useOrders(
-    {
-      page,
-      limit: 8,
-      userId: sessionUserId,
-    },
-    Boolean(sessionUserId),
-  );
-
+  const query = useOrders({ page, limit: 10 });
   const orders = query.data?.data ?? [];
   const pagination = query.data?.pagination;
 
   return (
-    <Panel
-      eyebrow="Lịch sử"
-      title="Đơn hàng của tôi"
-      description="Theo dõi đơn hàng, trạng thái thanh toán và chi tiết vé đã đặt."
-      action={
-        orders.length > 0 ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            id="export-orders-csv"
-            onClick={() => exportOrdersToCsv(orders)}
-            className="gap-2"
-          >
-            <Download className="size-3.5" />
-            Xuất CSV
-          </Button>
-        ) : null
-      }
-    >
-      <div className="space-y-5">
-        {!sessionUserId && !sessionQuery.isLoading ? (
-          <EmptyState
-            title="Cần đăng nhập"
-            description="Bạn cần đăng nhập để xem đơn hàng cá nhân."
-            href="/login"
-            cta="Mở đăng nhập"
-          />
-        ) : null}
+    <AppLayout>
+      <div className="border-b border-border bg-card/30">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-accent">
+            <span className="h-px w-10 bg-accent" />
+            Tài khoản
+          </span>
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+            Đơn hàng của tôi
+          </h1>
+        </div>
+      </div>
 
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {query.isLoading ? (
-          <div className="grid gap-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-40 animate-pulse rounded-sm border border-border bg-muted/40" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl border border-border bg-card p-6">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="mt-4 h-16 w-full" />
+              </div>
             ))}
           </div>
-        ) : null}
-
-        {!query.isLoading && !query.isError && orders.length === 0 && sessionUserId ? (
-          <EmptyState
-            title="Chưa có đơn hàng nào"
-            description="Bạn chưa có đơn hàng nào. Tìm chuyến và đặt vé ngay."
-            href="/search"
-            cta="Tìm chuyến ngay"
-          />
-        ) : null}
-
-        <div className="grid gap-4">
-          {orders.map((order) => (
-            <Card key={order.id} variant="outlined" padding="none" className="overflow-hidden">
-              <CardContent className="p-0">
-                <div className="grid md:grid-cols-[1fr_auto]">
-                  <div className="p-5 md:p-6 space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Receipt className="size-3.5 text-ink-muted" />
-                          <span className="mono text-xs font-medium tabular-nums text-ink-muted">
-                            Đơn #{compactId(order.id)}
-                          </span>
-                          {order.trainNumber ? (
-                            <>
-                              <span className="text-ink-muted">·</span>
-                              <span className="mono text-xs font-medium text-ink-muted flex items-center gap-1">
-                                <Train className="size-3" />
-                                {order.trainNumber}
-                              </span>
-                            </>
-                          ) : null}
-                        </div>
-                        <h3 className="font-display text-lg font-semibold tracking-tight text-ink">
-                          {order.ticketTitle}
-                        </h3>
+        ) : orders.length === 0 ? (
+          <Card variant="outlined" padding="lg" className="text-center py-16">
+            <ShoppingCart className="mx-auto size-12 text-ink-subtle" />
+            <p className="mt-4 font-display text-xl font-semibold text-ink">
+              Chưa có đơn hàng
+            </p>
+            <p className="mt-2 text-sm text-ink-muted">
+              Bắt đầu hành trình đầu tiên của bạn.
+            </p>
+            <Button asChild variant="accent" className="mt-5">
+              <Link href="/search">
+                Tìm chuyến
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {orders.map((order) => (
+              <Link key={order.id} href={`/orders/${order.id}`} className="group block">
+                <Card variant="outlined" padding="lg" interactive>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex size-12 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                        <ShoppingCart className="size-5" />
                       </div>
-                      <StatusBadge
-                        label={formatOrderStatus(order.status)}
-                        tone={getOrderStatusTone(order.status)}
-                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-ink">
+                            #{order.id?.slice(0, 8).toUpperCase()}
+                          </span>
+                          <Badge variant={getOrderStatusTone(order.status)}>
+                            {formatOrderStatus(order.status)}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-ink-muted">
+                          {formatDateTime(order.createdAt)}
+                        </p>
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                      <div className="flex items-start gap-2">
-                        <MapPin className="size-3.5 text-primary shrink-0 mt-0.5" />
-                        <div className="text-sm">
-                          <span className="text-ink font-medium">
-                            {order.departureStationName ?? order.departureStationCode ?? "?"}
-                          </span>
-                          <span className="text-ink-muted mx-1">→</span>
-                          <span className="text-ink font-medium">
-                            {order.arrivalStationName ?? order.arrivalStationCode ?? "?"}
-                          </span>
-                        </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <p className="text-[11px] uppercase tracking-wider text-ink-muted">
+                          Tổng tiền
+                        </p>
+                        <p className="font-display text-xl font-bold tabular-nums text-primary">
+                          {formatCurrency(order.totalPrice ?? "0")}
+                        </p>
                       </div>
-                      {order.departureTime ? (
-                        <div className="flex items-center gap-2">
-                          <Clock className="size-3.5 text-ink-muted shrink-0" />
-                          <span className="mono text-xs tabular-nums text-ink-muted">
-                            {formatDateTime(order.departureTime)}
-                          </span>
-                        </div>
-                      ) : null}
-                      <div className="flex items-center gap-2">
-                        <Users className="size-3.5 text-ink-muted shrink-0" />
-                        <span className="text-sm text-ink-muted">
-                          {order.quantity} vé
-                          {order.seatLabels.length > 0 ? (
-                            <span className="ml-2 inline-flex flex-wrap gap-1">
-                              {order.seatLabels.map((seat) => (
-                                <Badge key={seat} variant="outline" className="mono tabular-nums text-[10px] h-5">
-                                  {seat}
-                                </Badge>
-                              ))}
-                            </span>
-                          ) : null}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="mono text-xs tabular-nums text-ink-muted">
-                          Đặt lúc: {formatDateTime(order.createdAt)}
-                        </span>
-                      </div>
+                      <ArrowRight className="size-4 text-ink-subtle transition-transform group-hover:translate-x-1 group-hover:text-primary" />
                     </div>
                   </div>
+                </Card>
+              </Link>
+            ))}
 
-                  <div className="border-t border-border md:border-t-0 md:border-l bg-muted/30 p-5 md:p-6 flex flex-col justify-between gap-4 min-w-[180px]">
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                        Tổng tiền
-                      </div>
-                      <div className="font-display text-2xl font-semibold tabular-nums text-ink mono">
-                        {formatCurrency(order.totalPrice)}
-                      </div>
-                    </div>
-                    <Button asChild variant="outline" size="sm" className="gap-1.5 w-full">
-                      <Link href={`/profile/orders/${order.id}`}>
-                        Chi tiết
-                        <ExternalLink className="size-3" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {pagination ? (
-          <PaginationBar
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            onPrev={() => setPage((current) => Math.max(1, current - 1))}
-            onNext={() =>
-              setPage((current) =>
-                pagination.totalPages === 0
-                  ? current
-                  : Math.min(pagination.totalPages, current + 1),
-              )
-            }
-          />
-        ) : null}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <span className="text-sm text-ink-muted">
+                  {page} / {pagination.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </Panel>
+    </AppLayout>
   );
-}
-
-function exportOrdersToCsv(orders: OrderResponse[]) {
-  const headers = [
-    "Order ID",
-    "Ticket Title",
-    "Route",
-    "Departure Time",
-    "Arrival Time",
-    "Train Number",
-    "Seat Labels",
-    "Passengers",
-    "Quantity",
-    "Unit Price",
-    "Total Price",
-    "Status",
-    "Ticket Code",
-    "Created At",
-  ];
-
-  const rows = orders.map((order) => [
-    order.id,
-    order.ticketTitle,
-    `${order.departureStationName ?? order.departureStationCode ?? "?"} -> ${order.arrivalStationName ?? order.arrivalStationCode ?? "?"}`,
-    order.departureTime ?? "",
-    order.arrivalTime ?? "",
-    order.trainNumber ?? "",
-    order.seatLabels.join(" | "),
-    order.passengers.map((p) => p.fullName).join(" | "),
-    String(order.quantity),
-    String(order.unitPrice),
-    String(order.totalPrice),
-    String(order.status),
-    order.ticketCode ?? "",
-    order.createdAt,
-  ]);
-
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-    ),
-  ].join("\n");
-
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", `orders-${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }

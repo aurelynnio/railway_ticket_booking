@@ -1,200 +1,95 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, BellRing, CheckCircle, Mail } from "lucide-react";
+import { Bell } from "lucide-react";
 
-import { Panel } from "@/components/shell/app-shell";
-import {
-  EmptyState,
-  PaginationBar,
-  StatusBadge,
-} from "@/components/ui/railway-ui";
+import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-import { useAuthSession } from "@/hooks/auth.hook";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMyNotifications } from "@/hooks/notification.hook";
 import { formatDateTime } from "@/lib/formatters";
 
-function getNotificationIcon(type: string) {
-  switch (type) {
-    case "order_created":
-      return <BellRing className="size-4 text-warning" strokeWidth={1.75} />;
-    case "payment_paid":
-      return <CheckCircle className="size-4 text-success" strokeWidth={1.75} />;
-    case "password_reset":
-      return <Mail className="size-4 text-primary" strokeWidth={1.75} />;
-    case "user_registered":
-      return <Bell className="size-4 text-primary" strokeWidth={1.75} />;
-    default:
-      return <Bell className="size-4 text-ink-muted" strokeWidth={1.75} />;
-  }
-}
-
-function formatNotificationType(type: string): string {
-  switch (type) {
-    case "order_created":
-      return "Đơn hàng mới";
-    case "payment_paid":
-      return "Thanh toán thành công";
-    case "password_reset":
-      return "Đặt lại mật khẩu";
-    case "user_registered":
-      return "Chào mừng";
-    default:
-      return type;
-  }
-}
-
-export default function NotificationsPage() {
-  const sessionQuery = useAuthSession();
-  const [page, setPage] = useState(1);
-
-  const query = useMyNotifications(
-    { page, limit: 10 },
-    Boolean(sessionQuery.data),
-  );
-
+export default function ProfileNotificationsPage() {
+  const [page] = useState(1);
+  const query = useMyNotifications({ page, limit: 20 });
   const notifications = query.data?.data ?? [];
-  const pagination = query.data?.pagination;
-
-  const sent = notifications.filter((n) => n.status === "sent").length;
-  const failed = notifications.filter((n) => n.status === "failed").length;
 
   return (
-    <>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card variant="outlined" padding="lg" className="gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-            Tổng thông báo
-          </p>
-          <p className="font-display text-3xl font-semibold tracking-tight text-ink tabular-nums">
-            {pagination?.total ?? 0}
-          </p>
-          <p className="text-sm leading-relaxed text-ink-muted">Tổng số thông báo đã nhận.</p>
-        </Card>
-        <Card variant="outlined" padding="lg" className="gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-            Đã gửi
-          </p>
-          <p className="font-display text-3xl font-semibold tracking-tight text-success tabular-nums">
-            {sent}
-          </p>
-          <p className="text-sm leading-relaxed text-ink-muted">Gửi thành công trang này.</p>
-        </Card>
-        <Card variant="outlined" padding="lg" className="gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-            Thất bại
-          </p>
-          <p className="font-display text-3xl font-semibold tracking-tight text-destructive tabular-nums">
-            {failed}
-          </p>
-          <p className="text-sm leading-relaxed text-ink-muted">Gặp lỗi trong trang này.</p>
-        </Card>
+    <AppLayout>
+      <div className="border-b border-border bg-card/30">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-accent">
+            <span className="h-px w-10 bg-accent" />
+            Tài khoản
+          </span>
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+            Thông báo
+          </h1>
+        </div>
       </div>
 
-      <Panel
-        eyebrow="Nhật ký"
-        title="Thông báo"
-        description="Lịch sử các email đã được hệ thống gửi liên quan đến tài khoản, đơn hàng và thanh toán."
-      >
-        <div className="space-y-5">
-          {!sessionQuery.data && !sessionQuery.isLoading ? (
-            <EmptyState
-              title="Cần đăng nhập"
-              description="Bạn cần đăng nhập để xem lịch sử thông báo."
-              href="/login"
-              cta="Mở đăng nhập"
-            />
-          ) : null}
-
-          {query.isLoading ? (
-            <div className="grid gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-20 animate-pulse rounded-sm border border-border bg-muted/40"
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {!query.isLoading && !query.isError && notifications.length === 0 && sessionQuery.data ? (
-            <EmptyState
-              title="Chưa có thông báo"
-              description="Khi có đơn hàng mới, thanh toán hoặc sự kiện tài khoản, thông báo sẽ xuất hiện ở đây."
-            />
-          ) : null}
-
-          {query.isError ? (
-            <EmptyState
-              title="Không tải được thông báo"
-              description="Không thể kết nối tới dịch vụ thông báo. Vui lòng thử lại sau."
-            />
-          ) : null}
-
-          <div className="grid gap-3">
-            {notifications.map((notification) => (
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+        {query.isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-5">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="mt-3 h-3 w-full" />
+              </div>
+            ))}
+          </div>
+        ) : notifications.length === 0 ? (
+          <Card variant="outlined" padding="lg" className="text-center py-16">
+            <Bell className="mx-auto size-12 text-ink-subtle" />
+            <p className="mt-4 font-display text-xl font-semibold text-ink">
+              Không có thông báo
+            </p>
+            <p className="mt-2 text-sm text-ink-muted">
+              Thông báo mới sẽ xuất hiện ở đây.
+            </p>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {notifications.map((n) => (
               <Card
-                key={notification.id}
+                key={n.id}
                 variant="outlined"
-                padding="none"
-                id={`notification-${notification.id}`}
+                padding="md"
+                className={n.status === "unread" ? "border-primary/30 bg-primary-soft/30" : ""}
               >
-                <CardContent className="p-0">
-                  <div className="grid gap-4 p-5 sm:grid-cols-[auto_1fr_auto]">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-primary-soft/50">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-
-                    <div className="min-w-0 space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-ink">
-                          {notification.subject}
-                        </p>
-                        <Badge variant="secondary">
-                          {formatNotificationType(notification.type)}
-                        </Badge>
-                      </div>
-                      <p className="line-clamp-2 text-sm leading-relaxed text-ink-muted">
-                        {notification.body}
-                      </p>
-                      <p className="mono text-xs tabular-nums text-ink-subtle">
-                        {formatDateTime(notification.createdAt)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-start sm:justify-end">
-                      <StatusBadge
-                        label={notification.status === "sent" ? "Đã gửi" : "Thất bại"}
-                        tone={notification.status === "sent" ? "success" : "destructive"}
-                      />
-                    </div>
+                <div className="flex items-start gap-4">
+                  <div
+                    className={
+                      n.status === "unread"
+                        ? "flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
+                        : "flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-ink-muted"
+                    }
+                  >
+                    <Bell className="size-4" />
                   </div>
-                </CardContent>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-ink">{n.subject}</h3>
+                      {n.status === "unread" && (
+                        <Badge variant="accent" className="text-[10px]">
+                          Mới
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                      {n.body}
+                    </p>
+                    <p className="mt-2 text-xs text-ink-subtle">
+                      {formatDateTime(n.createdAt)}
+                    </p>
+                  </div>
+                </div>
               </Card>
             ))}
           </div>
-
-          {pagination ? (
-            <PaginationBar
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              onPrev={() => setPage((current) => Math.max(1, current - 1))}
-              onNext={() =>
-                setPage((current) =>
-                  pagination.totalPages === 0
-                    ? current
-                    : Math.min(pagination.totalPages, current + 1),
-                )
-              }
-            />
-          ) : null}
-        </div>
-      </Panel>
-    </>
+        )}
+      </div>
+    </AppLayout>
   );
 }

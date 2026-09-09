@@ -27,6 +27,12 @@ export const emailField = z
   .min(1, "Email là bắt buộc")
   .email("Email không hợp lệ");
 
+export const phoneField = z
+  .string()
+  .trim()
+  .min(1, "Số điện thoại là bắt buộc")
+  .regex(/^[0-9+() -]{8,15}$/, "Số điện thoại không hợp lệ");
+
 export const passwordField = z
   .string()
   .min(6, "Mật khẩu phải có ít nhất 6 ký tự");

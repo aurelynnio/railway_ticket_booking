@@ -13,6 +13,12 @@ export interface SearchTripsQuery {
   from?: string;
   to?: string;
   date?: string;
+  /** Server-side sort: recommended (available seats) | price | departure. */
+  sort?: "recommended" | "price" | "departure";
+  /** Server-side filter: departure time of day. */
+  timeOfDay?: "morning" | "afternoon" | "evening";
+  /** Server-side filter: seat class bucket (ngồi / nằm). */
+  seatClass?: "seat" | "sleeper";
   page?: number;
   limit?: number;
 }

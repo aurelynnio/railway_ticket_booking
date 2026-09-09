@@ -1,284 +1,115 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ArrowLeft, Save } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { AppShell, Panel } from "@/components/shell/app-shell";
-import { FormField } from "@/components/ui/form-field";
-import { NoticeBox } from "@/components/ui/railway-ui";
+import { AdminLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateTicket } from "@/hooks/ticket.hook";
-import {
-  integerText,
-  optionalDateTimeText,
-  optionalText,
-  requiredCsvText,
-  requiredText,
-  splitCsv,
-  toOptionalIsoDateTime,
-  toOptionalString,
-} from "@/lib/validation";
 
-const createTicketSchema = z
-  .object({
-    title: requiredText("Tên vé"),
-    trainNumber: optionalText(),
-    departureCode: requiredText("Mã ga đi"),
-    departureName: requiredText("Tên ga đi"),
-    arrivalCode: requiredText("Mã ga đến"),
-    arrivalName: requiredText("Tên ga đến"),
-    journeyNote: optionalText(),
-    dateStart: optionalDateTimeText("Giờ khởi hành"),
-    dateEnd: optionalDateTimeText("Giờ đến"),
-    coachCode: requiredText("Mã toa"),
-    seatClass: requiredText("Hạng ghế"),
-    seatType: optionalText(),
-    seatLabels: requiredCsvText("Danh sách ghế"),
-    priceOriginal: integerText("Giá gốc", 0),
-    priceFlash: optionalText().refine(
-      (value) => value.length === 0 || /^\d+$/.test(value),
-      "Giá flash phải là số nguyên không âm",
-    ),
-  })
-  .refine(
-    (values) =>
-      !values.dateStart ||
-      !values.dateEnd ||
-      new Date(values.dateEnd).getTime() >=
-        new Date(values.dateStart).getTime(),
-    {
-      message: "Giờ đến phải sau giờ khởi hành",
-      path: ["dateEnd"],
-    },
-  );
+const schema = z.object({
+  title: z.string().min(1, "Vui lòng nhập tiêu đề"),
+  trainNumber: z.string().min(1, "Vui lòng nhập số tàu"),
+  departureStationCode: z.string().min(1),
+  departureStationName: z.string().min(1),
+  arrivalStationCode: z.string().min(1),
+  arrivalStationName: z.string().min(1),
+  dateStart: z.string().min(1),
+  dateEnd: z.string().min(1),
+  journeyNote: z.string().optional(),
+});
 
-export default function AdminTicketNewPage() {
+export default function AdminNewTicketPage() {
   const router = useRouter();
-  const createTicket = useCreateTicket();
-  const form = useForm<z.infer<typeof createTicketSchema>>({
-    resolver: zodResolver(createTicketSchema),
+  const create = useCreateTicket();
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
     defaultValues: {
       title: "",
       trainNumber: "",
-      departureCode: "",
-      departureName: "",
-      arrivalCode: "",
-      arrivalName: "",
-      journeyNote: "",
+      departureStationCode: "",
+      departureStationName: "",
+      arrivalStationCode: "",
+      arrivalStationName: "",
       dateStart: "",
       dateEnd: "",
-      coachCode: "",
-      seatClass: "",
-      seatType: "",
-      seatLabels: "",
-      priceOriginal: "",
-      priceFlash: "",
+      journeyNote: "",
     },
   });
 
+  const onSubmit = form.handleSubmit((values) => {
+    create.mutate(values, {
+      onSuccess: (data) => router.push(`/admin/tickets/${data.id}`),
+    });
+  });
+
   return (
-    <AppShell
-      title="Tạo vé mới"
-      description="Thiết lập hành trình, lịch chạy và hạng ghế đầu tiên để mở bán."
-    >
-      <Panel
-        eyebrow="Tạo vé"
-        title="Thông tin hành trình"
-        description="Nhập tuyến, thời gian và danh sách ghế cho hạng vé mặc định."
-      >
-        <NoticeBox
-          title="Quy trình tạo vé"
-          description="Tạo hành trình trước, sau đó vào trang chi tiết để mở bán, chuẩn bị tồn chỗ và bổ sung thêm hạng ghế."
-          tone="secondary"
-        />
-        <form
-          className="mt-6 grid gap-4 xl:grid-cols-2"
-          onSubmit={form.handleSubmit(async (values) => {
-            const parsedSeatLabels = splitCsv(values.seatLabels);
-            const result = await createTicket.mutateAsync({
-              title: values.title,
-              trainNumber: toOptionalString(values.trainNumber),
-              departureStationCode: values.departureCode,
-              departureStationName: values.departureName,
-              arrivalStationCode: values.arrivalCode,
-              arrivalStationName: values.arrivalName,
-              journeyNote: toOptionalString(values.journeyNote),
-              dateStart: toOptionalIsoDateTime(values.dateStart),
-              dateEnd: toOptionalIsoDateTime(values.dateEnd),
-              ticketItems: [
-                {
-                  coachCode: values.coachCode,
-                  seatClass: values.seatClass,
-                  seatType: toOptionalString(values.seatType),
-                  seatLabels: parsedSeatLabels,
-                  availableSeatLabels: parsedSeatLabels,
-                  stockInitial: parsedSeatLabels.length,
-                  stockAvailable: parsedSeatLabels.length,
-                  priceOriginal: values.priceOriginal,
-                  priceFlash: toOptionalString(values.priceFlash),
-                },
-              ],
-            });
-
-            router.push(`/admin/tickets/${result.id}`);
-          })}
-        >
-          <FormField
-            label="Tên vé"
-            error={form.formState.errors.title?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.title)}
-              {...form.register("title")}
-            />
-          </FormField>
-          <FormField
-            label="Số tàu"
-            error={form.formState.errors.trainNumber?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.trainNumber)}
-              {...form.register("trainNumber")}
-            />
-          </FormField>
-          <FormField
-            label="Mã ga đi"
-            error={form.formState.errors.departureCode?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.departureCode)}
-              {...form.register("departureCode")}
-            />
-          </FormField>
-          <FormField
-            label="Tên ga đi"
-            error={form.formState.errors.departureName?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.departureName)}
-              {...form.register("departureName")}
-            />
-          </FormField>
-          <FormField
-            label="Mã ga đến"
-            error={form.formState.errors.arrivalCode?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.arrivalCode)}
-              {...form.register("arrivalCode")}
-            />
-          </FormField>
-          <FormField
-            label="Tên ga đến"
-            error={form.formState.errors.arrivalName?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.arrivalName)}
-              {...form.register("arrivalName")}
-            />
-          </FormField>
-          <FormField
-            label="Khởi hành"
-            error={form.formState.errors.dateStart?.message}
-          >
-            <Input
-              type="datetime-local"
-              aria-invalid={Boolean(form.formState.errors.dateStart)}
-              {...form.register("dateStart")}
-            />
-          </FormField>
-          <FormField
-            label="Đến nơi"
-            error={form.formState.errors.dateEnd?.message}
-          >
-            <Input
-              type="datetime-local"
-              aria-invalid={Boolean(form.formState.errors.dateEnd)}
-              {...form.register("dateEnd")}
-            />
-          </FormField>
-          <FormField
-            label="Mã toa"
-            error={form.formState.errors.coachCode?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.coachCode)}
-              {...form.register("coachCode")}
-            />
-          </FormField>
-          <FormField
-            label="Hạng ghế"
-            error={form.formState.errors.seatClass?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.seatClass)}
-              {...form.register("seatClass")}
-            />
-          </FormField>
-          <FormField
-            label="Loại ghế"
-            error={form.formState.errors.seatType?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.seatType)}
-              {...form.register("seatType")}
-            />
-          </FormField>
-          <FormField
-            label="Giá gốc"
-            error={form.formState.errors.priceOriginal?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.priceOriginal)}
-              {...form.register("priceOriginal")}
-            />
-          </FormField>
-          <FormField
-            label="Giá ưu đãi"
-            error={form.formState.errors.priceFlash?.message}
-          >
-            <Input
-              aria-invalid={Boolean(form.formState.errors.priceFlash)}
-              {...form.register("priceFlash")}
-            />
-          </FormField>
-          <FormField
-            className="xl:col-span-2"
-            label="Ghi chú hành trình"
-            error={form.formState.errors.journeyNote?.message}
-          >
-            <Textarea
-              aria-invalid={Boolean(form.formState.errors.journeyNote)}
-              {...form.register("journeyNote")}
-            />
-          </FormField>
-          <FormField
-            className="xl:col-span-2"
-            label="Danh sách ghế CSV"
-            hint="Ví dụ A1,A2,A3"
-            error={form.formState.errors.seatLabels?.message}
-          >
-            <Textarea
-              aria-invalid={Boolean(form.formState.errors.seatLabels)}
-              {...form.register("seatLabels")}
-            />
-          </FormField>
-
-          <div className="xl:col-span-2 flex flex-wrap gap-2 pt-2">
-            <Button
-              type="submit"
-              size="sm"
-              disabled={createTicket.isPending}
-            >
-              {createTicket.isPending ? "Đang tạo..." : "Tạo vé"}
+    <AdminLayout title="Tạo vé tàu mới" description="Thêm chuyến tàu vào hệ thống.">
+      <Card variant="outlined" padding="lg">
+        <form onSubmit={onSubmit} className="space-y-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="title">Tiêu đề</Label>
+              <Input id="title" {...form.register("title")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="trainNumber">Số tàu</Label>
+              <Input id="trainNumber" {...form.register("trainNumber")} />
+            </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="depCode">Mã ga đi</Label>
+              <Input id="depCode" {...form.register("departureStationCode")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="depName">Tên ga đi</Label>
+              <Input id="depName" {...form.register("departureStationName")} />
+            </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="arrCode">Mã ga đến</Label>
+              <Input id="arrCode" {...form.register("arrivalStationCode")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="arrName">Tên ga đến</Label>
+              <Input id="arrName" {...form.register("arrivalStationName")} />
+            </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="dateStart">Thời gian khởi hành</Label>
+              <Input id="dateStart" type="datetime-local" {...form.register("dateStart")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dateEnd">Thời gian đến</Label>
+              <Input id="dateEnd" type="datetime-local" {...form.register("dateEnd")} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="note">Ghi chú</Label>
+            <Textarea id="note" {...form.register("journeyNote")} />
+          </div>
+          <div className="flex gap-3">
+            <Button type="submit" variant="accent" disabled={create.isPending}>
+              <Save className="size-4" />
+              {create.isPending ? "Đang tạo..." : "Tạo vé"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="size-4" />
+              Hủy
             </Button>
           </div>
         </form>
-      </Panel>
-    </AppShell>
+      </Card>
+    </AdminLayout>
   );
 }

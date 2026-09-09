@@ -7,6 +7,7 @@ export enum PaymentStatus {
   Failed = 3,
   Cancelled = 4,
   Expired = 5,
+  Refunded = 6,
 }
 
 export interface PaymentDto {

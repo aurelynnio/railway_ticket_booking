@@ -34,16 +34,24 @@ function refreshTokens(): Promise<void> {
       .then(() => {
         // refresh succeeded
       })
-      .catch((err) => {
-        // refresh failed — clear promise so next request can try again
-        refreshPromise = null;
-        throw err;
-      })
       .finally(() => {
+        // Reset in all cases (success or failure) so the next 401 can retry.
         refreshPromise = null;
       });
   }
   return refreshPromise;
+}
+
+/** Known auth endpoints must never trigger the refresh/retry cycle. */
+function isAuthPath(requestUrl: string): boolean {
+  if (!requestUrl) return false;
+  try {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const pathname = new URL(requestUrl, origin).pathname;
+    return pathname.startsWith("/auth/");
+  } catch {
+    return requestUrl.includes("/auth/");
+  }
 }
 
 http.interceptors.response.use(
@@ -53,11 +61,12 @@ http.interceptors.response.use(
       | (typeof error.config & { _retry?: boolean })
       | undefined;
     const requestUrl = String(originalRequest?.url ?? "");
+    const isAuthOrPublicRoute = isAuthPath(requestUrl);
+
     const canAttemptRefresh =
       error.response?.status === 401 &&
       !originalRequest?._retry &&
-      !requestUrl.includes("/auth/login") &&
-      !requestUrl.includes("/auth/refresh-token");
+      !isAuthOrPublicRoute;
 
     if (canAttemptRefresh && originalRequest) {
       originalRequest._retry = true;
@@ -75,16 +84,11 @@ http.interceptors.response.use(
       }
     }
 
-    const isAuthRoute =
-      requestUrl.includes("/auth/login") ||
-      requestUrl.includes("/auth/register") ||
-      requestUrl.includes("/auth/refresh-token");
-
     if (
       error.response?.status === 401 &&
       typeof window !== "undefined" &&
       window.location.pathname !== "/login" &&
-      !isAuthRoute
+      !isAuthOrPublicRoute
     ) {
       window.location.href = loginRedirectUrl();
     }

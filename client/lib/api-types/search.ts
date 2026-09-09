@@ -12,7 +12,7 @@ export interface SearchTripResponse {
   };
   dateStart: string | null;
   dateEnd: string | null;
-  minPrice: number | null;
+  minPrice: string | null;
   availableSeats: number;
   seatClasses: string[];
   seatTypes: string[];

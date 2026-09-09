@@ -71,7 +71,7 @@ export const useCreateUser = () => {
   return useMutation({
     mutationKey: ["createUser"],
     mutationFn: async (data: CreateUserPayload) => {
-      const res = await instance.post<UserResponse>("/users", { payload: data });
+      const res = await instance.post<UserResponse>("/users", data);
       return res.data;
     },
     onSuccess: () => {

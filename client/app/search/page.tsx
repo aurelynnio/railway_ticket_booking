@@ -2,47 +2,39 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, type ReactNode, useDeferredValue, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useDeferredValue } from "react";
 import {
+  ArrowLeftRight,
   ArrowRight,
   CalendarDays,
   Clock3,
   Filter,
+  MapPin,
   Search as SearchIcon,
-  Ticket,
   TrainFront,
-  Wallet,
   X,
+  Sun,
+  Sunset,
+  Moon,
+  Armchair,
+  Bed,
 } from "lucide-react";
 
-import { AppShell } from "@/components/shell/app-shell";
-import { AnimatedSection } from "@/components/motion/animated-section";
-import { TicketNotch } from "@/components/ticket/ticket-notch";
-import {
-  EmptyState,
-  PaginationBar,
-} from "@/components/ui/railway-ui";
+import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select } from "@/components/ui/select";
-import {
-  useSearchTrips,
-  useStationSuggestions,
-} from "@/hooks/search.hook";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useSearchTrips, useStationSuggestions } from "@/hooks/search.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { STATIONS } from "@/lib/stations";
 import { cn } from "@/lib/utils";
 
 type SortFilter = "recommended" | "price" | "departure";
-
-export const STATIONS = [
-  { name: "Hà Nội", code: "HAN" },
-  { name: "Huế", code: "HUE" },
-  { name: "Đà Nẵng", code: "DAD" },
-  { name: "Nha Trang", code: "NTR" },
-  { name: "Sài Gòn", code: "SGN" },
-] as const;
+type TimeFilter = "all" | "morning" | "afternoon" | "evening";
+type SeatFilter = "all" | "seat" | "sleeper";
 
 const sortOptions: Array<{ label: string; value: SortFilter }> = [
   { label: "Phù hợp nhất", value: "recommended" },
@@ -51,460 +43,404 @@ const sortOptions: Array<{ label: string; value: SortFilter }> = [
 ];
 
 function SearchPageContent() {
-  const searchParams = useSearchParams();
-  const [from, setFrom] = useState(() => searchParams.get("from") ?? "");
-  const [to, setTo] = useState(() => searchParams.get("to") ?? "");
-  const [date, setDate] = useState(() => searchParams.get("date") ?? "");
+  const params = useSearchParams();
+  const [from, setFrom] = useState(params.get("from") ?? "");
+  const [to, setTo] = useState(params.get("to") ?? "");
+  const [date, setDate] = useState(params.get("date") ?? "");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortFilter>("recommended");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [seatFilter, setSeatFilter] = useState<SeatFilter>("all");
 
   useEffect(() => {
-    const urlFrom = searchParams.get("from") ?? "";
-    const urlTo = searchParams.get("to") ?? "";
-    const urlDate = searchParams.get("date") ?? "";
-    const timer = window.setTimeout(() => {
-      setFrom(urlFrom);
-      setTo(urlTo);
-      setDate(urlDate);
+    const t = setTimeout(() => {
+      setFrom(params.get("from") ?? "");
+      setTo(params.get("to") ?? "");
+      setDate(params.get("date") ?? "");
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [searchParams]);
+    return () => clearTimeout(t);
+  }, [params]);
 
-  const deferredFrom = useDeferredValue(from);
-  const deferredTo = useDeferredValue(to);
-  const deferredDate = useDeferredValue(date);
-  const deferredPage = useDeferredValue(page);
+  const dFrom = useDeferredValue(from);
+  const dTo = useDeferredValue(to);
+  const dDate = useDeferredValue(date);
+  const dPage = useDeferredValue(page);
+
+  const stationQuery = useStationSuggestions();
+  const stations = stationQuery.data?.length ? stationQuery.data : STATIONS;
 
   const query = useSearchTrips({
-    from: deferredFrom || undefined,
-    to: deferredTo || undefined,
-    date: deferredDate || undefined,
-    page: deferredPage,
-    limit: 8,
-  });
-  const stationSuggestionsQuery = useStationSuggestions();
-  const stationOptions =
-    stationSuggestionsQuery.data && stationSuggestionsQuery.data.length > 0
-      ? stationSuggestionsQuery.data
-      : STATIONS;
-
-  const trips = [...(query.data?.data ?? [])].sort((left, right) => {
-    if (sort === "price") {
-      return (left.minPrice ?? Number.MAX_SAFE_INTEGER) - (right.minPrice ?? Number.MAX_SAFE_INTEGER);
-    }
-
-    if (sort === "departure") {
-      return compareDate(left.dateStart, right.dateStart);
-    }
-
-    return right.availableSeats - left.availableSeats;
+    from: dFrom || undefined,
+    to: dTo || undefined,
+    date: dDate || undefined,
+    sort,
+    timeOfDay: timeFilter === "all" ? undefined : timeFilter,
+    seatClass: seatFilter === "all" ? undefined : seatFilter,
+    page: dPage,
+    limit: 10,
   });
 
+  const trips = query.data?.data ?? [];
   const pagination = query.data?.pagination;
-  const availableSeats = trips.reduce((total, trip) => total + trip.availableSeats, 0);
-  const cheapest = trips.reduce<number | null>((min, trip) => {
-    if (trip.minPrice === null) {
-      return min;
-    }
-    if (min === null || trip.minPrice < min) {
-      return trip.minPrice;
-    }
-    return min;
-  }, null);
+  const hasFilter = Boolean(from || to || date || timeFilter !== "all" || seatFilter !== "all");
 
-  const hasActiveFilter = Boolean(from || to || date);
-  const activeFilterChips = [
-    from && { label: `Ga đi: ${getStationName(stationOptions, from)}`, onClear: () => setFrom("") },
-    to && { label: `Ga đến: ${getStationName(stationOptions, to)}`, onClear: () => setTo("") },
-    date && { label: `Ngày đi: ${formatDate(date)}`, onClear: () => setDate("") },
-  ].filter(Boolean) as Array<{ label: string; onClear: () => void }>;
+  const clearAll = () => {
+    setFrom("");
+    setTo("");
+    setDate("");
+    setTimeFilter("all");
+    setSeatFilter("all");
+    setSort("recommended");
+    setPage(1);
+  };
 
   return (
-    <AppShell
-      title="Tìm vé theo tuyến, thời gian và nhu cầu đặt chỗ"
-      description="Lọc theo ga đi, ga đến và ngày khởi hành để tìm các chuyến còn chỗ, giá phù hợp và đường dẫn đặt vé."
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/tickets">Danh mục vé</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/profile/orders">
-              Đơn của tôi
-              <ArrowRight />
-            </Link>
-          </Button>
+    <AppLayout>
+      {/* Page header */}
+      <div className="border-b border-border bg-card/30">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-accent">
+            <span className="h-px w-10 bg-accent" />
+            Tìm kiếm
+          </span>
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+            Tìm chuyến tàu
+          </h1>
+          <p className="mt-2 max-w-xl text-base text-ink-muted">
+            Lọc theo ga đi, ga đến, ngày khởi hành và hạng ghế để tìm chuyến phù hợp nhất.
+          </p>
         </div>
-      }
-    >
-      <Card
-        variant="outlined"
-        className="px-5 py-5 sm:px-6 sm:py-6 xl:sticky xl:top-20 xl:z-20 xl:shadow-sm"
-      >
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-1">
-              <span className="eyebrow">Bộ lọc hành trình</span>
-              <h2 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
-                Tìm chuyến tàu
-              </h2>
-              <p className="text-sm text-ink-muted">
-                Chọn tuyến, ngày và cách sắp xếp để thu hẹp danh sách.
-              </p>
-            </div>
-            <Badge variant={query.isFetching ? "warning" : "default"} className="shrink-0">
-              {query.isFetching ? "Đang đồng bộ" : "Kết quả mới"}
-            </Badge>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_auto]">
-            <FilterField label="Ga đi" htmlFor="filter-from">
-              <Select
-                id="filter-from"
-                value={from}
-                onChange={(event) => {
-                  setPage(1);
-                  setFrom(event.target.value);
-                }}
-              >
-                <option value="">Tất cả ga đi</option>
-                {stationOptions.map((station) => (
-                  <option key={station.code ?? station.name} value={station.code ?? ""}>
-                    {station.name} ({station.code})
-                  </option>
-                ))}
-              </Select>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Filter bar */}
+        <Card variant="outlined" padding="lg" className="mb-8">
+          <div className="grid gap-3 items-end sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_1fr_1fr_auto]">
+            <FilterField label="Ga đi">
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+                <Select
+                  value={from}
+                  onChange={(e) => {
+                    setFrom(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9"
+                >
+                  <option value="">Tất cả ga đi</option>
+                  {stations.map((s) => (
+                    <option key={s.code} value={s.code ?? ""}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </FilterField>
-            <FilterField label="Ga đến" htmlFor="filter-to">
-              <Select
-                id="filter-to"
-                value={to}
-                onChange={(event) => {
-                  setPage(1);
-                  setTo(event.target.value);
-                }}
-              >
-                <option value="">Tất cả ga đến</option>
-                {stationOptions.map((station) => (
-                  <option key={station.code ?? station.name} value={station.code ?? ""}>
-                    {station.name} ({station.code})
-                  </option>
-                ))}
-              </Select>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFrom(to);
+                setTo(from);
+                setPage(1);
+              }}
+              className="flex size-11 items-center justify-center rounded-lg bg-card text-ink-muted shadow-sm transition-colors hover:shadow-md hover:text-primary"
+              aria-label="Đổi ga"
+            >
+              <ArrowLeftRight className="size-4" />
+            </button>
+
+            <FilterField label="Ga đến">
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+                <Select
+                  value={to}
+                  onChange={(e) => {
+                    setTo(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9"
+                >
+                  <option value="">Tất cả ga đến</option>
+                  {stations.map((s) => (
+                    <option key={s.code} value={s.code ?? ""}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </FilterField>
-            <FilterField label="Ngày đi" htmlFor="filter-date">
-              <Input
-                id="filter-date"
-                type="date"
-                value={date}
-                onChange={(event) => {
-                  setPage(1);
-                  setDate(event.target.value);
-                }}
-              />
+
+            <FilterField label="Ngày đi">
+              <div className="relative">
+                <DatePicker
+                  value={date}
+                  onChange={(v) => {
+                    setDate(v);
+                    setPage(1);
+                  }}
+                  placeholder="Tất cả ngày"
+                  minDate={new Date()}
+                  className="pl-9"
+                  icon={<CalendarDays className="size-4 shrink-0 text-ink-muted" />}
+                />
+              </div>
             </FilterField>
-            <FilterField label="Sắp xếp" htmlFor="filter-sort">
+
+            <FilterField label="Sắp xếp">
               <Select
-                id="filter-sort"
                 value={sort}
-                onChange={(event) => {
+                onChange={(e) => {
+                  setSort(e.target.value as SortFilter);
                   setPage(1);
-                  setSort(event.target.value as SortFilter);
                 }}
               >
-                {sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {sortOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>
             </FilterField>
-            <div className="flex items-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setFrom("");
-                  setTo("");
-                  setDate("");
-                  setPage(1);
-                  setSort("recommended");
-                }}
-                disabled={!hasActiveFilter && sort === "recommended"}
-                className="w-full"
-              >
-                <Filter className="size-3.5" aria-hidden />
-                Đặt lại
-              </Button>
-            </div>
+
+            <Button
+              variant="outline"
+              onClick={clearAll}
+              disabled={!hasFilter && sort === "recommended"}
+              className="gap-2"
+            >
+              <Filter className="size-3.5" />
+              Đặt lại
+            </Button>
           </div>
 
-          {activeFilterChips.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">Đang lọc:</span>
-              {activeFilterChips.map((chip) => (
+          {/* Secondary filters */}
+          <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border pt-5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                Giờ:
+              </span>
+              {([
+                { v: "all", l: "Tất cả", i: null },
+                { v: "morning", l: "Sáng", i: Sun },
+                { v: "afternoon", l: "Chiều", i: Sunset },
+                { v: "evening", l: "Tối", i: Moon },
+              ] as const).map((t) => (
                 <button
-                  key={chip.label}
-                  type="button"
-                  onClick={chip.onClear}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:border-primary hover:text-primary"
+                  key={t.v}
+                  onClick={() => {
+                    setTimeFilter(t.v);
+                    setPage(1);
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                    timeFilter === t.v
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-ink-muted hover:text-ink"
+                  )}
                 >
-                  {chip.label}
-                  <X className="size-3" aria-hidden />
+                  {t.i && <t.i className="size-3" />}
+                  {t.l}
                 </button>
               ))}
             </div>
-          ) : null}
-        </div>
-      </Card>
 
-      <section
-        aria-label="Tóm tắt kết quả"
-        className="grid gap-px overflow-hidden border border-border bg-border sm:grid-cols-3"
-      >
-        <SummaryStat
-          label="Chuyến phù hợp"
-          value={query.isLoading ? "—" : String(trips.length)}
-          helper="Sau khi áp dụng bộ lọc"
-          accent="primary"
-        />
-        <SummaryStat
-          label="Chỗ trống tổng"
-          value={query.isLoading ? "—" : String(availableSeats)}
-          helper="Khả dụng ở thời điểm hiện tại"
-        />
-        <SummaryStat
-          label="Giá từ"
-          value={query.isLoading ? "—" : cheapest !== null ? formatCurrency(cheapest) : "—"}
-          helper="Một chiều, đã bao gồm thuế"
-          isPrice
-        />
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <span className="eyebrow">Kết quả</span>
-            <h2 className="font-display text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-              Hành trình phù hợp
-            </h2>
-            <p className="mt-1 text-sm text-ink-muted">
-              Quét nhanh thời gian, hạng ghế và mức giá trước khi mở chi tiết.
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                Ghế:
+              </span>
+              {([
+                { v: "all", l: "Tất cả", i: null },
+                { v: "seat", l: "Ngồi", i: Armchair },
+                { v: "sleeper", l: "Nằm", i: Bed },
+              ] as const).map((s) => (
+                <button
+                  key={s.v}
+                  onClick={() => {
+                    setSeatFilter(s.v);
+                    setPage(1);
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                    seatFilter === s.v
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-ink-muted hover:text-ink"
+                  )}
+                >
+                  {s.i && <s.i className="size-3" />}
+                  {s.l}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="inline-flex items-center gap-2 border border-border bg-card px-3 py-1.5 text-xs font-medium text-ink-muted">
-            <SearchIcon className="size-3.5 text-primary" aria-hidden />
-            Kết quả tự cập nhật theo bộ lọc hiện tại.
+        </Card>
+
+        {/* Results summary */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-ink-muted">
+            <SearchIcon className="size-4 text-primary" />
+            <span>
+              <span className="font-semibold text-ink">
+                {pagination?.total ?? trips.length}
+              </span>{" "}
+              chuyến phù hợp
+            </span>
           </div>
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Trước
+              </Button>
+              <span className="text-sm text-ink-muted">
+                Trang {page} / {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= pagination.totalPages}
+                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+              >
+                Sau
+              </Button>
+            </div>
+          )}
         </div>
 
+        {/* Results */}
         {query.isLoading ? (
-          <div className="grid gap-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-48 animate-pulse border border-border bg-card"
-              />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl border border-border bg-card p-6">
+                <Skeleton className="h-6 w-1/3" />
+                <Skeleton className="mt-4 h-16 w-full" />
+                <Skeleton className="mt-4 h-10 w-32" />
+              </div>
             ))}
           </div>
-        ) : null}
-
-        {query.isError ? (
-          <EmptyState
-            title="Không tải được kết quả"
-            description="Không thể tải kết quả lúc này. Vui lòng thử lại sau."
-            illustration="error-state"
-            illustrationTone="danger"
-          />
-        ) : null}
-
-        {!query.isLoading && !query.isError && trips.length === 0 ? (
-          <EmptyState
-            title="Chưa có chuyến phù hợp"
-            description="Thử đổi ga đi, ga đến hoặc bỏ ngày khởi hành để mở rộng tồn vé."
-            href="/tickets"
-            cta="Mở danh mục vé"
-            illustration="search-empty"
-            illustrationTone="muted"
-          />
-        ) : null}
-
-        <AnimatedSection
-          scopeKey={`results-${trips.length}-${deferredPage}-${sort}`}
-          className="grid gap-3"
-        >
-          {trips.map((trip) => {
-            const availabilityBadge =
-              trip.availableSeats === 0
-                ? { variant: "destructive" as const, label: "Hết chỗ" }
-                : trip.availableSeats <= 5
-                  ? { variant: "warning" as const, label: `Sắp hết — ${trip.availableSeats} chỗ` }
-                  : { variant: "success" as const, label: "Còn chỗ" };
-
-            return (
-              <TicketNotch key={trip.ticketId}>
-                <Card
-                  interactive
-                  padding="lg"
-                  className="lg:grid-cols-[minmax(0,1fr)_200px] lg:items-stretch"
-                >
-                  <div className="flex flex-col gap-4 lg:pr-6">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="default" className="font-mono tabular-nums">
-                        <TrainFront className="size-3" />
-                        {trip.trainNumber ?? compactTripCode(trip.ticketId)}
-                      </Badge>
-                      <Badge variant={availabilityBadge.variant}>
-                        {availabilityBadge.label}
-                      </Badge>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">Khởi hành</p>
-                        <p className="font-mono text-2xl font-bold tabular-nums text-ink">
-                          {extractTime(trip.dateStart)}
-                        </p>
-                        <p className="text-sm font-medium text-ink">
-                          {trip.from.name ?? trip.from.code ?? "?"}
-                        </p>
-                        <p className="text-xs text-ink-subtle font-mono tabular-nums">
-                          {trip.from.code ?? ""}
-                        </p>
+        ) : query.isError ? (
+          <Card variant="outlined" padding="lg" className="text-center">
+            <p className="font-display text-lg font-semibold text-ink">
+              Không tải được kết quả
+            </p>
+            <p className="mt-1 text-sm text-ink-muted">
+              Vui lòng kiểm tra đường truyền và thử lại.
+            </p>
+            <Button variant="outline" className="mt-4" onClick={() => query.refetch()}>
+              Thử lại
+            </Button>
+          </Card>
+        ) : trips.length === 0 ? (
+          <Card variant="outlined" padding="lg" className="text-center py-16">
+            <TrainFront className="mx-auto size-12 text-ink-subtle" />
+            <p className="mt-4 font-display text-xl font-semibold text-ink">
+              Không tìm thấy chuyến phù hợp
+            </p>
+            <p className="mt-2 text-sm text-ink-muted">
+              Thử thay đổi ngày hoặc xóa bộ lọc.
+            </p>
+            <Button variant="outline" className="mt-5" onClick={clearAll}>
+              Xóa bộ lọc
+            </Button>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {trips.map((trip) => (
+              <Link key={trip.ticketId} href={`/tickets/${trip.ticketId}`} className="group block">
+                <Card variant="outlined" padding="lg" interactive className="transition-all hover:shadow-md">
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+                    {/* Route info */}
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="default" className="font-mono">
+                          <TrainFront className="size-3" />
+                          Tàu {trip.trainNumber ?? "—"}
+                        </Badge>
+                        <Badge
+                          variant={
+                            trip.availableSeats > 5
+                              ? "success"
+                              : trip.availableSeats > 0
+                                ? "warning"
+                                : "destructive"
+                          }
+                        >
+                          {trip.availableSeats > 0
+                            ? `${trip.availableSeats} chỗ`
+                            : "Hết chỗ"}
+                        </Badge>
+                        {trip.title && (
+                          <span className="text-xs text-ink-muted">{trip.title}</span>
+                        )}
                       </div>
 
-                      <div className="flex flex-col items-center gap-1 sm:px-4">
-                        <div className="flex w-full items-center gap-2">
-                          <span className="h-2 w-2 rounded-full border-2 border-primary bg-primary-soft" />
-                          <div className="h-px flex-1 bg-border-strong relative">
-                            <span className="absolute inset-x-0 top-0 h-px bg-primary/40" style={{ backgroundImage: "repeating-linear-gradient(90deg, var(--primary) 0, var(--primary) 4px, transparent 4px, transparent 8px)" }} />
-                          </div>
-                          <span className="h-2 w-2 rounded-full border-2 border-primary bg-primary" />
+                      <div className="mt-4 flex items-center gap-4">
+                        <div>
+                          <p className="font-display text-2xl font-semibold tabular-nums text-ink">
+                            {extractTime(trip.dateStart)}
+                          </p>
+                          <p className="text-sm font-medium text-ink">
+                            {trip.from.name ?? trip.from.code}
+                          </p>
                         </div>
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-subtle">
-                          {calcDuration(trip.dateStart, trip.dateEnd)}
-                        </span>
+                        <div className="flex flex-1 flex-col items-center">
+                          <span className="text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
+                            {calcDuration(trip.dateStart, trip.dateEnd)}
+                          </span>
+                          <div className="mt-1.5 flex w-full max-w-[160px] items-center gap-1">
+                            <span className="size-2 rounded-full border-2 border-primary bg-primary-soft" />
+                            <div className="h-px flex-1 bg-border" />
+                            <span className="size-2 rounded-full border-2 border-primary bg-primary" />
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-display text-2xl font-semibold tabular-nums text-ink">
+                            {extractTime(trip.dateEnd)}
+                          </p>
+                          <p className="text-sm font-medium text-ink">
+                            {trip.to.name ?? trip.to.code}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="space-y-1 text-right">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">Đến</p>
-                        <p className="font-mono text-2xl font-bold tabular-nums text-ink">
-                          {extractTime(trip.dateEnd)}
-                        </p>
-                        <p className="text-sm font-medium text-ink">
-                          {trip.to.name ?? trip.to.code ?? "?"}
-                        </p>
-                        <p className="text-xs text-ink-subtle font-mono tabular-nums">
-                          {trip.to.code ?? ""}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-sm">
-                      <span className="inline-flex items-center gap-1.5 text-ink-muted">
-                        <CalendarDays className="size-3.5 text-primary" />
-                        <span className="font-mono tabular-nums text-ink">{compactDate(trip.dateStart)}</span>
-                      </span>
-                      {trip.trainNumber ? (
-                        <span className="inline-flex items-center gap-1.5 text-ink-muted">
-                          <Clock3 className="size-3.5 text-primary" />
-                          <span className="text-ink">{trip.title ?? "Tàu khách"}</span>
-                        </span>
-                      ) : null}
-                      <div className="flex flex-wrap gap-1.5">
-                        {trip.seatClasses.map((item) => (
-                          <Badge key={`${trip.ticketId}-${item}`} variant="outline">
-                            {item}
-                          </Badge>
-                        ))}
-                        {trip.seatTypes.map((item) => (
-                          <Badge key={`${trip.ticketId}-${item}-type`} variant="secondary">
-                            {item}
+                      <div className="mt-4 flex flex-wrap gap-1.5">
+                        {trip.seatClasses?.map((c: string) => (
+                          <Badge key={c} variant="outline" className="text-[11px]">
+                            {c}
                           </Badge>
                         ))}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex flex-col justify-between gap-4 border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">Giá từ</p>
-                      <p className="font-mono text-3xl font-bold tabular-nums text-ink leading-none">
-                        {formatCurrency(trip.minPrice)}
-                      </p>
-                      <p className="text-xs text-ink-muted">
-                        <span className="font-medium text-ink">{trip.availableSeats}</span> chỗ đang mở
-                      </p>
-                    </div>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center justify-between text-ink-muted">
-                        <span>Mã tuyến</span>
-                        <span className="font-mono tabular-nums font-medium text-ink">
-                          {trip.from.code ?? "?"} → {trip.to.code ?? "?"}
-                        </span>
+                    {/* Price + CTA */}
+                    <div className="flex flex-col items-start gap-3 border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 lg:items-end">
+                      <div className="text-left lg:text-right">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+                          Giá từ
+                        </p>
+                        <p className="font-display text-3xl font-bold tabular-nums text-primary">
+                          {formatCurrency(trip.minPrice)}
+                        </p>
                       </div>
-                      <div className="flex items-center justify-between text-ink-muted">
-                        <span>Hạng ghế</span>
-                        <span className="font-medium text-ink">
-                          {trip.seatClasses.length + trip.seatTypes.length} lựa chọn
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Button asChild size="lg" className="w-full">
+                      <Button asChild variant="accent" size="lg" className="w-full gap-2 lg:w-auto">
                         <Link href={`/tickets/${trip.ticketId}`}>
-                          Chọn chuyến
-                          <ArrowRight />
+                          Chọn vé
+                          <ArrowRight className="size-4" />
                         </Link>
                       </Button>
                     </div>
                   </div>
                 </Card>
-              </TicketNotch>
-            );
-          })}
-        </AnimatedSection>
-
-        {pagination ? (
-          <PaginationBar
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            onPrev={() => setPage((current) => Math.max(1, current - 1))}
-            onNext={() =>
-              setPage((current) =>
-                pagination.totalPages === 0
-                  ? current
-                  : Math.min(pagination.totalPages, current + 1),
-              )
-            }
-          />
-        ) : null}
-      </section>
-
-      <section
-        aria-label="Truy cập nhanh"
-        className="grid gap-3 md:grid-cols-3"
-      >
-        <SupportCard
-          icon={<Ticket className="size-5" aria-hidden />}
-          title="Vé của tôi"
-          description="Theo dõi đơn đã đặt và vé đã phát hành."
-          href="/profile/orders"
-        />
-        <SupportCard
-          icon={<Wallet className="size-5" aria-hidden />}
-          title="Thanh toán"
-          description="Kiểm tra giao dịch và trạng thái thanh toán."
-          href="/payments"
-        />
-        <SupportCard
-          icon={<TrainFront className="size-5" aria-hidden />}
-          title="Danh mục vé"
-          description="Xem thêm các tuyến đang mở bán."
-          href="/tickets"
-        />
-      </section>
-    </AppShell>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </AppLayout>
   );
 }
 
@@ -516,94 +452,25 @@ export default function SearchPage() {
   );
 }
 
-function FilterField({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: ReactNode;
-}) {
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label htmlFor={htmlFor} className="grid gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">{label}</span>
+    <label className="grid gap-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
-function SummaryStat({
-  label,
-  value,
-  helper,
-  accent,
-  isPrice = false,
-}: {
-  label: string;
-  value: string;
-  helper?: string;
-  accent?: "primary";
-  isPrice?: boolean;
-}) {
-  return (
-    <div className="bg-card px-5 py-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-muted">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-2 font-display text-2xl font-semibold tracking-tight tabular-nums",
-          accent === "primary" ? "text-primary" : "text-ink",
-          isPrice && "font-mono",
-        )}
-      >
-        {value}
-      </p>
-      {helper ? <p className="mt-0.5 text-sm text-ink-muted">{helper}</p> : null}
-    </div>
-  );
-}
-
-function SupportCard({
-  icon,
-  title,
-  description,
-  href,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <Link href={href} className="block">
-      <Card interactive padding="lg">
-        <div className="flex h-11 w-11 items-center justify-center border border-primary/20 bg-primary-soft text-primary">
-          {icon}
-        </div>
-        <h3 className="mt-5 font-display text-base font-semibold tracking-tight text-ink">
-          {title}
-        </h3>
-        <p className="mt-2 text-sm leading-relaxed text-ink-muted">{description}</p>
-        <div className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover/card:opacity-100">
-          Mở <ArrowRight className="size-3" />
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
-function compactDate(value: string | null | undefined) {
-  const formatted = formatDateTime(value);
-  return formatted === "N/A" ? formatted : formatted.replace(", ", " · ");
-}
-
 function extractTime(value: string | null | undefined): string {
   if (!value) return "—:—";
   try {
-    const d = new Date(value);
-    return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    return new Date(value).toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
   } catch {
     return "—:—";
   }
@@ -613,51 +480,12 @@ function calcDuration(start: string | null | undefined, end: string | null | und
   if (!start || !end) return "—";
   try {
     const diff = new Date(end).getTime() - new Date(start).getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    if (hours === 0) return `${mins}p`;
-    if (mins === 0) return `${hours}h`;
-    return `${hours}h${mins}p`;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h === 0) return `${m}p`;
+    if (m === 0) return `${h}h`;
+    return `${h}h${m}p`;
   } catch {
     return "—";
-  }
-}
-
-function compactTripCode(value: string) {
-  if (value.length <= 8) {
-    return value;
-  }
-  return value.slice(0, 8).toUpperCase();
-}
-
-function compareDate(
-  left: string | null | undefined,
-  right: string | null | undefined,
-) {
-  const leftTime = left ? new Date(left).getTime() : Number.MAX_SAFE_INTEGER;
-  const rightTime = right ? new Date(right).getTime() : Number.MAX_SAFE_INTEGER;
-  return leftTime - rightTime;
-}
-
-function getStationName(
-  options: ReadonlyArray<{ name?: string | null; code?: string | null }>,
-  code: string,
-) {
-  const match = options.find((station) => station.code === code);
-  if (!match) {
-    return code;
-  }
-  return `${match.name ?? match.code ?? code} (${match.code ?? code})`;
-}
-
-function formatDate(value: string) {
-  try {
-    return new Date(value).toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return value;
   }
 }

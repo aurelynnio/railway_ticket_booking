@@ -33,8 +33,8 @@ export interface OrderResponse {
   seatClass: string | null;
   seatType: string | null;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitPrice: string;
+  totalPrice: string;
   ticketCode: string | null;
   qrPayload: string | null;
   status: OrderStatus;
@@ -44,6 +44,9 @@ export interface OrderResponse {
   updatedAt: string;
   deletedAt: string | null;
   cancelReason?: string | null;
+  /** Contact for e-ticket/order email delivery (may be null until set at checkout). */
+  contactEmail?: string | null;
+  contactPhone?: string | null;
 }
 
 export interface OrderSummaryResponse {
@@ -52,8 +55,8 @@ export interface OrderSummaryResponse {
   ticketId: string;
   ticketItemId: string;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitPrice: string;
+  totalPrice: string;
   seatCount: number;
   passengerCount: number;
   status: OrderStatus;

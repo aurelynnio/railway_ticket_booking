@@ -87,29 +87,47 @@ export function useTicket(ticketId?: string) {
   });
 }
 
-export function useTicketAvailability(ticketId?: string) {
+export function useTicketAvailability(
+  ticketId?: string,
+  options?: Partial<{
+    refetchInterval: number | false;
+    refetchIntervalInBackground: boolean;
+    enabled: boolean;
+  }>,
+) {
   return useQuery({
     queryKey: ["ticket-availability", ticketId],
-    enabled: Boolean(ticketId),
+    enabled: Boolean(ticketId) && (options?.enabled ?? true),
     queryFn: async () => {
       const res = await instance.get<TicketAvailabilityResponse>(
         `/tickets/${ticketId}/availability`,
       );
       return res.data;
     },
+    refetchInterval: options?.refetchInterval,
+    refetchIntervalInBackground: options?.refetchIntervalInBackground,
   });
 }
 
-export function useSeatMap(ticketId?: string) {
+export function useSeatMap(
+  ticketId?: string,
+  options?: Partial<{
+    refetchInterval: number | false;
+    refetchIntervalInBackground: boolean;
+    enabled: boolean;
+  }>,
+) {
   return useQuery({
     queryKey: ["seat-map", ticketId],
-    enabled: Boolean(ticketId),
+    enabled: Boolean(ticketId) && (options?.enabled ?? true),
     queryFn: async () => {
       const res = await instance.get<SeatMapResponse>(
         `/tickets/${ticketId}/seat-map`,
       );
       return res.data;
     },
+    refetchInterval: options?.refetchInterval,
+    refetchIntervalInBackground: options?.refetchIntervalInBackground,
   });
 }
 

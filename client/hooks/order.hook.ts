@@ -43,6 +43,10 @@ export interface CreateOrderPayload {
   paymentMethod?: string;
   seatLabels?: string[];
   passengers?: OrderPassengerPayload[];
+  /** Contact for e-ticket/order email delivery. */
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  idempotencyKey?: string;
 }
 
 export interface OrdersQuery {

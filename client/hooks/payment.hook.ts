@@ -9,9 +9,10 @@ import {
   ListPaymentsByUserIdRequest,
   ListPaymentsQuery,
   MarkFailedRequest,
-  PaymentMarkedPaidResponse,
   MarkPaidRequest,
   MarkProcessingRequest,
+  PaymentLookupRequest,
+  PaymentMarkedPaidResponse,
   PaginatedPaymentsResponse,
   PaymentDto,
 } from "@/lib/api-types";
@@ -177,6 +178,10 @@ export function useMarkPaymentPaid() {
 
 export function useMarkPaymentFailed() {
   return usePaymentAction<MarkFailedRequest>("/payments/mark-failed");
+}
+
+export function useMarkPaymentRefunded() {
+  return usePaymentAction<PaymentLookupRequest>("/payments/mark-refunded");
 }
 
 export function useCancelPayment() {
