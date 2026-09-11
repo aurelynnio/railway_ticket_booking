@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { PaymentModule } from './payment.module';
 import { Transport } from '@nestjs/microservices';
+import { MicroserviceExceptionFilter } from './common/filters/microservice-exception.filter';
 import { RmqAckInterceptor } from './common/interceptors/rmq-ack.interceptor';
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(PaymentModule, {
@@ -19,6 +20,7 @@ async function bootstrap() {
       },
     },
   });
+  app.useGlobalFilters(new MicroserviceExceptionFilter());
   app.useGlobalInterceptors(new RmqAckInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({

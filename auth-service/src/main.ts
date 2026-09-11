@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AuthModule } from './auth.module';
 import { Transport } from '@nestjs/microservices';
+import { MicroserviceExceptionFilter } from './common/filters/microservice-exception.filter';
 import { RmqAckInterceptor } from './common/interceptors/rmq-ack.interceptor';
 
 async function bootstrap() {
@@ -20,6 +21,8 @@ async function bootstrap() {
       },
     },
   });
+
+  app.useGlobalFilters(new MicroserviceExceptionFilter());
 
   app.useGlobalInterceptors(new RmqAckInterceptor());
 

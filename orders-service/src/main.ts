@@ -2,10 +2,13 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { OrderModule } from './order.module';
 import { Transport } from '@nestjs/microservices';
+import { MicroserviceExceptionFilter } from './common/filters/microservice-exception.filter';
 import { RmqAckInterceptor } from './common/interceptors/rmq-ack.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(OrderModule);
+
+  app.useGlobalFilters(new MicroserviceExceptionFilter());
 
   app.useGlobalInterceptors(new RmqAckInterceptor());
 
