@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient, TicketItem } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import type {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
@@ -58,7 +59,7 @@ import {
   uniqueLabels,
   type TicketWithItems,
 } from './utils/ticket.utils';
-import { RedisCacheService } from './redis/redis.service';
+import { RedisCacheService } from '../redis/redis.service';
 
 const TICKETS_LIST_CACHE_TTL_SECONDS = 300;
 const TICKET_DETAIL_CACHE_TTL_SECONDS = 300;
@@ -92,7 +93,7 @@ type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
  */
 @Injectable()
 export class TicketBaseService {
-  constructor(protected readonly prisma: PrismaClient) {}
+  constructor(protected readonly prisma: PrismaService) {}
 
   health() {
     return {
@@ -843,7 +844,7 @@ export class TicketService extends TicketBaseService {
   private readonly pendingFetches = new Map<string, Promise<unknown>>();
 
   constructor(
-    prisma: PrismaClient,
+    prisma: PrismaService,
     private readonly redisCaching: RedisCacheService,
   ) {
     super(prisma);

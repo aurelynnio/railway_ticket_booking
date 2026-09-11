@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { TicketModule } from './ticket.module';
+import { TicketModule } from './ticket/ticket.module';
+import { TICKETS_QUEUE, RAILWAY_DEAD_LETTER_QUEUE } from './common/constants/queue.constants';
 import { Transport } from '@nestjs/microservices';
 
 import { MicroserviceExceptionFilter } from './common/filters/microservice-exception.filter';
@@ -11,13 +12,13 @@ async function bootstrap() {
     transport: Transport.RMQ,
     options: {
       urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-      queue: 'tickets_queue',
+      queue: TICKETS_QUEUE,
       noAck: false,
       queueOptions: {
         durable: true,
         arguments: {
           'x-dead-letter-exchange': '',
-          'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+          'x-dead-letter-routing-key': RAILWAY_DEAD_LETTER_QUEUE,
         },
       },
     },

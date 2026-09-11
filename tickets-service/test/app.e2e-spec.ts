@@ -1,4 +1,4 @@
-jest.mock('../src/ticket.service', () => ({
+jest.mock('../src/ticket/ticket.service', () => ({
   TicketService: class TicketService {},
 }));
 
@@ -7,7 +7,7 @@ jest.mock('@prisma/client', () => ({
 }));
 
 import { Test } from '@nestjs/testing';
-import { TicketModule } from '../src/ticket.module';
+import { TicketModule } from '../src/ticket/ticket.module';
 
 describe('TicketModule (e2e)', () => {
   it('should compile the root module', async () => {

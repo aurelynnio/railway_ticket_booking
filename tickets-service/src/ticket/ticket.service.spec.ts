@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { PrismaClient, TicketItem } from '@prisma/client';
-import { RedisCacheService } from './redis/redis.service';
+import type { TicketItem } from '@prisma/client';
+import type { PrismaService } from '../prisma/prisma.service';
+import { RedisCacheService } from '../redis/redis.service';
 import { TicketStatus } from './dto/ticket.dto';
 import { TicketService } from './ticket.service';
 import type { TicketWithItems } from './utils/ticket.utils';
@@ -128,7 +129,7 @@ describe('TicketService', () => {
     };
 
     service = new TicketService(
-      prisma as unknown as PrismaClient,
+      prisma as unknown as PrismaService,
       redisCache as unknown as RedisCacheService,
     );
   });

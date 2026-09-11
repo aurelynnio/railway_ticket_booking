@@ -4,13 +4,14 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import { RAILWAY_DEAD_LETTER_QUEUE } from '../constants/queue.constants';
 import { RmqContext } from '@nestjs/microservices';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Message } from 'amqplib';
 import { from, Observable, throwError } from 'rxjs';
 import { catchError, mergeMap, tap } from 'rxjs/operators';
 
-const DEAD_LETTER_QUEUE = 'railway_dead_letter_queue';
+const DEAD_LETTER_QUEUE = RAILWAY_DEAD_LETTER_QUEUE;
 
 @Injectable()
 export class RmqAckInterceptor implements NestInterceptor {
