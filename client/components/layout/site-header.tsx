@@ -70,7 +70,7 @@ export function SiteHeader() {
                   className="flex items-center gap-2.5 rounded-full bg-card py-1.5 pl-1.5 pr-4 shadow-sm transition-colors hover:shadow-md"
                 >
                   <span className="flex size-7 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-                    {(session.data.email ?? "U")[0].toUpperCase()}
+                    {(session.data.email || "U")[0].toUpperCase()}
                   </span>
                   <span className="max-w-[120px] truncate text-sm font-medium text-ink">
                     {session.data.email}
