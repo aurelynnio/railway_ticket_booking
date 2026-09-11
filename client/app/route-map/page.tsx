@@ -4,8 +4,6 @@ import Link from "next/link";
 import { MapPin, TrainFront, ArrowRight } from "lucide-react";
 
 import { AppLayout } from "@/components/layout";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { STATIONS } from "@/lib/stations";
 

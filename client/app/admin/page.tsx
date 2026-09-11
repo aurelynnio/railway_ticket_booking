@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  LayoutDashboard,
   Ticket,
   ShoppingCart,
   Users,
@@ -196,7 +195,7 @@ export default function AdminPage() {
                 <div key={u.id} className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3">
                     <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-                      {(u.email ?? "U")[0].toUpperCase()}
+                      {(u.email || "U")[0].toUpperCase()}
                     </span>
                     <div>
                       <p className="text-sm font-medium text-ink">{u.username ?? u.email}</p>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   User,
   Mail,
@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Shield,
   KeyRound,
+  LogOut,
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -21,6 +22,7 @@ import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,7 +30,7 @@ import {
   useAuthSession,
   useChangePassword,
   useResendVerification,
-  useVerifyEmail,
+  useRevokeAllSessions,
 } from "@/hooks/auth.hook";
 import { useMe, useUpdateProfile } from "@/hooks/user.hook";
 import { formatDateTime } from "@/lib/formatters";
@@ -49,8 +51,9 @@ export default function ProfilePage() {
   const profile = useMe(Boolean(session.data));
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
-  const verifyEmail = useVerifyEmail();
   const resendVerification = useResendVerification();
+  const revokeAll = useRevokeAllSessions();
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -91,7 +94,7 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <Card variant="outlined" padding="lg" className="text-center">
               <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-primary-foreground">
-                {(session.data?.email ?? "U")[0].toUpperCase()}
+                {(session.data?.email || "U")[0].toUpperCase()}
               </div>
               <h3 className="mt-4 font-display text-lg font-semibold text-ink">
                 {profile.data?.username ?? session.data?.email ?? "User"}
@@ -252,6 +255,38 @@ export default function ProfilePage() {
                   </Button>
                 </form>
               </Card>
+
+              <Card variant="outlined" padding="lg" className="mt-6">
+                <h3 className="font-display text-lg font-semibold text-ink">
+                  Phiên đăng nhập
+                </h3>
+                <p className="mt-1 text-sm text-ink-muted">
+                  Thu hồi toàn bộ phiên đăng nhập trên các thiết bị. Bạn sẽ phải
+                  đăng nhập lại trên mọi thiết bị.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  disabled={revokeAll.isPending}
+                  onClick={() => setConfirmRevoke(true)}
+                >
+                  <LogOut className="size-4" />
+                  {revokeAll.isPending ? "Đang thu hồi..." : "Thu hồi tất cả phiên"}
+                </Button>
+              </Card>
+
+              <ConfirmDialog
+                open={confirmRevoke}
+                onOpenChange={setConfirmRevoke}
+                title="Thu hồi tất cả phiên đăng nhập?"
+                description="Mọi thiết bị đang đăng nhập sẽ bị đăng xuất, bao gồm cả thiết bị hiện tại."
+                confirmLabel="Thu hồi"
+                confirmPending={revokeAll.isPending}
+                requireAck
+                onConfirm={() => revokeAll.mutate(undefined, {
+                  onSuccess: () => setConfirmRevoke(false),
+                })}
+              />
             </TabsContent>
           </Tabs>
         </div>

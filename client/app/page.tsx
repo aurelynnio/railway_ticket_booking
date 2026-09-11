@@ -24,7 +24,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchTrips, useStationSuggestions } from "@/hooks/search.hook";
-import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 import { STATIONS } from "@/lib/stations";
 import { useState } from "react";
 
@@ -282,7 +282,7 @@ export default function HomePage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs text-ink-subtle">
-                      #{featured.ticketId.slice(0, 8).toUpperCase()}
+                      #{(featured.ticketId || "—").slice(0, 8).toUpperCase()}
                     </span>
                     <Badge variant="outline">{calcDuration(featured.dateStart, featured.dateEnd)}</Badge>
                   </div>

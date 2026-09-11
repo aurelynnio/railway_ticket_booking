@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Ticket, Plus, ArrowRight, TrainFront } from "lucide-react";
+import { Plus, ArrowRight, TrainFront } from "lucide-react";
 
 import { AdminLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";

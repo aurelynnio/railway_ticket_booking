@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { TrainFront, ShieldCheck, Ticket, Clock } from "lucide-react";
+import { ShieldCheck, Ticket, Clock } from "lucide-react";
 import { BrandMark } from "@/components/brand/brand-mark";
 
 const features = [

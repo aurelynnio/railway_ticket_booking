@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useAuthSession, useLogout } from "@/hooks/auth.hook";
+import { useLogout } from "@/hooks/auth.hook";
 import { cn } from "@/lib/utils";
 
 const sidebarNav = [
@@ -42,7 +42,6 @@ export function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const session = useAuthSession();
   const logout = useLogout();
   const [collapsed, setCollapsed] = useState(false);
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ShoppingCart, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { AdminLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";

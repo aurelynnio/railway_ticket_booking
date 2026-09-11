@@ -7,12 +7,10 @@ import {
   ArrowLeftRight,
   ArrowRight,
   CalendarDays,
-  Clock3,
   Filter,
   MapPin,
   Search as SearchIcon,
   TrainFront,
-  X,
   Sun,
   Sunset,
   Moon,
@@ -28,7 +26,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchTrips, useStationSuggestions } from "@/hooks/search.hook";
-import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 import { STATIONS } from "@/lib/stations";
 import { cn } from "@/lib/utils";
 
