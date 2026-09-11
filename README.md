@@ -17,10 +17,8 @@ client (Next.js, http://localhost:3000)
     -> tickets-service (Tickets + Station Search)
     -> orders-service
     -> payments-service
-    -> notification-service
+    - notification-service
 ```
-
-Diagram chi tiet (Mermaid, render truc tiep tren GitHub/VS Code): [docs/architecture-diagrams.md](docs/architecture-diagrams.md)
 
 ## Cac he thong da trien khai
 
@@ -48,8 +46,6 @@ Chuoi xu ly thanh toan la to hop 5 he thong (3 + 4 + 5 + 6 + 9), gom 3 giai doan
 1. **Checkout & giu ghe** — Redlock hold seats → tao order (idempotency key) → emit vao TTL queue
 2. **Thanh toan thanh cong** — VNPay IPN → Outbox (cung transaction) → cron publish → Saga `payment.paid` → issueTicket + email
 3. **Compensation** — TTL 10 phut het han → expire order + payment → hoan ghe ve kho
-
-Xem day du bang Mermaid sequence diagram: [docs/architecture-diagrams.md](docs/architecture-diagrams.md)
 
 ## Cau truc repo
 
