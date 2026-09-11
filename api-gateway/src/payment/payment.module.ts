@@ -7,6 +7,7 @@ import { PaymentService } from './payment.service';
 import { VnpayController } from './vnpay.controller';
 import { VnpayPaymentService } from './vnpay.service';
 import { OrderModule } from '../order/order.module';
+import { PAYMENTS_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
 
 @Module({
   imports: [
@@ -16,12 +17,12 @@ import { OrderModule } from '../order/order.module';
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'payments_queue',
+          queue: PAYMENTS_QUEUE,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+              'x-dead-letter-routing-key': DEAD_LETTER_QUEUE,
             },
           },
         },
