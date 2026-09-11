@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from './notification.service';
 
 describe('NotificationService', () => {
@@ -51,7 +51,7 @@ describe('NotificationService', () => {
           .mockResolvedValue({}),
       },
     };
-    service = new NotificationService(prisma as unknown as PrismaClient);
+    service = new NotificationService(prisma as unknown as PrismaService);
   });
 
   afterAll(() => {
