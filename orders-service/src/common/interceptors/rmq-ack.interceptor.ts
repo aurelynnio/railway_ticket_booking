@@ -10,7 +10,9 @@ import type { Message } from 'amqplib';
 import { from, Observable, throwError } from 'rxjs';
 import { catchError, mergeMap, tap } from 'rxjs/operators';
 
-const DEAD_LETTER_QUEUE = 'railway_dead_letter_queue';
+import { QUEUE_RAILWAY_DEAD_LETTER } from '../constants/queue.constants';
+
+const DEAD_LETTER_QUEUE = QUEUE_RAILWAY_DEAD_LETTER;
 
 @Injectable()
 export class RmqAckInterceptor implements NestInterceptor {
@@ -32,4 +34,5 @@ export class RmqAckInterceptor implements NestInterceptor {
     );
   }
 }
+
 

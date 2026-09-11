@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaService } from '../prisma/prisma.service';
 import { of, throwError } from 'rxjs';
 import { OrderStatus, type CheckoutOrderRequest } from './dto/order.dto';
 import { OrderService } from './order.service';
@@ -69,7 +69,7 @@ describe('OrderService', () => {
     };
 
     service = new OrderService(
-      prisma as unknown as PrismaClient,
+      prisma as unknown as PrismaService,
       paymentClient as unknown as any,
       ticketClient as unknown as any,
       expirationClient as unknown as any,
@@ -621,7 +621,9 @@ function createMockPrisma() {
               (entry) => entry.idempotencyKey === data.idempotencyKey,
             )
           ) {
-            return Promise.reject({ code: 'P2002' });
+            return Promise.reject(
+              Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+            );
           }
 
           const id = `order-${orders.length + 1}`;
@@ -745,3 +747,4 @@ function createMockPrisma() {
     ),
   };
 }
+

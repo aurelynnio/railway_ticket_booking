@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { PrismaClient } from '@prisma/client';
+import { PrismaModule } from '../prisma/prisma.module';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
+import * as QUEUES from '../common/constants/queue.constants';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -12,18 +13,19 @@ import { ScheduleModule } from '@nestjs/schedule';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    PrismaModule,
     ClientsModule.register([
       {
         name: 'payment_service',
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'payments_queue',
+          queue: QUEUES.QUEUE_PAYMENTS,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+              'x-dead-letter-routing-key': QUEUES.QUEUE_RAILWAY_DEAD_LETTER,
             },
           },
         },
@@ -33,12 +35,12 @@ import { ScheduleModule } from '@nestjs/schedule';
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'tickets_queue',
+          queue: QUEUES.QUEUE_TICKETS,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+              'x-dead-letter-routing-key': QUEUES.QUEUE_RAILWAY_DEAD_LETTER,
             },
           },
         },
@@ -48,13 +50,13 @@ import { ScheduleModule } from '@nestjs/schedule';
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'orders_expiration_queue',
+          queue: QUEUES.QUEUE_ORDERS_EXPIRATION,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'orders_expired_process_queue',
-              'x-message-ttl': parseInt(process.env.ORDER_EXPIRATION_TTL_MS || '600000', 10),
+              'x-dead-letter-routing-key': QUEUES.QUEUE_ORDERS_EXPIRED_PROCESS,
+              'x-message-ttl': parseInt(process.env.ORDER_EXPIRATION_TTL_MS || QUEUES.ORDER_EXPIRATION_TTL_MS_DEFAULT, 10),
             },
           },
         },
@@ -64,12 +66,12 @@ import { ScheduleModule } from '@nestjs/schedule';
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'notifications_queue',
+          queue: QUEUES.QUEUE_NOTIFICATIONS,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+              'x-dead-letter-routing-key': QUEUES.QUEUE_RAILWAY_DEAD_LETTER,
             },
           },
         },
@@ -81,12 +83,12 @@ import { ScheduleModule } from '@nestjs/schedule';
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'auth_queue',
+          queue: QUEUES.QUEUE_AUTH,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+              'x-dead-letter-routing-key': QUEUES.QUEUE_RAILWAY_DEAD_LETTER,
             },
           },
         },
@@ -94,6 +96,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     ]),
   ],
   controllers: [OrderController],
-  providers: [OrderService, PrismaClient],
+  providers: [OrderService],
 })
 export class OrderModule {}
+
+

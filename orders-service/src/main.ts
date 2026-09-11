@@ -1,6 +1,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { OrderModule } from './order.module';
+import { OrderModule } from './order/order.module';
+import * as QUEUES from './common/constants/queue.constants';
 import { Transport } from '@nestjs/microservices';
 import { MicroserviceExceptionFilter } from './common/filters/microservice-exception.filter';
 import { RmqAckInterceptor } from './common/interceptors/rmq-ack.interceptor';
@@ -23,14 +24,14 @@ async function bootstrap() {
     transport: Transport.RMQ,
     options: {
       urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-      queue: 'orders_queue',
+      queue: QUEUES.QUEUE_ORDERS,
       noAck: false,
       prefetchCount: 1,
       queueOptions: {
         durable: true,
         arguments: {
           'x-dead-letter-exchange': '',
-          'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+          'x-dead-letter-routing-key': QUEUES.QUEUE_RAILWAY_DEAD_LETTER,
         },
       },
     },
@@ -40,13 +41,13 @@ async function bootstrap() {
     transport: Transport.RMQ,
     options: {
       urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-      queue: 'orders_expired_process_queue',
+      queue: QUEUES.QUEUE_ORDERS_EXPIRED_PROCESS,
       noAck: false,
       queueOptions: {
         durable: true,
         arguments: {
           'x-dead-letter-exchange': '',
-          'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+          'x-dead-letter-routing-key': QUEUES.QUEUE_RAILWAY_DEAD_LETTER,
         },
       },
     },
@@ -57,3 +58,4 @@ async function bootstrap() {
   Logger.log('OrderService microservices started', 'Bootstrap');
 }
 void bootstrap();
+

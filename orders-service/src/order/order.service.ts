@@ -5,10 +5,12 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { Cron } from '@nestjs/schedule';
+import * as QUEUES from '../common/constants/queue.constants';
 import type {
   PaymentPaidEventPayload,
   PaymentDto,
@@ -63,7 +65,7 @@ export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     @Inject('payment_service') private readonly paymentClient: ClientProxy,
     @Inject('ticket_service') private readonly ticketClient: ClientProxy,
     @Inject('orders_expiration_service')
@@ -1274,7 +1276,7 @@ export class OrderService {
   @Cron('0 * * * * *')
   async handleExpiredOrdersCron() {
     this.logger.log('Running expired orders cron check...');
-    const ttlMs = parseInt(process.env.ORDER_EXPIRATION_TTL_MS || '600000', 10);
+    const ttlMs = parseInt(process.env.ORDER_EXPIRATION_TTL_MS || QUEUES.ORDER_EXPIRATION_TTL_MS_DEFAULT, 10);
     const expirationThreshold = new Date(Date.now() - ttlMs);
 
     const expiredOrders = await this.prisma.order.findMany({
@@ -1315,3 +1317,5 @@ export class OrderService {
     }
   }
 }
+
+

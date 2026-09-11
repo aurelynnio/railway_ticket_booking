@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { OrderModule } from '../src/order.module';
+import { OrderModule } from '../src/order/order.module';
 
 describe('OrderModule (e2e)', () => {
   it('should compile the root module', async () => {

@@ -81,7 +81,7 @@ export interface OrderResponse {
   deletedAt: string | null;
 }
 
-export interface CancelledOrderResponse extends OrderResponse {}
+export type CancelledOrderResponse = OrderResponse;
 
 export interface OrderSummaryResponse {
   orderId: string;
