@@ -81,13 +81,7 @@ export class AuthService {
         },
       });
     } catch (error) {
-      // P2002 = unique constraint violation (email or username already taken)
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: string }).code === 'P2002'
-      ) {
+      if (this.isUniqueViolation(error)) {
         throw new ConflictException('Email or username already in use');
       }
       throw error;
@@ -664,7 +658,10 @@ export class AuthService {
     }
 
     const user = await this.findActiveUserById(userId);
-    return user ? this.toPublicUser(user) : null;
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.toPublicUser(user);
   }
 
   async findByEmail(email: string) {
@@ -673,7 +670,10 @@ export class AuthService {
     }
 
     const user = await this.findActiveUserByEmail(email);
-    return user ? this.toPublicUser(user) : null;
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.toPublicUser(user);
   }
 
   async createUser(payload: CreateUserPayload) {

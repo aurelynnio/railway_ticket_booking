@@ -14,7 +14,6 @@ jest.mock('./utils/generate-token.utils', () => ({
 import {
   BadRequestException,
   ConflictException,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
