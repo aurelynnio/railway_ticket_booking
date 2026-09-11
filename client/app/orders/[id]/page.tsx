@@ -1,22 +1,33 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle, XCircle, Clock } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, XCircle } from "lucide-react";
 
 import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrder } from "@/hooks/order.hook";
+import { OrderStatus } from "@/lib/api-types/order";
+import { useCancelOrder, useOrder } from "@/hooks/order.hook";
+import { useCreateVnpayPayment } from "@/hooks/payment.hook";
 import { formatCurrency, formatDateTime, formatOrderStatus, getOrderStatusTone } from "@/lib/formatters";
 
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const orderId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const orderId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
   const query = useOrder(orderId);
   const order = query.data;
+
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const vnpay = useCreateVnpayPayment();
+  const cancel = useCancelOrder();
 
   if (query.isLoading) {
     return (
@@ -46,6 +57,21 @@ export default function OrderDetailPage() {
   }
 
   const status = order.status ?? 0;
+  const canPay = status === OrderStatus.PendingPayment;
+  const canCancel = [OrderStatus.PendingPayment, OrderStatus.Paid].includes(status);
+
+  const handlePayNow = () => {
+    vnpay.mutate(
+      { orderId },
+      {
+        onSuccess: (data) => {
+          if (data.paymentUrl) {
+            window.location.href = data.paymentUrl;
+          }
+        },
+      },
+    );
+  };
 
   return (
     <AppLayout>
@@ -85,15 +111,19 @@ export default function OrderDetailPage() {
               <Row label="Ngày tạo" value={formatDateTime(order.createdAt)} />
               <Row label="Tàu" value={order.trainNumber ?? "—"} />
               <Row label="Hành trình" value={`${order.departureStationName ?? "—"} → ${order.arrivalStationName ?? "—"}`} />
+              <Row label="Số vé" value={`${order.quantity ?? 0} vé · chỗ ${order.seatLabels?.join(", ") ?? "—"}`} />
               <Row
                 label="Tổng tiền"
                 value={formatCurrency(order.totalPrice ?? "0")}
                 highlight
               />
+              {order.cancelReason && (
+                <Row label="Lý do hủy" value={order.cancelReason} />
+              )}
             </div>
           </Card>
 
-          {status === 1 && (
+          {canPay && (
             <Card variant="elevated" padding="lg" className="border-accent/30">
               <div className="flex items-center justify-between">
                 <div>
@@ -101,13 +131,62 @@ export default function OrderDetailPage() {
                     Chờ thanh toán
                   </h3>
                   <p className="mt-1 text-sm text-ink-muted">
-                    Hoàn tất thanh toán để xác nhận đơn hàng.
+                    Hoàn tất thanh toán qua cổng VNPay để xác nhận đơn hàng.
                   </p>
                 </div>
-                <Button variant="accent" size="lg">
-                  Thanh toán ngay
+                <Button variant="accent" size="lg" onClick={handlePayNow} disabled={vnpay.isPending}>
+                  {vnpay.isPending ? "Đang tạo link..." : "Thanh toán ngay"}
                 </Button>
               </div>
+            </Card>
+          )}
+
+          {canCancel && (
+            <Card variant="outlined" padding="lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display text-base font-semibold text-ink">
+                    Hủy đơn hàng
+                  </h3>
+                  <p className="mt-1 text-sm text-ink-muted">
+                    Ghế đã giữ sẽ được hoàn lại về kho.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => setShowCancelForm((v) => !v)}>
+                  {showCancelForm ? "Đóng" : "Hủy đơn"}
+                </Button>
+              </div>
+              {showCancelForm && (
+                <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg bg-muted/30 p-4">
+                  <div className="min-w-64 flex-1 space-y-2">
+                    <Label htmlFor="reason">Lý do (tùy chọn)</Label>
+                    <Input
+                      id="reason"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="VD: Đổi kế hoạch"
+                    />
+                  </div>
+                  <Button
+                    variant="destructive"
+                    disabled={cancel.isPending}
+                    onClick={() =>
+                      cancel.mutate(
+                        { orderId, payload: cancelReason.trim() ? { reason: cancelReason.trim() } : undefined },
+                        {
+                          onSuccess: () => {
+                            setShowCancelForm(false);
+                            setCancelReason("");
+                          },
+                        },
+                      )
+                    }
+                  >
+                    <XCircle className="size-4" />
+                    {cancel.isPending ? "Đang hủy..." : "Xác nhận hủy"}
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
         </div>
