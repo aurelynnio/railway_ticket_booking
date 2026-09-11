@@ -1,9 +1,9 @@
 import 'reflect-metadata';
 import type { ClientProxy } from '@nestjs/microservices';
-import type { PrismaClient } from '@prisma/client';
 import { of } from 'rxjs';
 import { PaymentStatus } from './dto/payment.dto';
 import { PaymentService } from './payment.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('PaymentService', () => {
   let service: PaymentService;
@@ -69,7 +69,7 @@ describe('PaymentService', () => {
     };
 
     service = new PaymentService(
-      prisma as unknown as PrismaClient,
+      prisma as unknown as PrismaService,
       orderClient as unknown as ClientProxy,
     );
   });

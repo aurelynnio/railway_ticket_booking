@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ClientProxy } from '@nestjs/microservices';
-import { Prisma, PrismaClient, type Payment } from '@prisma/client';
+import { Prisma, type Payment } from '@prisma/client';
 import type {
   CreatePaymentRequest,
   ListPaymentsQuery,
@@ -19,6 +19,7 @@ import {
   parseAmount,
   toPaymentDto,
 } from './utils/payment.utils';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PaymentService {
@@ -27,7 +28,7 @@ export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     @Inject('order_service') private readonly orderClient: ClientProxy,
   ) {}
 

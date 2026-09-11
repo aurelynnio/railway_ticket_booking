@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { PaymentModule } from '../src/payment.module';
+import { PaymentModule } from '../src/payment/payment.module';
 
 describe('PaymentModule (e2e)', () => {
   it('should compile the root module', async () => {
