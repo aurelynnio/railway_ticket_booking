@@ -16,12 +16,12 @@ import {
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { EMPTY } from 'rxjs';
 import { comparePassword, hashPassword } from './utils/auth.utils';
 import { AuthService } from './auth.service';
 import { TokenService } from './utils/generate-token.utils';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -96,7 +96,7 @@ describe('AuthService', () => {
     };
 
     service = new AuthService(
-      prisma as unknown as PrismaClient,
+      prisma as unknown as PrismaService,
       tokenService as unknown as TokenService,
       notificationClient as unknown as any,
     );

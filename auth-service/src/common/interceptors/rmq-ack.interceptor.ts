@@ -9,8 +9,7 @@ import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Message } from 'amqplib';
 import { from, Observable, throwError } from 'rxjs';
 import { catchError, mergeMap, tap } from 'rxjs/operators';
-
-const DEAD_LETTER_QUEUE = 'railway_dead_letter_queue';
+import { DEAD_LETTER_QUEUE } from '../constants/queue.constants';
 
 @Injectable()
 export class RmqAckInterceptor implements NestInterceptor {

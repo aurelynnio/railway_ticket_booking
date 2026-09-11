@@ -24,7 +24,7 @@ import type {
   UpdateUserPayload,
   CreateUserPayload,
 } from './dto/auth.dto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { comparePassword, hashPassword } from './utils/auth.utils';
 import { TokenService } from './utils/generate-token.utils';
 
@@ -37,7 +37,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
     @Inject('notification_service')
     private readonly notificationClient: ClientProxy,

@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaClient } from '@prisma/client';
+import { PrismaModule } from '../prisma/prisma.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { TokenService } from './utils/generate-token.utils';
+import { NOTIFICATIONS_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
 
 @Module({
   imports: [
+    PrismaModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -40,12 +42,12 @@ import { TokenService } from './utils/generate-token.utils';
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: 'notifications_queue',
+          queue: NOTIFICATIONS_QUEUE,
           queueOptions: {
             durable: true,
             arguments: {
               'x-dead-letter-exchange': '',
-              'x-dead-letter-routing-key': 'railway_dead_letter_queue',
+              'x-dead-letter-routing-key': DEAD_LETTER_QUEUE,
             },
           },
         },
@@ -53,6 +55,6 @@ import { TokenService } from './utils/generate-token.utils';
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaClient, TokenService],
+  providers: [AuthService, TokenService],
 })
 export class AuthModule {}
