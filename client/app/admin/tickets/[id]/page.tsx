@@ -39,22 +39,56 @@ import {
   useUpdateTicket,
 } from "@/hooks/ticket.hook";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
-import { requiredText, splitCsv } from "@/lib/validation";
+import {
+  requiredStationCode,
+  requiredStationName,
+  requiredText,
+  splitCsv,
+} from "@/lib/validation";
 
-const editSchema = z.object({
-  title: requiredText("Tiêu đề"),
-  trainNumber: requiredText("Số tàu"),
-  departureStationCode: z.string().min(1),
-  departureStationName: z.string().min(1),
-  arrivalStationCode: z.string().min(1),
-  arrivalStationName: z.string().min(1),
-  dateStart: z.string().min(1),
-  dateEnd: z.string().min(1),
-  journeyNote: z.string().optional(),
-});
+const editSchema = z
+  .object({
+    title: requiredText("Tiêu đề"),
+    trainNumber: requiredText("Số tàu"),
+    departureStationCode: requiredStationCode("Mã ga đi"),
+    departureStationName: requiredStationName("Tên ga đi"),
+    arrivalStationCode: requiredStationCode("Mã ga đến"),
+    arrivalStationName: requiredStationName("Tên ga đến"),
+    dateStart: z.string().min(1, "Vui lòng chọn thời gian khởi hành"),
+    dateEnd: z.string().min(1, "Vui lòng chọn thời gian đến"),
+    journeyNote: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.departureStationCode || !data.arrivalStationCode) return true;
+      return (
+        data.departureStationCode.trim().toUpperCase() !==
+        data.arrivalStationCode.trim().toUpperCase()
+      );
+    },
+    {
+      message: "Ga đến không được trùng với ga đi",
+      path: ["arrivalStationCode"],
+    },
+  )
+  .refine(
+    (data) => {
+      if (!data.dateStart || !data.dateEnd) return true;
+      return new Date(data.dateEnd) >= new Date(data.dateStart);
+    },
+    {
+      message: "Thời gian đến phải sau thời gian khởi hành",
+      path: ["dateEnd"],
+    },
+  );
 
 const stockSchema = z.object({
-  stockInitial: z.string().regex(/^\d+$/, "Phải là số nguyên"),
+  stockInitial: z
+    .string()
+    .trim()
+    .min(1, "Số chỗ ban đầu là bắt buộc")
+    .regex(/^\d+$/, "Số chỗ phải là số nguyên")
+    .refine((v) => Number(v) >= 0, "Số chỗ phải lớn hơn hoặc bằng 0"),
   availableSeatLabels: z.string().optional(),
 });
 
@@ -150,40 +184,120 @@ export default function AdminTicketDetailPage() {
           >
             <div className="space-y-2">
               <Label htmlFor="title">Tiêu đề</Label>
-              <Input id="title" {...editForm.register("title")} />
+              <Input
+                id="title"
+                aria-invalid={Boolean(editForm.formState.errors.title)}
+                {...editForm.register("title")}
+              />
+              {editForm.formState.errors.title?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.title.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="trainNumber">Số tàu</Label>
-              <Input id="trainNumber" {...editForm.register("trainNumber")} />
+              <Input
+                id="trainNumber"
+                aria-invalid={Boolean(editForm.formState.errors.trainNumber)}
+                {...editForm.register("trainNumber")}
+              />
+              {editForm.formState.errors.trainNumber?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.trainNumber.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="depCode">Mã ga đi</Label>
-              <Input id="depCode" {...editForm.register("departureStationCode")} />
+              <Input
+                id="depCode"
+                placeholder="VD: HN"
+                aria-invalid={Boolean(editForm.formState.errors.departureStationCode)}
+                {...editForm.register("departureStationCode")}
+              />
+              {editForm.formState.errors.departureStationCode?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.departureStationCode.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="depName">Tên ga đi</Label>
-              <Input id="depName" {...editForm.register("departureStationName")} />
+              <Input
+                id="depName"
+                placeholder="VD: Hà Nội"
+                aria-invalid={Boolean(editForm.formState.errors.departureStationName)}
+                {...editForm.register("departureStationName")}
+              />
+              {editForm.formState.errors.departureStationName?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.departureStationName.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="arrCode">Mã ga đến</Label>
-              <Input id="arrCode" {...editForm.register("arrivalStationCode")} />
+              <Input
+                id="arrCode"
+                placeholder="VD: SG"
+                aria-invalid={Boolean(editForm.formState.errors.arrivalStationCode)}
+                {...editForm.register("arrivalStationCode")}
+              />
+              {editForm.formState.errors.arrivalStationCode?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.arrivalStationCode.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="arrName">Tên ga đến</Label>
-              <Input id="arrName" {...editForm.register("arrivalStationName")} />
+              <Input
+                id="arrName"
+                placeholder="VD: Sài Gòn"
+                aria-invalid={Boolean(editForm.formState.errors.arrivalStationName)}
+                {...editForm.register("arrivalStationName")}
+              />
+              {editForm.formState.errors.arrivalStationName?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.arrivalStationName.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dateStart">Khởi hành</Label>
-              <Input id="dateStart" type="datetime-local" {...editForm.register("dateStart")} />
+              <Input
+                id="dateStart"
+                type="datetime-local"
+                aria-invalid={Boolean(editForm.formState.errors.dateStart)}
+                {...editForm.register("dateStart")}
+              />
+              {editForm.formState.errors.dateStart?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.dateStart.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dateEnd">Đến nơi</Label>
-              <Input id="dateEnd" type="datetime-local" {...editForm.register("dateEnd")} />
+              <Input
+                id="dateEnd"
+                type="datetime-local"
+                aria-invalid={Boolean(editForm.formState.errors.dateEnd)}
+                {...editForm.register("dateEnd")}
+              />
+              {editForm.formState.errors.dateEnd?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.dateEnd.message}
+                </p>
+              )}
             </div>
-            <Button type="submit" variant="accent" size="sm" disabled={update.isPending}>
-              <Save className="size-4" />
-              {update.isPending ? "Đang lưu..." : "Lưu thay đổi"}
-            </Button>
+            <div className="sm:col-span-2">
+              <Button type="submit" variant="accent" size="sm" disabled={update.isPending}>
+                <Save className="size-4" />
+                {update.isPending ? "Đang lưu..." : "Lưu thay đổi"}
+              </Button>
+            </div>
           </form>
         </Card>
       )}
@@ -271,15 +385,31 @@ export default function AdminTicketDetailPage() {
             >
               <div className="space-y-2">
                 <Label htmlFor="stock">Số chỗ ban đầu</Label>
-                <Input id="stock" placeholder="VD: 40" {...stockForm.register("stockInitial")} />
+                <Input
+                  id="stock"
+                  placeholder="VD: 40"
+                  aria-invalid={Boolean(stockForm.formState.errors.stockInitial)}
+                  {...stockForm.register("stockInitial")}
+                />
+                {stockForm.formState.errors.stockInitial?.message && (
+                  <p className="text-xs font-medium text-destructive">
+                    {stockForm.formState.errors.stockInitial.message}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seats">Danh sách chỗ (phân cách dấu phẩy)</Label>
                 <Input
                   id="seats"
                   placeholder="VD: A1, A2, A3"
+                  aria-invalid={Boolean(stockForm.formState.errors.availableSeatLabels)}
                   {...stockForm.register("availableSeatLabels")}
                 />
+                {stockForm.formState.errors.availableSeatLabels?.message && (
+                  <p className="text-xs font-medium text-destructive">
+                    {stockForm.formState.errors.availableSeatLabels.message}
+                  </p>
+                )}
               </div>
               <div className="flex items-end">
                 <Button type="submit" variant="accent" size="sm" disabled={prepareStock.isPending}>

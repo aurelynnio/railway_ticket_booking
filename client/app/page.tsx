@@ -33,6 +33,7 @@ export default function HomePage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [date, setDate] = useState("");
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const stationQuery = useStationSuggestions();
   const stations = stationQuery.data?.length ? stationQuery.data : STATIONS;
@@ -43,6 +44,11 @@ export default function HomePage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (from && to && from.trim().toUpperCase() === to.trim().toUpperCase()) {
+      setSearchError("Ga đi và ga đến không được trùng nhau.");
+      return;
+    }
+    setSearchError(null);
     const params = new URLSearchParams();
     if (from) params.set("from", from);
     if (to) params.set("to", to);
@@ -119,7 +125,10 @@ export default function HomePage() {
                   <div className="relative">
                     <Select
                       value={from}
-                      onChange={(e) => setFrom(e.target.value)}
+                      onChange={(e) => {
+                        setFrom(e.target.value);
+                        setSearchError(null);
+                      }}
                       placeholder="Điểm đi"
                       className="bg-white/10 pl-10 text-white shadow-sm [&>svg]:text-white/50 data-[placeholder]:text-white/50"
                     >
@@ -137,6 +146,7 @@ export default function HomePage() {
                     onClick={() => {
                       setFrom(to);
                       setTo(from);
+                      setSearchError(null);
                     }}
                     className="flex size-11 items-center justify-center rounded-lg bg-white/10 text-white/60 shadow-sm transition-colors hover:bg-white/15 hover:text-white"
                     aria-label="Đổi điểm đi và đến"
@@ -146,7 +156,10 @@ export default function HomePage() {
                   <div className="relative">
                     <Select
                       value={to}
-                      onChange={(e) => setTo(e.target.value)}
+                      onChange={(e) => {
+                        setTo(e.target.value);
+                        setSearchError(null);
+                      }}
                       placeholder="Điểm đến"
                       className="bg-white/10 pl-10 text-white shadow-sm [&>svg]:text-white/50 data-[placeholder]:text-white/50"
                     >
@@ -162,7 +175,10 @@ export default function HomePage() {
                   <div className="relative">
                     <DatePicker
                       value={date}
-                      onChange={setDate}
+                      onChange={(val) => {
+                        setDate(val);
+                        setSearchError(null);
+                      }}
                       placeholder="Ngày đi"
                       minDate={new Date()}
                       className="bg-white/10 pl-10 text-white shadow-sm data-[placeholder]:text-white/50 [&>svg]:text-white/50"
@@ -174,6 +190,11 @@ export default function HomePage() {
                     <span className="hidden sm:inline">Tìm</span>
                   </Button>
                 </div>
+                {searchError && (
+                  <p className="mt-2 px-1 text-xs font-medium text-amber-300">
+                    {searchError}
+                  </p>
+                )}
               </form>
             </Card>
 

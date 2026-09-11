@@ -42,7 +42,7 @@ const profileSchema = z.object({
 });
 
 const passwordSchema = z.object({
-  oldPassword: z.string(),
+  oldPassword: z.string().min(1, "Vui lòng nhập mật khẩu hiện tại"),
   newPassword: passwordField,
 });
 
@@ -159,12 +159,28 @@ export default function ProfilePage() {
                       <Label htmlFor="username">Username</Label>
                       <Input
                         id="username"
+                        aria-invalid={Boolean(profileForm.formState.errors.username)}
                         {...profileForm.register("username")}
                       />
+                      {profileForm.formState.errors.username?.message && (
+                        <p className="text-xs font-medium text-destructive">
+                          {profileForm.formState.errors.username.message}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" {...profileForm.register("email")} />
+                      <Input
+                        id="email"
+                        type="email"
+                        aria-invalid={Boolean(profileForm.formState.errors.email)}
+                        {...profileForm.register("email")}
+                      />
+                      {profileForm.formState.errors.email?.message && (
+                        <p className="text-xs font-medium text-destructive">
+                          {profileForm.formState.errors.email.message}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -234,16 +250,28 @@ export default function ProfilePage() {
                     <Input
                       id="oldPassword"
                       type="password"
+                      aria-invalid={Boolean(passwordForm.formState.errors.oldPassword)}
                       {...passwordForm.register("oldPassword")}
                     />
+                    {passwordForm.formState.errors.oldPassword?.message && (
+                      <p className="text-xs font-medium text-destructive">
+                        {passwordForm.formState.errors.oldPassword.message}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">Mật khẩu mới</Label>
                     <Input
                       id="newPassword"
                       type="password"
+                      aria-invalid={Boolean(passwordForm.formState.errors.newPassword)}
                       {...passwordForm.register("newPassword")}
                     />
+                    {passwordForm.formState.errors.newPassword?.message && (
+                      <p className="text-xs font-medium text-destructive">
+                        {passwordForm.formState.errors.newPassword.message}
+                      </p>
+                    )}
                   </div>
                   <Button
                     type="submit"

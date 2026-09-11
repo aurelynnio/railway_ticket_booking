@@ -34,8 +34,19 @@ const itemSchema = z
     coachCode: z.string().optional(),
     seatClass: z.string().optional(),
     seatType: z.string().optional(),
-    priceOriginal: z.string().regex(/^\d+$/, "Giá phải là số nguyên"),
-    priceFlash: z.string().optional(),
+    priceOriginal: z
+      .string()
+      .trim()
+      .min(1, "Giá gốc là bắt buộc")
+      .regex(/^\d+$/, "Giá gốc phải là số nguyên"),
+    priceFlash: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v.length === 0 || /^\d+$/.test(v),
+        "Giá flash phải là số nguyên",
+      )
+      .optional(),
     stockInitial: optionalIntegerText("Số chỗ", 0),
     availableSeatLabels: requiredCsvText("Danh sách chỗ"),
     saleStartTime: z.string().optional(),
@@ -44,6 +55,16 @@ const itemSchema = z
   .refine(
     (v) => !v.saleStartTime || !v.saleEndTime || v.saleStartTime <= v.saleEndTime,
     { message: "Thời gian mở bán phải trước thời gian đóng bán", path: ["saleEndTime"] },
+  )
+  .refine(
+    (v) => {
+      if (!v.priceFlash?.trim() || !v.priceOriginal?.trim()) return true;
+      const flash = Number(v.priceFlash.trim());
+      const orig = Number(v.priceOriginal.trim());
+      if (Number.isNaN(flash) || Number.isNaN(orig)) return true;
+      return flash <= orig;
+    },
+    { message: "Giá flash không được lớn hơn giá gốc", path: ["priceFlash"] },
   );
 
 export default function AdminTicketItemsPage() {
@@ -149,7 +170,17 @@ export default function AdminTicketItemsPage() {
           >
             <div className="space-y-2">
               <Label htmlFor="name">Tên hạng</Label>
-              <Input id="name" placeholder="VD: Giường nằm khoang 4" {...form.register("name")} />
+              <Input
+                id="name"
+                placeholder="VD: Giường nằm khoang 4"
+                aria-invalid={Boolean(form.formState.errors.name)}
+                {...form.register("name")}
+              />
+              {form.formState.errors.name?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {form.formState.errors.name.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="coach">Toa</Label>
@@ -165,7 +196,12 @@ export default function AdminTicketItemsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="price">Giá gốc (đ)</Label>
-              <Input id="price" placeholder="VD: 350000" {...form.register("priceOriginal")} />
+              <Input
+                id="price"
+                placeholder="VD: 350000"
+                aria-invalid={Boolean(form.formState.errors.priceOriginal)}
+                {...form.register("priceOriginal")}
+              />
               {form.formState.errors.priceOriginal?.message && (
                 <p className="text-xs font-medium text-destructive">
                   {form.formState.errors.priceOriginal.message}
@@ -174,11 +210,31 @@ export default function AdminTicketItemsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="flash">Giá flash (đ, tùy chọn)</Label>
-              <Input id="flash" placeholder="VD: 320000" {...form.register("priceFlash")} />
+              <Input
+                id="flash"
+                placeholder="VD: 320000"
+                aria-invalid={Boolean(form.formState.errors.priceFlash)}
+                {...form.register("priceFlash")}
+              />
+              {form.formState.errors.priceFlash?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {form.formState.errors.priceFlash.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="stock">Số chỗ ban đầu</Label>
-              <Input id="stock" placeholder="VD: 40" {...form.register("stockInitial")} />
+              <Input
+                id="stock"
+                placeholder="VD: 40"
+                aria-invalid={Boolean(form.formState.errors.stockInitial)}
+                {...form.register("stockInitial")}
+              />
+              {form.formState.errors.stockInitial?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {form.formState.errors.stockInitial.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="labels">Danh sách chỗ (phân cách dấu phẩy)</Label>

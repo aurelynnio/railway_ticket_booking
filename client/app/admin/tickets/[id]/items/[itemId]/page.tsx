@@ -44,10 +44,32 @@ const editSchema = z.object({
   seatType: z.string().optional(),
 });
 
-const priceSchema = z.object({
-  priceOriginal: z.string().regex(/^\d+$/, "Phải là số nguyên"),
-  priceFlash: z.string().optional(),
-});
+const priceSchema = z
+  .object({
+    priceOriginal: z
+      .string()
+      .trim()
+      .min(1, "Giá gốc là bắt buộc")
+      .regex(/^\d+$/, "Giá gốc phải là số nguyên"),
+    priceFlash: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v.length === 0 || /^\d+$/.test(v),
+        "Giá flash phải là số nguyên",
+      )
+      .optional(),
+  })
+  .refine(
+    (v) => {
+      if (!v.priceFlash?.trim() || !v.priceOriginal?.trim()) return true;
+      const flash = Number(v.priceFlash.trim());
+      const orig = Number(v.priceOriginal.trim());
+      if (Number.isNaN(flash) || Number.isNaN(orig)) return true;
+      return flash <= orig;
+    },
+    { message: "Giá flash không được lớn hơn giá gốc", path: ["priceFlash"] },
+  );
 
 const windowSchema = z
   .object({
@@ -160,7 +182,16 @@ export default function AdminTicketItemPage() {
           >
             <div className="space-y-2">
               <Label htmlFor="name">Tên hạng</Label>
-              <Input id="name" {...editForm.register("name")} />
+              <Input
+                id="name"
+                aria-invalid={Boolean(editForm.formState.errors.name)}
+                {...editForm.register("name")}
+              />
+              {editForm.formState.errors.name?.message && (
+                <p className="text-xs font-medium text-destructive">
+                  {editForm.formState.errors.name.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="coach">Toa</Label>
@@ -232,11 +263,29 @@ export default function AdminTicketItemPage() {
             >
               <div className="space-y-2">
                 <Label htmlFor="price">Giá gốc (đ)</Label>
-                <Input id="price" {...priceForm.register("priceOriginal")} />
+                <Input
+                  id="price"
+                  aria-invalid={Boolean(priceForm.formState.errors.priceOriginal)}
+                  {...priceForm.register("priceOriginal")}
+                />
+                {priceForm.formState.errors.priceOriginal?.message && (
+                  <p className="text-xs font-medium text-destructive">
+                    {priceForm.formState.errors.priceOriginal.message}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="flash">Giá flash (đ)</Label>
-                <Input id="flash" {...priceForm.register("priceFlash")} />
+                <Input
+                  id="flash"
+                  aria-invalid={Boolean(priceForm.formState.errors.priceFlash)}
+                  {...priceForm.register("priceFlash")}
+                />
+                {priceForm.formState.errors.priceFlash?.message && (
+                  <p className="text-xs font-medium text-destructive">
+                    {priceForm.formState.errors.priceFlash.message}
+                  </p>
+                )}
               </div>
               <div className="flex items-end">
                 <Button type="submit" variant="outline" size="sm" disabled={changePrice.isPending}>
@@ -297,7 +346,17 @@ export default function AdminTicketItemPage() {
             >
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="seat">Số chỗ</Label>
-                <Input id="seat" placeholder="VD: A1" {...seatForm.register("seatLabel")} />
+                <Input
+                  id="seat"
+                  placeholder="VD: A1"
+                  aria-invalid={Boolean(seatForm.formState.errors.seatLabel)}
+                  {...seatForm.register("seatLabel")}
+                />
+                {seatForm.formState.errors.seatLabel?.message && (
+                  <p className="text-xs font-medium text-destructive">
+                    {seatForm.formState.errors.seatLabel.message}
+                  </p>
+                )}
               </div>
               <div className="flex items-end gap-2">
                 <Button type="submit" variant="outline" size="sm" disabled={reserveSeat.isPending}>

@@ -85,6 +85,51 @@ export function optionalDateTimeText(label: string) {
     );
 }
 
+export function requiredStationCode(label = "Mã ga") {
+  return z
+    .string()
+    .trim()
+    .min(1, `${label} là bắt buộc`)
+    .max(10, `${label} không được quá 10 ký tự`);
+}
+
+export function requiredStationName(label = "Tên ga") {
+  return z.string().trim().min(1, `${label} là bắt buộc`);
+}
+
+export function dateRangeRefine<T extends { dateStart: string; dateEnd: string }>(
+  schema: z.ZodType<T>,
+) {
+  return schema.refine(
+    (data) => {
+      if (!data.dateStart || !data.dateEnd) return true;
+      return new Date(data.dateEnd) >= new Date(data.dateStart);
+    },
+    {
+      message: "Thời gian đến phải sau thời gian khởi hành",
+      path: ["dateEnd"],
+    },
+  );
+}
+
+export function stationPairRefine<
+  T extends { departureStationCode: string; arrivalStationCode: string },
+>(schema: z.ZodType<T>) {
+  return schema.refine(
+    (data) => {
+      if (!data.departureStationCode || !data.arrivalStationCode) return true;
+      return (
+        data.departureStationCode.trim().toUpperCase() !==
+        data.arrivalStationCode.trim().toUpperCase()
+      );
+    },
+    {
+      message: "Ga đến không được trùng với ga đi",
+      path: ["arrivalStationCode"],
+    },
+  );
+}
+
 export function toOptionalString(value?: string | null) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
@@ -94,3 +139,4 @@ export function toOptionalIsoDateTime(value?: string | null) {
   const normalized = value?.trim();
   return normalized ? new Date(normalized).toISOString() : undefined;
 }
+
