@@ -1,0 +1,170 @@
+services:
+  redis-master:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-master
+    restart: unless-stopped
+    command: ['sh', '/etc/redis/start-redis.sh', 'master']
+    environment:
+      REDIS_PASSWORD: railway_sentinel_secret
+    ports:
+      - '6379:6379'
+    volumes:
+      - ./redis/redis-master.conf:/etc/redis/redis-master.conf:ro
+      - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
+      - redis_master_test_data:/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica-1:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-replica-1
+    restart: unless-stopped
+    command: ['sh', '/etc/redis/start-redis.sh', 'replica']
+    environment:
+      REDIS_PASSWORD: railway_sentinel_secret
+    ports:
+      - '6380:6379'
+    volumes:
+      - ./redis/redis-replica.conf:/etc/redis/redis-replica.conf:ro
+      - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
+      - redis_replica1_test_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica-2:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-replica-2
+    restart: unless-stopped
+    command: ['sh', '/etc/redis/start-redis.sh', 'replica']
+    environment:
+      REDIS_PASSWORD: railway_sentinel_secret
+    ports:
+      - '6381:6379'
+    volumes:
+      - ./redis/redis-replica.conf:/etc/redis/redis-replica.conf:ro
+      - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
+      - redis_replica2_test_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-sentinel-1:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-sentinel-1
+    restart: unless-stopped
+    command: ['sh', '/etc/redis/start-redis.sh', 'sentinel']
+    environment:
+      REDIS_PASSWORD: railway_sentinel_secret
+    ports:
+      - '26379:26379'
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
+      - redis_sentinel1_test_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+
+  redis-sentinel-2:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-sentinel-2
+    restart: unless-stopped
+    command: ['sh', '/etc/redis/start-redis.sh', 'sentinel']
+    environment:
+      REDIS_PASSWORD: railway_sentinel_secret
+    ports:
+      - '26380:26379'
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
+      - redis_sentinel2_test_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+
+  redis-sentinel-3:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-sentinel-3
+    restart: unless-stopped
+    command: ['sh', '/etc/redis/start-redis.sh', 'sentinel']
+    environment:
+      REDIS_PASSWORD: railway_sentinel_secret
+    ports:
+      - '26381:26379'
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
+      - redis_sentinel3_test_data:/data
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+
+  tickets-service:
+    image: railway-ticket-tickets-service:latest
+    container_name: railway-ticket-tickets-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://app:railway_dev@postgres:5432/railway_tickets
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      REDIS_SENTINELS: redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379
+      REDIS_SENTINEL_NAME: mymaster
+      REDIS_SENTINEL_PASSWORD: railway_sentinel_secret
+      REDIS_PASSWORD: railway_sentinel_secret
+      REDIS_REPLICA_COUNT: '2'
+      REDIS_DB: '0'
+      REDIS_CONNECT_TIMEOUT: '10000'
+    depends_on:
+      - redis-sentinel-1
+      - redis-sentinel-2
+      - redis-sentinel-3
+
+volumes:
+  redis_master_test_data:
+  redis_replica1_test_data:
+  redis_replica2_test_data:
+  redis_sentinel1_test_data:
+  redis_sentinel2_test_data:
+  redis_sentinel3_test_data:
+
+networks:
+  default:
+    name: docker_default
+    external: true

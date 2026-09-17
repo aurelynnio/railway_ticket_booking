@@ -140,6 +140,7 @@ import { RedisCacheService } from './redis.service';
             ...commonOptions,
             sentinels,
             name: masterName,
+            role: 'slave',
             sentinelPassword,
             // Pin replica theo index: client 0 → replica[0], client 1 → replica[1]
             // Nếu replica đó chết hoặc không có replica, fallback thay vì crash app

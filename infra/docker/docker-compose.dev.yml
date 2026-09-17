@@ -1,6 +1,46 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: railway-ticket-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: railway_dev
+      POSTGRES_DB: railway_ticket_booking
+      TZ: Asia/Bangkok
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    mem_limit: 256m
+    cpus: '0.5'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d railway_ticket_booking']
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: railway-ticket-redis-dev
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_dev_data:/data
+    mem_limit: 64m
+    cpus: '0.25'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   rabbitmq:
-    image: rabbitmq:4.1-management
+    image: rabbitmq:4.1-management-alpine
     container_name: railway-ticket-rabbitmq-dev
     restart: unless-stopped
     environment:
@@ -8,16 +48,20 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
       TZ: Asia/Bangkok
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - '5672:5672'
+      - '15672:15672'
     volumes:
       - rabbitmq_dev_data:/var/lib/rabbitmq
+    mem_limit: 192m
+    cpus: '0.5'
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 20s
 
 volumes:
+  postgres_dev_data:
+  redis_dev_data:
   rabbitmq_dev_data:
