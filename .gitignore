@@ -26,6 +26,9 @@ pnpm-debug.log*
 *.db-journal
 # Jest localStorage backing files created by Node test runs
 .jest-localstorage*
+# JMeter test run outputs and reports
+*.jtl
+report-*/
 
 # IDE and OS files
 .DS_Store

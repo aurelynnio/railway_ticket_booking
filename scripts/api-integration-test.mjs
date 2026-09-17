@@ -19,6 +19,7 @@
  *   node scripts/api-integration-test.mjs
  *   API_URL=http://localhost:8081 DEMO_PASSWORD=DemoPass123 PACE_MS=600 node scripts/api-integration-test.mjs
  */
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -391,7 +392,7 @@ if (user2Me?.id) {
   }
 }
 
-const pm = await checkCase({ id: "payments.M01", group: "Payments", name: "POST /payments (admin) create", method: "POST", path: "/payments", cookies: "admin", body: { orderId: opId, userId: ctx.adminId, amount: "150000", paymentMethod: "test-card", transactionId: `TESTTXN${tail}001` }, expectedStatus: 201, validate: (d) => (d?.id ? ok : { pass: false, note: "missing id" }) });
+const pm = await checkCase({ id: "payments.M01", group: "Payments", name: "POST /payments (admin) create with explicit UUID transactionId", method: "POST", path: "/payments", cookies: "admin", body: { orderId: opId, userId: ctx.adminId, amount: "150000", paymentMethod: "test-card", transactionId: randomUUID() }, expectedStatus: 201, validate: (d) => (d?.id ? ok : { pass: false, note: "missing id" }) });
 const pmId = pm?.id;
 await checkCase({ id: "payments.M02", group: "Payments", name: "POST /payments (user) → 403", method: "POST", path: "/payments", cookies: "user", body: { orderId: opId, amount: "100", paymentMethod: "x" }, expectedStatus: 403 });
 await checkCase({ id: "payments.M03", group: "Payments", name: "POST /payments invalid body → 400", method: "POST", path: "/payments", cookies: "admin", body: { orderId: 123 }, expectedStatus: 400 });
@@ -404,7 +405,7 @@ if (pmId) {
 }
 await checkCase({ id: "payments.M08", group: "Payments", name: "POST /payments/mark-paid missing id → 400", method: "POST", path: "/payments/mark-paid", cookies: "admin", body: {}, expectedStatus: 400 });
 
-const pmf = await checkCase({ id: "payments.M09", group: "Payments", name: "POST /payments (admin) create #failed", method: "POST", path: "/payments", cookies: "admin", body: { orderId: orvId, userId: ctx.adminId, amount: "150000", paymentMethod: "test-card", transactionId: `TESTTXN${tail}002` }, expectedStatus: 201 });
+const pmf = await checkCase({ id: "payments.M09", group: "Payments", name: "POST /payments (admin) create #failed", method: "POST", path: "/payments", cookies: "admin", body: { orderId: orvId, userId: ctx.adminId, amount: "150000", paymentMethod: "test-card", transactionId: randomUUID() }, expectedStatus: 201 });
 if (pmf?.id) {
   await checkCase({ id: "payments.M10", group: "Payments", name: "POST /payments/mark-failed (admin)", method: "POST", path: "/payments/mark-failed", cookies: "admin", body: { id: pmf.id }, expectedStatus: 200 });
   await checkCase({ id: "payments.M11", group: "Payments", name: "DELETE /payments/:id cleanup", method: "DELETE", path: `/payments/${pmf.id}`, cookies: "admin", expectedStatus: 200 });
@@ -419,7 +420,7 @@ if (pm3?.id) {
   await checkCase({ id: "payments.M16", group: "Payments", name: "POST /payments/expire (admin)", method: "POST", path: "/payments/expire", cookies: "admin", body: { id: pm3.id }, expectedStatus: 200 });
   await checkCase({ id: "payments.M17", group: "Payments", name: "DELETE /payments/:id cleanup #3", method: "DELETE", path: `/payments/${pm3.id}`, cookies: "admin", expectedStatus: 200 });
 }
-// transactionId column is UUID; non-UUID input currently yields 500 (expected 400).
+// transactionId is a UUID column; DTO validation rejects non-UUID input with 400 at the gateway/service edge.
 await checkCase({ id: "payments.M18", group: "Payments", name: "POST /payments transactionId not a UUID → 400", method: "POST", path: "/payments", cookies: "admin", body: { orderId: orvId, userId: ctx.adminId, amount: "1000", paymentMethod: "test-card", transactionId: "not-a-uuid" }, expectedStatus: 400 });
 
 /* ------------------------------ VNPAY ----------------------------------- */
