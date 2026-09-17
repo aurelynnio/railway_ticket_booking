@@ -49,6 +49,8 @@ import {
   type OrderWithRelations,
 } from './utils/order.utils';
 
+import { VoucherService } from './voucher.service';
+
 const orderInclude = {
   seatLabels: true,
   passengers: true,
@@ -66,6 +68,7 @@ export class OrderService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly voucherService: VoucherService,
     @Inject('payment_service') private readonly paymentClient: ClientProxy,
     @Inject('ticket_service') private readonly ticketClient: ClientProxy,
     @Inject('orders_expiration_service')
@@ -156,6 +159,7 @@ export class OrderService {
         contactEmail: payload.contactEmail,
         contactPhone: payload.contactPhone,
         idempotencyKey: payload.idempotencyKey,
+        voucherCode: payload.voucherCode,
       } satisfies CreateOrderRequest);
 
       orderId = order.id;
@@ -316,6 +320,34 @@ export class OrderService {
       calculatedTotalPrice = BigInt(quantity) * BigInt(unitPrice);
     }
 
+    let discountAmount = BigInt(0);
+    let voucherId: string | null = null;
+    let appliedVoucherCode: string | null = null;
+
+    if (payload.voucherCode?.trim()) {
+      const voucherRes = await this.voucherService.validateVoucher({
+        code: payload.voucherCode.trim(),
+        orderAmount: Number(calculatedTotalPrice),
+        userId: payload.userId,
+      });
+
+      if (!voucherRes.isValid) {
+        throw new HttpException(
+          voucherRes.message || 'Mã khuyến mãi không hợp lệ.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      discountAmount = BigInt(voucherRes.discountAmount);
+      voucherId = voucherRes.voucherId ?? null;
+      appliedVoucherCode = voucherRes.code;
+    }
+
+    const finalTotalPrice =
+      calculatedTotalPrice > discountAmount
+        ? calculatedTotalPrice - discountAmount
+        : BigInt(0);
+
     const order = await this.createOrder(
       {
         userId: payload.userId.trim(),
@@ -334,7 +366,10 @@ export class OrderService {
         seatType: toNullableString(payload.seatType),
         quantity,
         unitPrice: BigInt(unitPrice),
-        totalPrice: calculatedTotalPrice,
+        totalPrice: finalTotalPrice,
+        voucherId,
+        voucherCode: appliedVoucherCode,
+        discountAmount,
         status: OrderStatus.PendingPayment,
         idempotencyKey,
         seatLabels,
@@ -367,6 +402,9 @@ export class OrderService {
       quantity: number;
       unitPrice: bigint;
       totalPrice: bigint;
+      voucherId?: string | null;
+      voucherCode?: string | null;
+      discountAmount?: bigint;
       status: OrderStatus;
       idempotencyKey: string | null;
       seatLabels: string[];
@@ -377,7 +415,7 @@ export class OrderService {
     idempotencyKey: string | null,
   ) {
     try {
-      return await this.prisma.order.create({
+      const order = await this.prisma.order.create({
         data: {
           userId: data.userId,
           ticketItemId: data.ticketItemId,
@@ -396,6 +434,9 @@ export class OrderService {
           quantity: data.quantity,
           unitPrice: data.unitPrice,
           totalPrice: data.totalPrice,
+          voucherId: data.voucherId ?? null,
+          voucherCode: data.voucherCode ?? null,
+          discountAmount: data.discountAmount ?? BigInt(0),
           status: data.status,
           idempotencyKey: data.idempotencyKey,
           contactEmail: data.contactEmail ?? null,
@@ -414,6 +455,27 @@ export class OrderService {
         },
         include: orderInclude,
       });
+
+      if (data.voucherId) {
+        try {
+          await this.prisma.voucherUsage.create({
+            data: {
+              voucherId: data.voucherId,
+              userId: data.userId,
+              orderId: order.id,
+              discountAmount: data.discountAmount ?? BigInt(0),
+            },
+          });
+          await this.prisma.voucher.update({
+            where: { id: data.voucherId },
+            data: { usedCount: { increment: 1 } },
+          });
+        } catch (vErr) {
+          this.logger.warn(`Failed to record voucher usage: ${this.getErrorMessage(vErr)}`);
+        }
+      }
+
+      return order;
     } catch (error) {
       // Concurrent duplicate with the same idempotencyKey: another request
       // already created this order, so return the existing one.

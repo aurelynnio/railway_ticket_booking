@@ -1,6 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { OrderService } from './order.service';
+import { VoucherService } from './voucher.service';
 import type { PaymentPaidEventPayload } from './dto/order.contracts';
 import {
   CancelOrderRequest,
@@ -11,10 +12,19 @@ import {
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
 } from './dto/order.dto';
+import {
+  CreateVoucherRequest,
+  ListVouchersQuery,
+  UpdateVoucherRequest,
+  ValidateVoucherRequest,
+} from './dto/voucher.dto';
 
 @Controller()
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly voucherService: VoucherService,
+  ) {}
 
   @MessagePattern('orders.health')
   health() {
@@ -123,5 +133,37 @@ export class OrderController {
   @MessagePattern('orders.remove')
   remove(@Payload() data: { orderId: string }) {
     return this.orderService.remove(data.orderId);
+  }
+
+  @MessagePattern('vouchers.validate')
+  validateVoucher(@Payload() data: ValidateVoucherRequest) {
+    return this.voucherService.validateVoucher(data);
+  }
+
+  @MessagePattern('vouchers.list_available')
+  listAvailableVouchers() {
+    return this.voucherService.listAvailable();
+  }
+
+  @MessagePattern('vouchers.admin_list')
+  adminListVouchers(@Payload() query: ListVouchersQuery) {
+    return this.voucherService.adminList(query);
+  }
+
+  @MessagePattern('vouchers.admin_create')
+  adminCreateVoucher(@Payload() payload: CreateVoucherRequest) {
+    return this.voucherService.adminCreate(payload);
+  }
+
+  @MessagePattern('vouchers.admin_update')
+  adminUpdateVoucher(
+    @Payload() data: { id: string; payload: UpdateVoucherRequest },
+  ) {
+    return this.voucherService.adminUpdate(data.id, data.payload);
+  }
+
+  @MessagePattern('vouchers.admin_delete')
+  adminDeleteVoucher(@Payload() data: { id: string }) {
+    return this.voucherService.adminDelete(data.id);
   }
 }

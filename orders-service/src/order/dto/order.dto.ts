@@ -68,6 +68,9 @@ export interface OrderResponse {
   quantity: number;
   unitPrice: string;
   totalPrice: string;
+  voucherId?: string | null;
+  voucherCode?: string | null;
+  discountAmount?: string | null;
   ticketCode: string | null;
   qrPayload: string | null;
   contactEmail: string | null;
@@ -241,6 +244,11 @@ export class CreateOrderRequest {
   @IsString()
   @IsNotEmpty()
   idempotencyKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  voucherCode?: string | null;
 }
 
 export class CheckoutOrderRequest extends CreateOrderRequest {

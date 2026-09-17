@@ -6,6 +6,7 @@ import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import * as QUEUES from '../common/constants/queue.constants';
 import { ScheduleModule } from '@nestjs/schedule';
+import { VoucherService } from './voucher.service';
 
 @Module({
   imports: [
@@ -96,8 +97,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ]),
   ],
   controllers: [OrderController],
-  providers: [OrderService],
+  providers: [OrderService, VoucherService],
+  exports: [OrderService, VoucherService],
 })
 export class OrderModule {}
-
-
