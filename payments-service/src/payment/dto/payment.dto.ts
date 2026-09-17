@@ -1,4 +1,5 @@
-import { Type } from 'class-transformer';
+import { applyDecorators } from '@nestjs/common';
+import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
@@ -11,6 +12,30 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+
+/**
+ * Các cột id/orderId/userId/transactionId trong PostgreSQL đều là kiểu UUID.
+ * Nếu không chặn ở tầng DTO, giá trị sai định dạng sẽ đi xuống Prisma/Postgres
+ * và gây lỗi bind, bị bọc thành HTTP 500 thay vì 400.
+ *
+ * Riêng transactionId còn phải nhận dạng 32 ký tự không gạch nối vì VNPay giới
+ * hạn vnp_TxnRef 32 ký tự.
+ */
+const UUID_LIKE_PATTERN =
+  /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+
+/** Chuẩn hoá dạng 32 ký tự hex về UUID có gạch nối trước khi lưu/truy vấn. */
+const normalizeUuid = ({ value }: { value: unknown }) =>
+  typeof value === 'string' && value.length === 32 && !value.includes('-')
+    ? `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`
+    : value;
+
+/** Kiểm tra một trường là UUID hợp lệ (kèm chuẩn hoá dạng 32 ký tự của VNPay). */
+const IsUuidLike = (field: string) =>
+  applyDecorators(
+    Transform(normalizeUuid),
+    Matches(UUID_LIKE_PATTERN, { message: `${field} must be a valid UUID` }),
+  );
 
 export enum PaymentStatus {
   Pending = 0,
@@ -51,12 +76,12 @@ export class PaginationQuery {
 }
 
 export class CreatePaymentRequest {
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId?: string | null;
 
@@ -70,31 +95,31 @@ export class CreatePaymentRequest {
   paymentMethod: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId?: string;
 }
 
 export class GetPaymentByIdRequest {
-  @IsString()
+  @IsUuidLike('id')
   @IsNotEmpty()
   id: string;
 }
 
 export class GetPaymentByTransactionIdRequest {
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId: string;
 }
 
 export class ListPaymentsByOrderIdRequest {
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId: string;
 }
 
 export class ListPaymentsByUserIdRequest {
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId: string;
 
@@ -106,12 +131,12 @@ export class ListPaymentsByUserIdRequest {
 
 export class ListPaymentsQuery {
   @IsOptional()
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId?: string;
 
@@ -126,7 +151,7 @@ export class ListPaymentsQuery {
   paymentMethod?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId?: string;
 }
@@ -145,12 +170,12 @@ export class ListPaymentsRequest {
 
 export class PaymentLookupRequest {
   @ValidateIf((o: PaymentLookupRequest) => !o.transactionId)
-  @IsString()
+  @IsUuidLike('id')
   @IsNotEmpty()
   id?: string;
 
   @ValidateIf((o: PaymentLookupRequest) => !o.id)
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId?: string;
 }
