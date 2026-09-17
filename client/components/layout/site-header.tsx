@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
-import { Menu, X, Search, User, LogOut, ArrowRight } from "lucide-react";
+import { Menu, X, Search, User, LogOut, ArrowRight, Bell } from "lucide-react";
 
 import { BrandMark } from "@/components/brand/brand-mark";
 import { Button } from "@/components/ui/button";
 import { useAuthSession, useLogout } from "@/hooks/auth.hook";
+import { useUnreadNotificationCount } from "@/hooks/notification.hook";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -23,6 +24,7 @@ export function SiteHeader() {
   const session = useAuthSession();
   const logout = useLogout();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: unreadCount = 0 } = useUnreadNotificationCount(Boolean(session.data));
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -62,6 +64,19 @@ export function SiteHeader() {
                 <Search className="size-4" />
               </Link>
             </Button>
+
+            {session.data && (
+              <Button asChild variant="ghost" size="icon" className="relative">
+                <Link href="/notifications" aria-label="Thông báo">
+                  <Bell className="size-4 text-ink-muted hover:text-ink" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </Link>
+              </Button>
+            )}
 
             {session.data ? (
               <div className="hidden items-center gap-2 md:flex">

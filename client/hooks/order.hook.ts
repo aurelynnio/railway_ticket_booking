@@ -47,6 +47,7 @@ export interface CreateOrderPayload {
   contactEmail?: string | null;
   contactPhone?: string | null;
   idempotencyKey?: string;
+  voucherCode?: string;
 }
 
 export interface OrdersQuery {

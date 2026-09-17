@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Query } from "@tanstack/react-query";
 
 import {
   CancelPaymentRequest,
@@ -100,16 +101,31 @@ export function usePaymentByTransactionId(transactionId?: string) {
   });
 }
 
-export function usePaymentsByOrderId(orderId?: string, enabled = true) {
+export function usePaymentsByOrderId(
+  orderId?: string,
+  options?: Partial<{
+    enabled: boolean;
+    /**
+     * Tự động gọi lại. Truyền hàm để quyết định theo dữ liệu đang có — ví dụ dừng
+     * khi giao dịch đã có kết cục (dùng cho trang kết quả VNPay vì IPN có thể về
+     * sau redirect vài giây).
+     */
+    refetchInterval:
+      | number
+      | false
+      | ((query: Query<PaymentDto[]>) => number | false | undefined);
+  }>,
+) {
   return useQuery({
     queryKey: ["payments", "order", orderId],
-    enabled: enabled && Boolean(orderId),
+    enabled: Boolean(orderId) && (options?.enabled ?? true),
     queryFn: async () => {
       const res = await instance.get<PaymentDto[]>(
         `/payments/order/${orderId}`,
       );
       return res.data;
     },
+    refetchInterval: options?.refetchInterval,
   });
 }
 
