@@ -9,18 +9,21 @@ import { PaymentModule } from './payment/payment.module';
 import { OrderModule } from './order/order.module';
 import { SearchModule } from './search/search.module';
 import { NotificationModule } from './notification/notification.module';
+import { VoucherModule } from './voucher/voucher.module';
 import { JwtAuthGuard } from './common/guards/jwt.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      useFactory: () => [
+        {
+          ttl: Number(process.env.THROTTLER_TTL ?? 60000),
+          limit: Number(process.env.THROTTLER_LIMIT ?? 10000),
+        },
+      ],
+    }),
     AuthModule,
     TicketModule,
     UserModule,
@@ -28,6 +31,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     OrderModule,
     SearchModule,
     NotificationModule,
+    VoucherModule,
   ],
   providers: [
     // Thứ tự guard: Throttler → JwtAuth → Roles

@@ -9,6 +9,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { VnpayPaymentService, type VnpayQuery } from './vnpay.service';
@@ -19,9 +20,10 @@ import type { OrderResponse } from '../order/order.dto';
 import { OrderStatus } from '../order/order.dto';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { UserRole } from '../common/decorators/roles.decorator';
+import { IsUuidLike } from '../common/validators/uuid-like.validator';
 
 class CreateVnpayPaymentDto {
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId: string;
 
@@ -31,6 +33,7 @@ class CreateVnpayPaymentDto {
   orderInfo?: string;
 }
 
+@ApiTags('VNPay')
 @Controller('payments/vnpay')
 export class VnpayController {
   constructor(

@@ -1,20 +1,18 @@
 import { Module } from '@nestjs/common';
-import { UserController } from './user.controller';
-import { UserService } from './user.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { AUTH_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
+import { VoucherController } from './voucher.controller';
+import { VoucherService } from './voucher.service';
+import { ORDERS_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
 
 @Module({
   imports: [
     ClientsModule.register([
       {
-        // After merging users-service into auth-service, all user commands
-        // are handled by the auth_service queue.
-        name: 'user_service',
+        name: 'order_service',
         transport: Transport.RMQ,
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-          queue: AUTH_QUEUE,
+          queue: ORDERS_QUEUE,
           queueOptions: {
             durable: true,
             arguments: {
@@ -26,8 +24,9 @@ import { AUTH_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constan
       },
     ]),
   ],
-  controllers: [UserController],
-  providers: [UserService],
-  exports: [UserService],
+  controllers: [VoucherController],
+  providers: [VoucherService],
+  exports: [VoucherService],
 })
-export class UserModule {}
+export class VoucherModule {}
+

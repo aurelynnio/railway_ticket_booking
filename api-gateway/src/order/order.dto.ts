@@ -10,6 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsUuidLike } from '../common/validators/uuid-like.validator';
 
 export enum OrderStatus {
   Draft = 0,
@@ -140,15 +141,15 @@ export interface CancelOrderWorkflowResponse {
 
 export class CreateOrderRequest {
   @IsOptional()
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId: string;
 
-  @IsString()
+  @IsUuidLike('ticketItemId')
   @IsNotEmpty()
   ticketItemId: string;
 
-  @IsString()
+  @IsUuidLike('ticketId')
   @IsNotEmpty()
   ticketId: string;
 
@@ -242,6 +243,11 @@ export class CreateOrderRequest {
   @IsString()
   @IsNotEmpty()
   idempotencyKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  voucherCode?: string | null;
 }
 
 export class CheckoutOrderRequest extends CreateOrderRequest {
@@ -265,7 +271,7 @@ export class ListOrdersQuery {
   limit?: number;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId?: string;
 
@@ -275,12 +281,12 @@ export class ListOrdersQuery {
   status?: number | string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('ticketId')
   @IsNotEmpty()
   ticketId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('ticketItemId')
   @IsNotEmpty()
   ticketItemId?: string;
 

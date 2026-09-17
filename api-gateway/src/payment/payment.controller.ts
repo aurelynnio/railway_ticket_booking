@@ -9,6 +9,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { UuidLikePipe } from '../common/pipes/uuid-like.pipe';
 import { firstValueFrom } from 'rxjs';
 import { PaymentService } from './payment.service';
 import {
@@ -27,6 +29,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
+@ApiTags('Payments')
 @Controller('payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
@@ -54,14 +57,16 @@ export class PaymentController {
 
   @Get('transaction/:transactionId')
   @Roles(UserRole.ADMIN)
-  getPaymentByTransactionId(@Param('transactionId') transactionId: string) {
+  getPaymentByTransactionId(
+    @Param('transactionId', UuidLikePipe) transactionId: string,
+  ) {
     return this.paymentService.getPaymentByTransactionId({ transactionId });
   }
 
   @Get('order/:orderId')
   async listPaymentsByOrderId(
     @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
+    @Param('orderId', UuidLikePipe) orderId: string,
   ) {
     // Non-admin chỉ xem payment của order thuộc về mình
     if (request.user?.role !== UserRole.ADMIN) {
@@ -86,7 +91,7 @@ export class PaymentController {
   @Get('user/:userId')
   listPaymentsByUserId(
     @Req() request: { user?: RequestUser },
-    @Param('userId') userId: string,
+    @Param('userId', UuidLikePipe) userId: string,
     @Query() pagination: PaginationQuery,
   ) {
     // Non-admin chỉ xem payment của chính mình
@@ -102,7 +107,7 @@ export class PaymentController {
   @Get(':id')
   async getPaymentById(
     @Req() request: { user?: RequestUser },
-    @Param('id') id: string,
+    @Param('id', UuidLikePipe) id: string,
   ) {
     await this.assertPaymentOwnership(request.user, id);
     return this.paymentService.getPaymentById({ id });
@@ -146,7 +151,7 @@ export class PaymentController {
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  softDeletePayment(@Param('id') id: string) {
+  softDeletePayment(@Param('id', UuidLikePipe) id: string) {
     return this.paymentService.softDeletePayment({ id });
   }
 

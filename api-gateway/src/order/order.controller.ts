@@ -10,6 +10,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { UuidLikePipe } from '../common/pipes/uuid-like.pipe';
 import { firstValueFrom } from 'rxjs';
 import { OrderService } from './order.service';
 import {
@@ -25,6 +27,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
+@ApiTags('Orders')
 @Controller('orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
@@ -71,7 +74,7 @@ export class OrderController {
   @Get(':orderId')
   async findOne(
     @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
+    @Param('orderId', UuidLikePipe) orderId: string,
   ) {
     await this.assertOrderOwnership(request.user, orderId);
     return this.orderService.findOne({ orderId });
@@ -80,7 +83,7 @@ export class OrderController {
   @Get(':orderId/summary')
   async summary(
     @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
+    @Param('orderId', UuidLikePipe) orderId: string,
   ) {
     await this.assertOrderOwnership(request.user, orderId);
     return this.orderService.summary({ orderId });
@@ -89,7 +92,7 @@ export class OrderController {
   @Patch(':orderId/passengers')
   async updatePassengers(
     @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
+    @Param('orderId', UuidLikePipe) orderId: string,
     @Body() payload: UpdateOrderPassengersRequest,
   ) {
     await this.assertOrderOwnership(request.user, orderId);
@@ -99,7 +102,7 @@ export class OrderController {
   @Patch(':orderId/seat-labels')
   async updateSeatLabels(
     @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
+    @Param('orderId', UuidLikePipe) orderId: string,
     @Body() payload: UpdateOrderSeatLabelsRequest,
   ) {
     await this.assertOrderOwnership(request.user, orderId);
@@ -108,32 +111,32 @@ export class OrderController {
 
   @Post(':orderId/mark-pending-payment')
   @Roles(UserRole.ADMIN)
-  markPendingPayment(@Param('orderId') orderId: string) {
+  markPendingPayment(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.markPendingPayment({ orderId });
   }
 
   @Post(':orderId/mark-paid')
   @Roles(UserRole.ADMIN)
-  markPaid(@Param('orderId') orderId: string) {
+  markPaid(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.markPaid({ orderId });
   }
 
   @Post(':orderId/confirm')
   @Roles(UserRole.ADMIN)
-  confirm(@Param('orderId') orderId: string) {
+  confirm(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.confirm({ orderId });
   }
 
   @Post(':orderId/issue-ticket')
   @Roles(UserRole.ADMIN)
-  issueTicket(@Param('orderId') orderId: string) {
+  issueTicket(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.issueTicket({ orderId });
   }
 
   @Post(':orderId/cancel')
   async cancel(
     @Req() request: { user?: RequestUser },
-    @Param('orderId') orderId: string,
+    @Param('orderId', UuidLikePipe) orderId: string,
     @Body() payload?: CancelOrderRequest,
   ) {
     await this.assertOrderOwnership(request.user, orderId);
@@ -142,19 +145,19 @@ export class OrderController {
 
   @Post(':orderId/expire')
   @Roles(UserRole.ADMIN)
-  expire(@Param('orderId') orderId: string) {
+  expire(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.expire({ orderId });
   }
 
   @Post(':orderId/refund')
   @Roles(UserRole.ADMIN)
-  refund(@Param('orderId') orderId: string) {
+  refund(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.refund({ orderId });
   }
 
   @Delete(':orderId')
   @Roles(UserRole.ADMIN)
-  remove(@Param('orderId') orderId: string) {
+  remove(@Param('orderId', UuidLikePipe) orderId: string) {
     return this.orderService.remove({ orderId });
   }
 

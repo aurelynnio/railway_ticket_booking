@@ -3,11 +3,13 @@ import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AuthModule } from '../auth/auth.module';
+import { UserModule } from '../user/user.module';
 import { NOTIFICATIONS_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
 
 @Module({
   imports: [
     AuthModule,
+    UserModule,
     ClientsModule.register([
       {
         name: 'notification_service',

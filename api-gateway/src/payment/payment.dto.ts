@@ -9,6 +9,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { IsUuidLike } from '../common/validators/uuid-like.validator';
 
 export enum PaymentStatus {
   Pending = 0,
@@ -49,12 +50,12 @@ export class PaginationQuery {
 }
 
 export class CreatePaymentRequest {
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId?: string | null;
 
@@ -67,31 +68,31 @@ export class CreatePaymentRequest {
   paymentMethod: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId?: string;
 }
 
 export class GetPaymentByIdRequest {
-  @IsString()
+  @IsUuidLike('id')
   @IsNotEmpty()
   id: string;
 }
 
 export class GetPaymentByTransactionIdRequest {
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId: string;
 }
 
 export class ListPaymentsByOrderIdRequest {
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId: string;
 }
 
 export class ListPaymentsByUserIdRequest {
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId: string;
 
@@ -115,12 +116,12 @@ export class ListPaymentsQuery {
   limit?: number;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('userId')
   @IsNotEmpty()
   userId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('orderId')
   @IsNotEmpty()
   orderId?: string;
 
@@ -135,7 +136,7 @@ export class ListPaymentsQuery {
   paymentMethod?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId?: string;
 }
@@ -154,12 +155,12 @@ export class ListPaymentsRequest {
 
 export class PaymentLookupRequest {
   @ValidateIf((o: PaymentLookupRequest) => !o.transactionId)
-  @IsString()
+  @IsUuidLike('id')
   @IsNotEmpty()
   id?: string;
 
   @ValidateIf((o: PaymentLookupRequest) => !o.id)
-  @IsString()
+  @IsUuidLike('transactionId')
   @IsNotEmpty()
   transactionId?: string;
 }

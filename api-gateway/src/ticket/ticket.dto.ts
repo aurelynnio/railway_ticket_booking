@@ -12,6 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsUuidLike } from '../common/validators/uuid-like.validator';
 
 export enum TicketStatus {
   Draft = 0,
@@ -279,7 +280,7 @@ export class UpdateTicketRequest {
 }
 
 export class ReserveTicketRequest {
-  @IsString()
+  @IsUuidLike('ticketItemId')
   ticketItemId!: string;
 
   @IsOptional()
@@ -298,7 +299,7 @@ export class ReserveTicketRequest {
 }
 
 export class ReleaseTicketRequest {
-  @IsString()
+  @IsUuidLike('ticketItemId')
   ticketItemId!: string;
 
   @IsOptional()
@@ -318,7 +319,7 @@ export class ReleaseTicketRequest {
 
 export class PrepareStockRequest {
   @IsOptional()
-  @IsString()
+  @IsUuidLike('ticketItemId')
   ticketItemId?: string;
 
   @IsOptional()
@@ -336,7 +337,7 @@ export class PrepareStockRequest {
 
 export class OpenSaleRequest {
   @IsOptional()
-  @IsString()
+  @IsUuidLike('ticketItemId')
   ticketItemId?: string;
 
   @IsOptional()

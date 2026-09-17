@@ -9,6 +9,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { UuidLikePipe } from '../common/pipes/uuid-like.pipe';
 import { UserService } from './user.service';
 import {
   CreateUserRequest,
@@ -21,6 +23,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { Roles, UserRole } from '../common/decorators/roles.decorator';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
+@ApiTags('Users')
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -61,7 +64,7 @@ export class UserController {
 
   @Get(':userId')
   @Roles(UserRole.ADMIN)
-  getUserById(@Param('userId') userId: string) {
+  getUserById(@Param('userId', UuidLikePipe) userId: string) {
     return this.userService.getUserById({ userId });
   }
 
@@ -74,7 +77,7 @@ export class UserController {
   @Patch(':userId')
   @Roles(UserRole.ADMIN)
   update(
-    @Param('userId') userId: string,
+    @Param('userId', UuidLikePipe) userId: string,
     @Body() payload: UpdateUserPayload,
   ) {
     return this.userService.update({ userId, payload });
@@ -82,7 +85,7 @@ export class UserController {
 
   @Delete(':userId')
   @Roles(UserRole.ADMIN)
-  remove(@Param('userId') userId: string) {
+  remove(@Param('userId', UuidLikePipe) userId: string) {
     return this.userService.remove({ userId });
   }
 }
