@@ -240,4 +240,74 @@ export class NotificationService {
       },
     };
   }
+
+  async markAsRead(data: { notificationId: string; userId: string }) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: data.notificationId },
+    });
+    if (!notification || (notification.userId && notification.userId !== data.userId)) {
+      return { success: false, message: 'Notification not found or access denied' };
+    }
+    const updated = await this.prisma.notification.update({
+      where: { id: data.notificationId },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { success: true, data: updated };
+  }
+
+  async markAllAsRead(data: { userId: string }) {
+    const result = await this.prisma.notification.updateMany({
+      where: { userId: data.userId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { success: true, count: result.count };
+  }
+
+  async getUnreadCount(data: { userId: string }) {
+    const count = await this.prisma.notification.count({
+      where: { userId: data.userId, isRead: false },
+    });
+    return { unreadCount: count };
+  }
+
+  async broadcastMarketing(data: {
+    subject: string;
+    body: string;
+    voucherCode?: string;
+    recipients?: Array<{ email: string; userId?: string }>;
+    recipientEmails?: string[];
+  }) {
+    let bodyWithVoucher = data.body;
+    if (data.voucherCode) {
+      bodyWithVoucher += `\n\n🎉 Mã khuyến mãi: ${data.voucherCode}`;
+    }
+
+    let recipients: Array<{ email: string; userId?: string }> = [];
+    if (data.recipients && data.recipients.length > 0) {
+      recipients = data.recipients;
+    } else if (data.recipientEmails && data.recipientEmails.length > 0) {
+      recipients = data.recipientEmails.map((e) => ({ email: e, userId: undefined }));
+    } else {
+      const distinctRecipients = await this.prisma.notification.findMany({
+        distinct: ['recipientEmail'],
+        select: { recipientEmail: true, userId: true },
+      });
+      recipients = distinctRecipients.map((r) => ({
+        email: r.recipientEmail,
+        userId: r.userId ?? undefined,
+      }));
+    }
+
+    let createdCount = 0;
+    for (const rec of recipients) {
+      await this.sendAndPersist(
+        { userId: rec.userId, email: rec.email, type: 'marketing_promotion' },
+        data.subject,
+        bodyWithVoucher,
+      );
+      createdCount++;
+    }
+
+    return { success: true, sentCount: createdCount };
+  }
 }

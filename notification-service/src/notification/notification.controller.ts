@@ -89,4 +89,34 @@ export class NotificationController {
   ) {
     return this.notificationService.listAll(data);
   }
+
+  @MessagePattern({ cmd: 'notifications.mark_read' })
+  async markRead(
+    @Payload() data: { notificationId: string; userId: string },
+  ) {
+    return this.notificationService.markAsRead(data);
+  }
+
+  @MessagePattern({ cmd: 'notifications.mark_all_read' })
+  async markAllRead(@Payload() data: { userId: string }) {
+    return this.notificationService.markAllAsRead(data);
+  }
+
+  @MessagePattern({ cmd: 'notifications.unread_count' })
+  async unreadCount(@Payload() data: { userId: string }) {
+    return this.notificationService.getUnreadCount(data);
+  }
+
+  @MessagePattern({ cmd: 'notifications.broadcast_marketing' })
+  async broadcastMarketing(
+    @Payload()
+    data: {
+      subject: string;
+      body: string;
+      voucherCode?: string;
+      recipientEmails?: string[];
+    },
+  ) {
+    return this.notificationService.broadcastMarketing(data);
+  }
 }
