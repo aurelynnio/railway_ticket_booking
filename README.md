@@ -1,7 +1,7 @@
 # Railway Ticket Booking
 
-[![CI](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml/badge.svg)](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml)
-[![CD](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/cd.yml/badge.svg)](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/cd.yml)
+[![CI/CD](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml/badge.svg)](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml)
+
 
 Repo nay chua cac backend microservices cua he thong dat ve tau:
 

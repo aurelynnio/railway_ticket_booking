@@ -263,6 +263,7 @@ services:
 
   # Applies relational schema migrations before any PostgreSQL-backed service starts.
   db-migrate:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:db-migrate-latest
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.migrate
@@ -284,6 +285,7 @@ services:
   # BACKEND MICROSERVICES
   # =========================================================================
   auth-service:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:auth-service-latest
     build:
       context: ../../auth-service
       dockerfile: Dockerfile
@@ -305,6 +307,7 @@ services:
       - railway-ticket-network
 
   tickets-service:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:tickets-service-latest
     build:
       context: ../../tickets-service
       dockerfile: Dockerfile
@@ -340,6 +343,7 @@ services:
       - railway-ticket-network
 
   orders-service:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:orders-service-latest
     build:
       context: ../../orders-service
       dockerfile: Dockerfile
@@ -361,6 +365,7 @@ services:
       - railway-ticket-network
 
   payments-service:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:payments-service-latest
     build:
       context: ../../payments-service
       dockerfile: Dockerfile
@@ -381,6 +386,7 @@ services:
       - railway-ticket-network
 
   notification-service:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:notification-service-latest
     build:
       context: ../../notification-service
       dockerfile: Dockerfile
@@ -407,6 +413,7 @@ services:
       - railway-ticket-network
 
   api-gateway:
+    image: ${ECR_REGISTRY:-406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/}${ECR_REPOSITORY:-railway-ticket_booking}:api-gateway-latest
     build:
       context: ../../api-gateway
       dockerfile: Dockerfile
