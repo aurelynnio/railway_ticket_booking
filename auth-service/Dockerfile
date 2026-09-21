@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npx prisma generate
+RUN DATABASE_URL="postgresql://app:placeholder@localhost:5432/railway_auth" npx prisma generate
 RUN npm run build
 
 # Production stage

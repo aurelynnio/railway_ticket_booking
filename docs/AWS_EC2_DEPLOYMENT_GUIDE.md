@@ -633,16 +633,16 @@ Mở trình duyệt trên máy tính của bạn và kiểm tra:
 
 ## 8. Giai Đoạn 8: Các lệnh vận hành thường dùng
 
-| Tác vụ                               | Lệnh thực thi (trong thư mục `/srv/railway-ticket`)                                         |
-| :----------------------------------- | :----------------------------------------------------------------------------------- |
-| **Xem log realtime**                 | `docker compose logs -f <service-name>` _(vd: `docker compose logs -f api-gateway`)_ |
-| **Khởi động lại 1 service**          | `docker compose restart <service-name>`                                              |
-| **Tạm dừng toàn bộ hệ thống**        | `docker compose down`                                                                |
-| **Kéo và cập nhật images mới nhất**  | `docker compose pull && docker compose up -d`                                        |
-| **Xem mức tiêu thụ RAM / CPU**       | `docker stats`                                                                       |
-| **Kiểm tra trạng thái Nginx**        | `sudo systemctl status nginx`                                                        |
-| **Xem log truy cập Nginx**           | `sudo tail -f /var/log/nginx/access.log`                                             |
-| **Xem log lỗi Nginx**                | `sudo tail -f /var/log/nginx/error.log`                                              |
+| Tác vụ                              | Lệnh thực thi (trong thư mục `/srv/railway-ticket`)                                  |
+| :---------------------------------- | :----------------------------------------------------------------------------------- |
+| **Xem log realtime**                | `docker compose logs -f <service-name>` _(vd: `docker compose logs -f api-gateway`)_ |
+| **Khởi động lại 1 service**         | `docker compose restart <service-name>`                                              |
+| **Tạm dừng toàn bộ hệ thống**       | `docker compose down`                                                                |
+| **Kéo và cập nhật images mới nhất** | `docker compose pull && docker compose up -d`                                        |
+| **Xem mức tiêu thụ RAM / CPU**      | `docker stats`                                                                       |
+| **Kiểm tra trạng thái Nginx**       | `sudo systemctl status nginx`                                                        |
+| **Xem log truy cập Nginx**          | `sudo tail -f /var/log/nginx/access.log`                                             |
+| **Xem log lỗi Nginx**               | `sudo tail -f /var/log/nginx/error.log`                                              |
 
 ---
 
