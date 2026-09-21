@@ -38,16 +38,31 @@ $servicePatterns = @(
 
 Write-Step 'Stopping node processes for Railway Ticket Booking services'
 $killed = 0
+$portPids = @()
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
+  if ($_.LocalPort -eq 8081 -or $_.LocalPort -eq 3000) { $portPids += $_.OwningProcess }
+}
+
 $procs = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' or Name = 'cmd.exe'"
 foreach ($proc in $procs) {
   $cmdLine = $proc.CommandLine
   if (-not $cmdLine) { continue }
+  $shouldStop = $false
+
   foreach ($pattern in $servicePatterns) {
     if ($cmdLine -like "*railway_ticket_booking*$pattern*" -or $cmdLine -like "*$pattern*dist\main.js*") {
-      Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
-      $killed++
+      $shouldStop = $true
       break
     }
+  }
+
+  if (-not $shouldStop -and ($portPids -contains $proc.ProcessId)) {
+    $shouldStop = $true
+  }
+
+  if ($shouldStop) {
+    Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+    $killed++
   }
 }
 Write-Ok "Stopped $killed active process(es)"

@@ -8,8 +8,7 @@ $services = @(
   "payments-service",
   "notification-service",
   "tickets-service",
-  "api-gateway",
-  "client"
+  "api-gateway"
 )
 
 foreach ($svc in $services) {

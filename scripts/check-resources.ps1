@@ -32,27 +32,42 @@ $appMetrics = @()
 $totalAppMemMb = 0
 
 $procs = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"
+$portMap = @{}
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
+  if ($_.LocalPort -eq 8081) { $portMap[$_.OwningProcess] = 'api-gateway' }
+  if ($_.LocalPort -eq 3000) { $portMap[$_.OwningProcess] = 'client' }
+}
+
 foreach ($proc in $procs) {
   $cmd = $proc.CommandLine
   if (-not $cmd) { continue }
 
+  $matchedSvc = $null
   foreach ($svc in $servicePatterns) {
     if ($cmd -like "*$svc*") {
-      try {
-        $p = Get-Process -Id $proc.ProcessId -ErrorAction Stop
-        $memMb = [Math]::Round($p.WorkingSet64 / 1MB, 1)
-        $totalAppMemMb += $memMb
-
-        $appMetrics += [PSCustomObject]@{
-          Service   = $svc
-          PID       = $proc.ProcessId
-          RAM_MB    = "$memMb MB"
-          Threads   = $p.Threads.Count
-          StartTime = $p.StartTime.ToString("HH:mm:ss")
-        }
-      } catch {}
+      $matchedSvc = $svc
       break
     }
+  }
+
+  if (-not $matchedSvc -and $portMap.ContainsKey($proc.ProcessId)) {
+    $matchedSvc = $portMap[$proc.ProcessId]
+  }
+
+  if ($matchedSvc) {
+    try {
+      $p = Get-Process -Id $proc.ProcessId -ErrorAction Stop
+      $memMb = [Math]::Round($p.WorkingSet64 / 1MB, 1)
+      $totalAppMemMb += $memMb
+
+      $appMetrics += [PSCustomObject]@{
+        Service   = $matchedSvc
+        PID       = $proc.ProcessId
+        RAM_MB    = "$memMb MB"
+        Threads   = $p.Threads.Count
+        StartTime = $p.StartTime.ToString("HH:mm:ss")
+      }
+    } catch {}
   }
 }
 

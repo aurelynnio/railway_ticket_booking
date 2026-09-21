@@ -1,17 +1,20 @@
 # Railway Ticket Booking
 
-Repo nay la mot he thong dat ve tau tach thanh nhieu ung dung doc lap:
+Repo nay chua cac backend microservices cua he thong dat ve tau:
 
-- `client`: Next.js 16 frontend cho nguoi dung va admin
 - `api-gateway`: NestJS HTTP gateway cho browser/client
 - `auth-service`, `tickets-service`, `orders-service`, `payments-service`, `notification-service`: NestJS microservices giao tiep qua RabbitMQ (auth-service quan ly ca Auth & Users; tickets-service quan ly ca Tickets & Search)
+
+> [!NOTE]
+> Frontend client (Next.js 16 + React 19 + Tailwind CSS v4) da duoc tach thanh repo rieng tai:  
+> 👉 **[railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client)**
 
 `api-gateway` la diem vao HTTP. Cac service phia sau chu yeu nhan message qua RMQ (`ClientProxy.send(...)`, `@MessagePattern(...)`). Hien tai co them luong event chon loc `payment.paid` tu `payments-service` sang `orders-service`.
 
 ## Kien truc tong quan
 
 ```text
-client (Next.js, http://localhost:3000)
+railway-ticket-client (Next.js, http://localhost:3000)
   -> api-gateway (NestJS HTTP, http://localhost:8080)
     -> auth-service (Auth + User Profile)
     -> tickets-service (Tickets + Station Search)
@@ -37,7 +40,7 @@ Repo nay khong chi la CRUD app — day la danh sach cac he thong/co che ky thuat
 | 9   | **VNPay Payment IPN Integration**                 | Thanh toan server-to-server: IPN la nguon truth (verify checksum → check amount → idempotent status), Return URL chi hien thi; xu ly TxnRef 32-char va dong stale payment truoc khi issue TxnRef moi                                  | `api-gateway/src/payment/vnpay.service.ts`                                                               |
 | 10  | **Email Token Security (hashed token)**           | Reset/verification token chi luu hash trong DB, raw token chi di qua email, co expiry; forgot-password tra generic message chong email enumeration                                                                                    | `auth-service/src/auth/auth.service.ts`                                                                  |
 | 11  | **Nginx Reverse Proxy + Container Infra**         | Single entry port 80: route `/api/*` → gateway, `/*` → Next.js; gzip, security headers, rate limit 2 tang (api 20r/s, auth 5r/s); DB/MQ chi internal network; Docker multi-stage + non-root                                           | `infra/nginx/default.conf`, `infra/docker/docker-compose.yml`                                            |
-| 12  | **Client State Layer + Refresh Dedupe**           | TanStack Query cho server-state; axios interceptor voi refresh-token deduplication (singleton promise — nhieu request 401 dong thoi chi fire 1 refresh)                                                                               | `client/lib/http.ts`, `client/app/providers.tsx`                                                         |
+| 12  | **Client State Layer + Refresh Dedupe**           | TanStack Query cho server-state; axios interceptor voi refresh-token deduplication (singleton promise — nhieu request 401 dong thoi chi fire 1 refresh)                                                                               | Repo [railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client)                         |
 
 ### Luong thanh toan end-to-end
 
@@ -51,7 +54,6 @@ Chuoi xu ly thanh toan la to hop 5 he thong (3 + 4 + 5 + 6 + 9), gom 3 giai doan
 
 ```text
 .
-|- client/
 |- api-gateway/
 |- auth-service/
 |- tickets-service/
@@ -61,14 +63,17 @@ Chuoi xu ly thanh toan la to hop 5 he thong (3 + 4 + 5 + 6 + 9), gom 3 giai doan
 |- infra/
 |  |- docker/
 |  \- nginx/
+|- scripts/
 \- README.md
 ```
+
+> **Client Repo**: [`https://github.com/aurelynnio/railway-ticket-client`](https://github.com/aurelynnio/railway-ticket-client)
 
 ## Service map
 
 | App                    | Vai tro                                                           | Kieu chay             | Cong / Queue                                   |
 | ---------------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------------- |
-| `client`               | UI cho user/admin                                                 | Next.js HTTP app      | `3000`                                         |
+| `railway-ticket-client`| UI cho user/admin (repo rieng)                                    | Next.js HTTP app      | `3000`                                         |
 | `api-gateway`          | HTTP gateway, cookie auth, forward request vao RMQ                | Nest HTTP app         | `8080`                                         |
 | `auth-service`         | dang ky, dang nhap, refresh token, reset password, quan ly user   | Nest RMQ microservice | `auth_queue`                                   |
 | `tickets-service`      | CRUD ticket, stock, seat map, reserve/release, tim kiem ga/chuyen | Nest RMQ microservice | `tickets_queue`                                |
@@ -177,7 +182,7 @@ Full Compose chi expose Nginx o port `80`; API gateway va client chi truy cap no
 
 ## Cai dat dependencies
 
-Moi app la mot project doc lap. Can cai rieng:
+Moi backend app la mot project doc lap. Can cai rieng:
 
 ```powershell
 cd api-gateway; npm install
@@ -186,8 +191,9 @@ cd ..\tickets-service; npm install
 cd ..\orders-service; npm install
 cd ..\payments-service; npm install
 cd ..\notification-service; npm install
-cd ..\client; npm install
 ```
+
+> **Client Frontend**: Vui long clone va cai dat rieng tai [railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client).
 
 ## Cau hinh env
 
@@ -202,7 +208,6 @@ Danh sach example files:
 - `notification-service/.env.example`
 - `tickets-service/.env.example`
 - `api-gateway/.env.example`
-- `client/.env.example`
 
 Kiem tra `.env` thuc te co lech voi template khong:
 
@@ -259,10 +264,11 @@ cd api-gateway
 npm run start:dev
 ```
 
-6. Start frontend:
+6. Start frontend (standalone):
 
 ```powershell
-cd client
+# Chay tu repo rieng:
+cd ..\railway-ticket-client
 npm run dev
 ```
 
@@ -273,7 +279,7 @@ Sau do mo:
 
 ## Giam lag khi dev
 
-- Uu tien Docker cho infra toi thieu, con Nest/Next chay native bang `npm run start:dev` va `npm run dev`.
+- Uu tien Docker cho infra toi thieu (`docker-compose.dev.yml`), con Nest microservices chay native bang `.\scripts\start-all-lite.ps1` hoac `npm run start:dev`.
 - Khong can start tat ca service neu ban chi sua 1 flow.
 - Redis Sentinel cluster trong full compose khong can cho dev hang ngay; `tickets-service` da tro sang Redis Cloud.
 - Khi xong, tat stack nhe:
@@ -293,7 +299,7 @@ Gateway hien expose cac nhom route chinh:
 - `/orders`
 - `/payments`
 
-Client frontend dang goi `api-gateway` qua `withCredentials: true`, nen auth flow hien tai la cookie-based:
+Client frontend goi `api-gateway` qua `withCredentials: true`, nen auth flow hien tai la cookie-based:
 
 - `api-gateway` set/xoa `HttpOnly` cookies `accessToken` va `refreshToken`
 - client goi `GET /auth/session` de lay user hien tai
@@ -311,17 +317,16 @@ npm run test
 npm run typecheck:tsc
 ```
 
-Trong `client`:
+Khoi dong tat ca service backend (kem auto-detect client neu co):
 
 ```powershell
-npm run dev
-npm run build
-npm run lint
+.\scripts\start-all-lite.ps1
 ```
 
 ## Tinh trang hien tai can biet
 
 - Repo da tach thanh sibling services, khong phai Nest monorepo chung.
+- Client da duoc tach thanh repo rieng [railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client).
 - Moi relational service PostgreSQL co database rieng (`railway_auth`, `railway_users`, `railway_orders`, `railway_payments`, `railway_notifications`) va baseline Prisma migration. Full Compose chay `db-migrate` one-shot truoc khi start cac service nay.
 - `api-gateway` nen giu mong, business flow dai hoi nen nam o domain service.
 - `orders-service` luu order bang Prisma + PostgreSQL, gom order, seat labels va passengers. Service nay lang nghe 2 RMQ queue: `orders_queue` va `orders_expired_process_queue`.
@@ -332,8 +337,6 @@ npm run lint
 
 Khi deploy len RabbitMQ da co queue cu, RabbitMQ khong cho doi `durable` hay DLQ arguments tren queue dang ton tai. Sau khi drain message an toan, can xoa va de service tao lai: `auth_queue`, `tickets_queue`, `orders_queue`, `orders_expiration_queue`, `orders_expired_process_queue`, `payments_queue`, va `notifications_queue`. Khong purge hoac xoa queue khi chua backup/kiem dem message dang cho xu ly.
 
-- `client/README.md` hien van la README mac dinh cua Next.js, khong phan anh toan bo repo nay.
-
 ## Goi y verify sau khi sua code
 
 Neu sua backend:
@@ -341,13 +344,5 @@ Neu sua backend:
 ```powershell
 cd <service>
 npm run typecheck:tsc
-npm run build
-```
-
-Neu sua frontend:
-
-```powershell
-cd client
-npm run lint
 npm run build
 ```

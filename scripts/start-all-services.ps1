@@ -89,8 +89,15 @@ foreach ($svc in $services) {
 # ---------------------------------------------------------------------------
 Write-Step 'Launching client (Next.js dev)'
 $clientPath = Join-Path $repoRoot 'client'
-if (-not (Test-Path (Join-Path $clientPath 'node_modules'))) {
-  Write-Warn2 "client/node_modules missing — run 'npm install' first, skipped"
+$externalClientPath = Join-Path (Split-Path $repoRoot -Parent) 'railway-ticket-client'
+if (-not (Test-Path $clientPath) -and (Test-Path $externalClientPath)) {
+  $clientPath = $externalClientPath
+}
+
+if (-not (Test-Path $clientPath)) {
+  Write-Host "  ℹ Client repository is managed separately: https://github.com/aurelynnio/railway-ticket-client" -ForegroundColor Cyan
+} elseif (-not (Test-Path (Join-Path $clientPath 'node_modules'))) {
+  Write-Warn2 "client/node_modules missing in $clientPath — run 'npm install' first, skipped"
 } else {
   Start-Process powershell -ArgumentList @(
     '-NoExit',

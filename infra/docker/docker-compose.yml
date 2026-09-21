@@ -386,6 +386,8 @@ services:
     restart: unless-stopped
     expose:
       - "8080"
+    ports:
+      - "8080:8080"
     environment:
       PORT: 8080
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:?Set CLIENT_ORIGIN in .env.docker}
@@ -414,8 +416,9 @@ services:
       - railway-ticket-network
 
   client:
+    profiles: ["with-client"]
     build:
-      context: ../../client
+      context: ${CLIENT_PATH:-../../../railway-ticket-client}
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL in .env.docker}
@@ -437,10 +440,11 @@ services:
       - railway-ticket-network
 
   # =========================================================================
-  # NGINX Reverse Proxy (optional — exposes port 80)
+  # NGINX Reverse Proxy (optional — exposes port 80 when using --profile with-client)
   # Routes /api/* -> api-gateway:8080, /* -> client:3000
   # =========================================================================
   nginx:
+    profiles: ["with-client"]
     image: nginx:1.27-alpine
     container_name: railway-ticket-nginx
     restart: unless-stopped

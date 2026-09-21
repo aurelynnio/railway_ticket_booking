@@ -138,6 +138,11 @@ foreach ($svc in $services) {
     continue
   }
 
+  if ($Rebuild) {
+    Get-ChildItem -Path $svcPath -Filter '*.tsbuildinfo' -File -ErrorAction SilentlyContinue |
+      ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+  }
+
   $distMain = Join-Path $svcPath 'dist\main.js'
   if ($Rebuild -or -not (Test-Path $distMain)) {
     Write-Step "Building $svc (production compile)"
@@ -148,15 +153,28 @@ foreach ($svc in $services) {
     } finally {
       Pop-Location
     }
+    Start-Sleep -Milliseconds 300
     Write-Ok "$svc compiled successfully"
   }
 
-  # Clean stale .tsbuildinfo
-  Get-ChildItem -Path $svcPath -Filter '*.tsbuildinfo' -File -ErrorAction SilentlyContinue |
-    ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-
   $stdoutLog = Join-Path $logDir "$svc.out.log"
   $stderrLog = Join-Path $logDir "$svc.err.log"
+
+  # Check if service is already running to avoid port conflicts
+  $existing = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object {
+    $_.CommandLine -like "*$svc*dist\main.js*" -or ($svc -eq 'api-gateway' -and ($_.CommandLine -like "*api-gateway*" -or (Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess) -contains $_.ProcessId))
+  }
+  if ($existing) {
+    $pId = ($existing | Select-Object -First 1).ProcessId
+    $runningProcesses += [PSCustomObject]@{
+      Name = $svc
+      PID  = $pId
+      Port = $servicePorts[$svc]
+      Type = "Backend"
+    }
+    Write-Ok "$svc already running (PID: $pId)"
+    continue
+  }
 
   # Launch with V8 memory optimization: --max-old-space-size=128 limits heap to 128MB max
   # instead of default 2-4GB, freeing massive RAM and stopping runaway allocations.
@@ -182,8 +200,15 @@ foreach ($svc in $services) {
 # ---------------------------------------------------------------------------
 if (-not $SkipClient) {
   $clientPath = Join-Path $repoRoot 'client'
-  if (-not (Test-Path (Join-Path $clientPath 'node_modules'))) {
-    Write-Warn2 "client/node_modules missing - skipped"
+  $externalClientPath = Join-Path (Split-Path $repoRoot -Parent) 'railway-ticket-client'
+  if (-not (Test-Path $clientPath) -and (Test-Path $externalClientPath)) {
+    $clientPath = $externalClientPath
+  }
+
+  if (-not (Test-Path $clientPath)) {
+    Write-Host "  ℹ Client repository is managed separately: https://github.com/aurelynnio/railway-ticket-client" -ForegroundColor Cyan
+  } elseif (-not (Test-Path (Join-Path $clientPath 'node_modules'))) {
+    Write-Warn2 "client/node_modules missing in $clientPath - skipped"
   } else {
     # Ensure client/.env exists
     if (-not (Test-Path (Join-Path $clientPath '.env'))) {
@@ -196,7 +221,20 @@ if (-not $SkipClient) {
     $clientOutLog = Join-Path $logDir "client.out.log"
     $clientErrLog = Join-Path $logDir "client.err.log"
 
-    if ($DevClient) {
+    # Check if client is already running on port 3000
+    $existingClient = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object {
+      $_.CommandLine -like "*next*start*" -or $_.CommandLine -like "*next*dev*" -or (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess) -contains $_.ProcessId
+    }
+    if ($existingClient) {
+      $cPid = ($existingClient | Select-Object -First 1).ProcessId
+      $runningProcesses += [PSCustomObject]@{
+        Name = 'client'
+        PID  = $cPid
+        Port = 3000
+        Type = "Frontend"
+      }
+      Write-Ok "client already running (PID: $cPid) -> http://localhost:3000"
+    } elseif ($DevClient) {
       Write-Step "Launching client in DEVELOPMENT mode (npm run dev with hot-reload)"
       $clientProc = Start-Process npm.cmd -ArgumentList @('run', 'dev') `
         -WorkingDirectory $clientPath `
