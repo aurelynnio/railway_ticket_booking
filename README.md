@@ -40,7 +40,7 @@ Repo nay khong chi la CRUD app — day la danh sach cac he thong/co che ky thuat
 | 9   | **VNPay Payment IPN Integration**                 | Thanh toan server-to-server: IPN la nguon truth (verify checksum → check amount → idempotent status), Return URL chi hien thi; xu ly TxnRef 32-char va dong stale payment truoc khi issue TxnRef moi                                  | `api-gateway/src/payment/vnpay.service.ts`                                                               |
 | 10  | **Email Token Security (hashed token)**           | Reset/verification token chi luu hash trong DB, raw token chi di qua email, co expiry; forgot-password tra generic message chong email enumeration                                                                                    | `auth-service/src/auth/auth.service.ts`                                                                  |
 | 11  | **Nginx Reverse Proxy + Container Infra**         | Single entry port 80: route `/api/*` → gateway, `/*` → Next.js; gzip, security headers, rate limit 2 tang (api 20r/s, auth 5r/s); DB/MQ chi internal network; Docker multi-stage + non-root                                           | `infra/nginx/default.conf`, `infra/docker/docker-compose.yml`                                            |
-| 12  | **Client State Layer + Refresh Dedupe**           | TanStack Query cho server-state; axios interceptor voi refresh-token deduplication (singleton promise — nhieu request 401 dong thoi chi fire 1 refresh)                                                                               | Repo [railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client)                         |
+| 12  | **Client State Layer + Refresh Dedupe**           | TanStack Query cho server-state; axios interceptor voi refresh-token deduplication (singleton promise — nhieu request 401 dong thoi chi fire 1 refresh)                                                                               | Repo [railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client)                        |
 
 ### Luong thanh toan end-to-end
 
@@ -71,15 +71,15 @@ Chuoi xu ly thanh toan la to hop 5 he thong (3 + 4 + 5 + 6 + 9), gom 3 giai doan
 
 ## Service map
 
-| App                    | Vai tro                                                           | Kieu chay             | Cong / Queue                                   |
-| ---------------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------------- |
-| `railway-ticket-client`| UI cho user/admin (repo rieng)                                    | Next.js HTTP app      | `3000`                                         |
-| `api-gateway`          | HTTP gateway, cookie auth, forward request vao RMQ                | Nest HTTP app         | `8080`                                         |
-| `auth-service`         | dang ky, dang nhap, refresh token, reset password, quan ly user   | Nest RMQ microservice | `auth_queue`                                   |
-| `tickets-service`      | CRUD ticket, stock, seat map, reserve/release, tim kiem ga/chuyen | Nest RMQ microservice | `tickets_queue`                                |
-| `orders-service`       | checkout, order workflow, issue ticket, cancel/refund             | Nest RMQ microservice | `orders_queue`, `orders_expired_process_queue` |
-| `payments-service`     | tao payment, doi trang thai thanh toan                            | Nest RMQ microservice | `payments_queue`                               |
-| `notification-service` | gui email thong bao                                               | Nest RMQ microservice | `notifications_queue`                          |
+| App                     | Vai tro                                                           | Kieu chay             | Cong / Queue                                   |
+| ----------------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------------- |
+| `railway-ticket-client` | UI cho user/admin (repo rieng)                                    | Next.js HTTP app      | `3000`                                         |
+| `api-gateway`           | HTTP gateway, cookie auth, forward request vao RMQ                | Nest HTTP app         | `8080`                                         |
+| `auth-service`          | dang ky, dang nhap, refresh token, reset password, quan ly user   | Nest RMQ microservice | `auth_queue`                                   |
+| `tickets-service`       | CRUD ticket, stock, seat map, reserve/release, tim kiem ga/chuyen | Nest RMQ microservice | `tickets_queue`                                |
+| `orders-service`        | checkout, order workflow, issue ticket, cancel/refund             | Nest RMQ microservice | `orders_queue`, `orders_expired_process_queue` |
+| `payments-service`      | tao payment, doi trang thai thanh toan                            | Nest RMQ microservice | `payments_queue`                               |
+| `notification-service`  | gui email thong bao                                               | Nest RMQ microservice | `notifications_queue`                          |
 
 ## Luu tru du lieu hien tai
 

@@ -13,9 +13,13 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     mem_limit: 512m
-    cpus: "1.0"
+    cpus: '1.0'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-railway_ticket_booking}"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-railway_ticket_booking}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -35,10 +39,10 @@ services:
     container_name: railway-ticket-redis-master
     restart: unless-stopped
     # redis:7.4-alpine runs as uid 999 / gid 1000 — match the /data volume ownership
-    user: "999:1000"
+    user: '999:1000'
     mem_limit: 300m
-    cpus: "0.25"
-    command: ["sh", "/etc/redis/start-redis.sh", "master"]
+    cpus: '0.25'
+    command: ['sh', '/etc/redis/start-redis.sh', 'master']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}
     volumes:
@@ -46,7 +50,11 @@ services:
       - ./redis/start-redis.sh:/etc/redis/start-redis.sh:ro
       - redis_master_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -59,10 +67,10 @@ services:
     container_name: railway-ticket-redis-replica-1
     restart: unless-stopped
     # redis:7.4-alpine runs as uid 999 / gid 1000 — match the /data volume ownership
-    user: "999:1000"
+    user: '999:1000'
     mem_limit: 300m
-    cpus: "0.25"
-    command: ["sh", "/etc/redis/start-redis.sh", "replica"]
+    cpus: '0.25'
+    command: ['sh', '/etc/redis/start-redis.sh', 'replica']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}
     volumes:
@@ -73,7 +81,11 @@ services:
       redis-master:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -86,10 +98,10 @@ services:
     container_name: railway-ticket-redis-replica-2
     restart: unless-stopped
     # redis:7.4-alpine runs as uid 999 / gid 1000 — match the /data volume ownership
-    user: "999:1000"
+    user: '999:1000'
     mem_limit: 300m
-    cpus: "0.25"
-    command: ["sh", "/etc/redis/start-redis.sh", "replica"]
+    cpus: '0.25'
+    command: ['sh', '/etc/redis/start-redis.sh', 'replica']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}
     volumes:
@@ -100,7 +112,11 @@ services:
       redis-master:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -113,10 +129,10 @@ services:
     container_name: railway-ticket-redis-sentinel-1
     restart: unless-stopped
     # redis:7.4-alpine runs as uid 999 / gid 1000 — match the /data volume ownership
-    user: "999:1000"
+    user: '999:1000'
     mem_limit: 300m
-    cpus: "0.25"
-    command: ["sh", "/etc/redis/start-redis.sh", "sentinel"]
+    cpus: '0.25'
+    command: ['sh', '/etc/redis/start-redis.sh', 'sentinel']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}
     volumes:
@@ -131,7 +147,11 @@ services:
       redis-replica-2:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -p 26379 --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli -p 26379 --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -144,10 +164,10 @@ services:
     container_name: railway-ticket-redis-sentinel-2
     restart: unless-stopped
     # redis:7.4-alpine runs as uid 999 / gid 1000 — match the /data volume ownership
-    user: "999:1000"
+    user: '999:1000'
     mem_limit: 300m
-    cpus: "0.25"
-    command: ["sh", "/etc/redis/start-redis.sh", "sentinel"]
+    cpus: '0.25'
+    command: ['sh', '/etc/redis/start-redis.sh', 'sentinel']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}
     volumes:
@@ -162,7 +182,11 @@ services:
       redis-replica-2:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -p 26379 --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli -p 26379 --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -175,10 +199,10 @@ services:
     container_name: railway-ticket-redis-sentinel-3
     restart: unless-stopped
     # redis:7.4-alpine runs as uid 999 / gid 1000 — match the /data volume ownership
-    user: "999:1000"
+    user: '999:1000'
     mem_limit: 300m
-    cpus: "0.25"
-    command: ["sh", "/etc/redis/start-redis.sh", "sentinel"]
+    cpus: '0.25'
+    command: ['sh', '/etc/redis/start-redis.sh', 'sentinel']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}
     volumes:
@@ -193,7 +217,11 @@ services:
       redis-replica-2:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -p 26379 --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli -p 26379 --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -216,9 +244,9 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     mem_limit: 512m
-    cpus: "0.50"
+    cpus: '0.50'
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: 15s
       timeout: 10s
       retries: 10
@@ -239,7 +267,7 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile.migrate
     container_name: railway-ticket-db-migrate
-    restart: "no"
+    restart: 'no'
     environment:
       AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/railway_auth
       ORDERS_DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/railway_orders
@@ -272,7 +300,7 @@ services:
         condition: service_healthy
     # Pure RMQ microservice (no HTTP listener in main.ts) — no HTTP healthcheck possible
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     networks:
       - railway-ticket-network
 
@@ -284,13 +312,13 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/railway_tickets
-      REDIS_SENTINELS: "redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379"
-      REDIS_SENTINEL_NAME: "mymaster"
-      REDIS_SENTINEL_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}"
-      REDIS_DB: "0"
-      REDIS_REPLICA_COUNT: "2"
-      REDIS_CONNECT_TIMEOUT: "10000"
+      REDIS_SENTINELS: 'redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379'
+      REDIS_SENTINEL_NAME: 'mymaster'
+      REDIS_SENTINEL_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}'
+      REDIS_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.docker}'
+      REDIS_DB: '0'
+      REDIS_REPLICA_COUNT: '2'
+      REDIS_CONNECT_TIMEOUT: '10000'
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-railway}:${RABBITMQ_DEFAULT_PASS:-change-me}@rabbitmq:5672
     depends_on:
       db-migrate:
@@ -307,7 +335,7 @@ services:
         condition: service_healthy
     # Pure RMQ microservice (no HTTP listener in main.ts) — no HTTP healthcheck possible
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     networks:
       - railway-ticket-network
 
@@ -328,7 +356,7 @@ services:
         condition: service_healthy
     # RMQ-first service: main.ts starts microservices without app.listen() → no HTTP port to probe
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     networks:
       - railway-ticket-network
 
@@ -348,7 +376,7 @@ services:
         condition: service_healthy
     # Pure RMQ microservice (no HTTP listener in main.ts) — no HTTP healthcheck possible
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     networks:
       - railway-ticket-network
 
@@ -374,7 +402,7 @@ services:
         condition: service_healthy
     # Pure RMQ microservice (no HTTP listener in main.ts) — no HTTP healthcheck possible
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     networks:
       - railway-ticket-network
 
@@ -385,9 +413,9 @@ services:
     container_name: railway-ticket-api-gateway
     restart: unless-stopped
     expose:
-      - "8080"
+      - '8080'
     ports:
-      - "8080:8080"
+      - '8080:8080'
     environment:
       PORT: 8080
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:?Set CLIENT_ORIGIN in .env.docker}
@@ -405,18 +433,22 @@ services:
         condition: service_healthy
     # HTTP healthcheck: /auth/health is @Public() and round-trips to auth-service via RMQ
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 10 -O /dev/null http://localhost:8080/auth/health || exit 1"]
+      test:
+        [
+          'CMD-SHELL',
+          'wget -q -T 10 -O /dev/null http://localhost:8080/auth/health || exit 1',
+        ]
       interval: 15s
       timeout: 15s
       retries: 20
       start_period: 30s
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     networks:
       - railway-ticket-network
 
   client:
-    profiles: ["with-client"]
+    profiles: ['with-client']
     build:
       context: ${CLIENT_PATH:-../../../railway-ticket-client}
       dockerfile: Dockerfile
@@ -425,15 +457,19 @@ services:
     container_name: railway-ticket-client
     restart: unless-stopped
     expose:
-      - "3000"
+      - '3000'
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 5 -O /dev/null http://localhost:3000/ || exit 1"]
+      test:
+        [
+          'CMD-SHELL',
+          'wget -q -T 5 -O /dev/null http://localhost:3000/ || exit 1',
+        ]
       interval: 10s
       timeout: 10s
       retries: 10
       start_period: 30s
     mem_limit: 384m
-    cpus: "0.50"
+    cpus: '0.50'
     depends_on:
       - api-gateway
     networks:
@@ -444,12 +480,12 @@ services:
   # Routes /api/* -> api-gateway:8080, /* -> client:3000
   # =========================================================================
   nginx:
-    profiles: ["with-client"]
+    profiles: ['with-client']
     image: nginx:1.27-alpine
     container_name: railway-ticket-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      - '80:80'
     volumes:
       - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -458,7 +494,7 @@ services:
       client:
         condition: service_healthy
     mem_limit: 128m
-    cpus: "0.25"
+    cpus: '0.25'
     networks:
       - railway-ticket-network
 
