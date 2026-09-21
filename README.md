@@ -2,7 +2,6 @@
 
 [![CI/CD](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml/badge.svg)](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml)
 
-
 Repo nay chua cac backend microservices cua he thong dat ve tau:
 
 - `api-gateway`: NestJS HTTP gateway cho browser/client

@@ -12,9 +12,10 @@ Tài liệu này hướng dẫn chi tiết từng bước để bạn tự cấu
 4. [Giai Đoạn 4: Clone Code & Cấu hình biến môi trường (`.env.docker`)](#4-giai-đoạn-4-clone-code--cấu-hình-biến-môi-trường-envdocker)
 5. [Giai Đoạn 5: Khởi chạy toàn bộ hệ thống bằng Docker Compose](#5-giai-đoạn-5-khởi-chạy-toàn-bộ-hệ-thống-bằng-docker-compose)
 6. [Giai Đoạn 6: Kiểm tra hoạt động (Verification)](#6-giai-đoạn-6-kiểm-tra-hoạt-động-verification)
-7. [Giai Đoạn 7: Các lệnh vận hành thường dùng](#7-giai-đoạn-7-các-lệnh-vận-hành-thường-dùng)
-8. [Giai Đoạn 8: Cấu hình CI/CD Tự Động (GitHub Actions & AWS ECR)](#8-giai-đoạn-8-cấu-hình-cicd-tự-động-github-actions--aws-ecr)
-9. [Xử lý lỗi thường gặp (Troubleshooting)](#9-xử-lý-lỗi-thường-gặp-troubleshooting)
+7. [Giai Đoạn 7: Trỏ Tên Miền (Name.com) & Cấu hình Nginx Reverse Proxy với HTTPS](#7-giai-đoạn-7-trỏ-tên-miền-namecom--cấu-hình-nginx-reverse-proxy-với-https)
+8. [Giai Đoạn 8: Các lệnh vận hành thường dùng](#8-giai-đoạn-8-các-lệnh-vận-hành-thường-dùng)
+9. [Giai Đoạn 9: Cấu hình CI/CD Tự Động (GitHub Actions & AWS ECR)](#9-giai-đoạn-9-cấu-hình-cicd-tự-động-github-actions--aws-ecr)
+10. [Xử lý lỗi thường gặp (Troubleshooting)](#10-xử-lý-lỗi-thường-gặp-troubleshooting)
 
 ---
 
@@ -299,7 +300,291 @@ Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`):
 
 ---
 
-## 7. Giai Đoạn 7: Các lệnh vận hành thường dùng
+## 7. Giai Đoạn 7: Trỏ Tên Miền (Name.com) & Cấu hình Nginx Reverse Proxy với HTTPS
+
+Để hệ thống hoạt động chuyên nghiệp trên môi trường production, bạn cần:
+1. Gắn tên miền thật **`vetautet.app`** (quản lý tại **Name.com**).
+2. Dùng **Nginx** làm Reverse Proxy để tiếp nhận traffic ở cổng `80` (HTTP) và `443` (HTTPS).
+3. Sử dụng **Certbot (Let's Encrypt)** để cấp chứng chỉ SSL miễn phí (ổ khóa xanh bảo mật).
+4. Định tuyến lưu lượng thông minh:
+   - `https://api.vetautet.app` $\rightarrow$ Chuyển tiếp vào Backend NestJS API Gateway (`127.0.0.1:8080`).
+   - `https://vetautet.app` $\rightarrow$ Chuyển tiếp vào Frontend Web Client (nếu host trên EC2 hoặc trỏ DNS sang Vercel).
+
+---
+
+### 7.1. Bước 1: Trỏ DNS tên miền trên Name.com về EC2
+
+1. Truy cập trang quản trị [Name.com](https://www.name.com/) và đăng nhập tài khoản của bạn.
+2. Vào mục **My Domains** $\rightarrow$ Click vào tên miền **`vetautet.app`**.
+3. Chọn mục **Manage DNS Records** (hoặc **DNS Records**).
+4. Thêm các bản ghi DNS sau (thay `<EC2_PUBLIC_IP>` bằng IP Public của máy ảo EC2 của bạn):
+
+| Type (Loại) | Host (Tên máy chủ) | Answer / Target (Địa chỉ đích) | TTL | Giải thích |
+| :--- | :--- | :--- | :--- | :--- |
+| **A** | `api` | `<EC2_PUBLIC_IP>` | `300` | Trỏ subdomain `api.vetautet.app` về EC2 để phục vụ Backend API Gateway |
+| **A** | `@` | `<EC2_PUBLIC_IP>` | `300` | Trỏ root domain `vetautet.app` về EC2 (nếu host cả Frontend trên EC2) |
+| **CNAME** | `www` | `vetautet.app` | `300` | Chuyển hướng `www.vetautet.app` về root domain |
+
+> 💡 **Mẹo**: Nếu Frontend Next.js của bạn deploy trên **Vercel**, thì bản ghi `@` và `www` bạn trỏ về IP của Vercel (`76.76.21.21`), còn bản ghi `api` vẫn trỏ về `<EC2_PUBLIC_IP>` của AWS EC2.
+
+Sau khi lưu bản ghi, chờ khoảng 1–5 phút để DNS lan truyền. Bạn có thể kiểm tra trên terminal máy tính:
+```powershell
+ping api.vetautet.app
+```
+*(Nếu hiển thị đúng địa chỉ `<EC2_PUBLIC_IP>` là DNS đã trỏ thành công).*
+
+---
+
+### 7.2. Bước 2: Cài đặt Nginx & Certbot trên máy chủ EC2
+
+SSH vào máy ảo EC2 của bạn:
+```bash
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+Kiểm tra Nginx đã khởi động thành công:
+```bash
+sudo systemctl status nginx
+```
+
+---
+
+### 7.3. Bước 3: Tạo file cấu hình Nginx Reverse Proxy
+
+Tạo một file cấu hình Nginx dành riêng cho tên miền `vetautet.app`:
+
+```bash
+sudo nano /etc/nginx/sites-available/vetautet.app
+```
+
+Dán toàn bộ nội dung cấu hình chuẩn production dưới đây vào file:
+
+```nginx
+# =============================================================================
+# Cấu hình Nginx Reverse Proxy cho hệ thống Railway Ticket Booking (vetautet.app)
+# =============================================================================
+
+# 1. Rate Limiting chống spam và tấn công brute-force
+limit_req_zone $binary_remote_addr zone=api_general_limit:10m rate=30r/s;
+limit_req_zone $binary_remote_addr zone=auth_strict_limit:10m rate=5r/s;
+
+# 2. Hỗ trợ WebSocket / Server-Sent Events (SSE)
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# -----------------------------------------------------------------------------
+# SUBDOMAIN: api.vetautet.app (Dành riêng cho Backend API Gateway)
+# -----------------------------------------------------------------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.vetautet.app;
+
+    # Ẩn phiên bản Nginx để tăng cường bảo mật
+    server_tokens off;
+
+    # Kích thước tối đa cho payload request (upload file, avatar)
+    client_max_body_size 10m;
+
+    # Security Headers bảo mật
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Gzip nén dữ liệu phản hồi giúp tối ưu tốc độ
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml application/json text/javascript application/javascript application/xml+rss application/atom+xml image/svg+xml;
+
+    # Endpoint riêng cho VNPay IPN & Return Callback (Không áp dụng rate limit)
+    location /payments/vnpay/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_read_timeout 60s;
+    }
+
+    # Giới hạn rate limit nghiêm ngặt cho các API nhạy cảm (Login, Register, Reset Pass)
+    location ~ ^/auth/(login|register|forgot-password|reset-password|verify-email) {
+        limit_req zone=auth_strict_limit burst=10 nodelay;
+        limit_req_status 429;
+
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_read_timeout 60s;
+    }
+
+    # Tất cả các API còn lại chuyển tiếp vào API Gateway Docker container
+    location / {
+        limit_req zone=api_general_limit burst=50 nodelay;
+        limit_req_status 429;
+
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+
+        # Chuyển tiếp Header người dùng thật
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        # WebSocket headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+
+# -----------------------------------------------------------------------------
+# ROOT DOMAIN: vetautet.app & www.vetautet.app (Nếu bạn chạy Frontend trên EC2)
+# (Nếu bạn dùng Vercel cho Frontend thì có thể bỏ qua block server này)
+# -----------------------------------------------------------------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name vetautet.app www.vetautet.app;
+
+    server_tokens off;
+    client_max_body_size 10m;
+
+    location / {
+        # Giả sử container Next.js client chạy ở cổng 3000
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}
+```
+
+- Bấm `Ctrl + O` rồi nhấn `Enter` để lưu file.
+- Bấm `Ctrl + X` để thoát khỏi trình soạn thảo `nano`.
+
+---
+
+### 7.4. Bước 4: Kích hoạt cấu hình và kiểm tra Nginx
+
+Chạy các lệnh sau trên EC2:
+
+```bash
+# 1. Kích hoạt website bằng cách tạo symlink sang thư mục sites-enabled
+sudo ln -sf /etc/nginx/sites-available/vetautet.app /etc/nginx/sites-enabled/
+
+# 2. Xóa cấu hình mặc định (default) của nginx để tránh xung đột
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 3. Kiểm tra cú pháp xem có lỗi gì không
+sudo nginx -t
+```
+
+Nếu màn hình báo:
+```text
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+Thì bạn chạy lệnh reload lại Nginx:
+```bash
+sudo systemctl reload nginx
+```
+
+---
+
+### 7.5. Bước 5: Cấp chứng chỉ SSL/TLS miễn phí với Certbot (Let's Encrypt)
+
+Chạy lệnh tự động kích hoạt HTTPS:
+
+```bash
+sudo certbot --nginx -d api.vetautet.app -d vetautet.app -d www.vetautet.app
+```
+
+*(Nếu bạn chỉ muốn cấp SSL cho subdomain API trước, chỉ cần chạy: `sudo certbot --nginx -d api.vetautet.app`)*.
+
+**Quá trình tương tác:**
+1. **Enter email address**: Nhập email của bạn (dùng để nhận cảnh báo gia hạn).
+2. **Terms of Service**: Nhấn `Y` để đồng ý điều khoản.
+3. **Share email with EFF**: Nhấn `N` hoặc `Y` tùy bạn.
+4. **Certbot sẽ tự động**:
+   - Xác minh quyền sở hữu tên miền qua DNS Name.com.
+   - Tạo khóa mã hóa RSA 2048-bit.
+   - Tự động chỉnh sửa file `/etc/nginx/sites-available/vetautet.app`, cấu hình cổng `443 SSL`, certificate path và tự động redirect toàn bộ lượt truy cập HTTP `port 80` sang HTTPS `port 443`!
+
+Kiểm tra cơ chế tự động gia hạn chứng chỉ (Certbot tự gia hạn mỗi 90 ngày):
+```bash
+sudo certbot renew --dry-run
+```
+*(Thấy báo `Congratulations, all simulated renewals succeeded` là hoàn tất 100%).*
+
+---
+
+### 7.6. Bước 6: Cập nhật biến môi trường `.env.docker` theo domain mới
+
+Bây giờ bạn đã có domain HTTPS bảo mật, hãy cập nhật lại các URL trong file cấu hình `.env.docker`:
+
+```bash
+cd ~/railway_ticket_booking/infra/docker
+nano .env.docker
+```
+
+Cập nhật các dòng sau:
+```bash
+# Frontend cho phép CORS và Email verification link
+CLIENT_ORIGIN=https://vetautet.app
+CLIENT_URL=https://vetautet.app
+
+# VNPay IPN & Return URL dùng domain HTTPS chính thức
+VNPAY_PUBLIC_BASE_URL=https://api.vetautet.app
+VNPAY_RETURN_URL=https://api.vetautet.app/payments/vnpay/return
+```
+
+Lưu file (`Ctrl + O`, `Enter`, `Ctrl + X`) và restart lại các container để áp dụng cấu hình:
+```bash
+docker compose up -d
+```
+
+---
+
+### 7.7. Bước 7: Tăng cường bảo mật — Đóng cổng 8080 trên AWS Security Group
+
+Vì mọi request từ bên ngoài bây giờ đã đi an toàn qua Nginx trên cổng **`80`** và **`443`**, bạn không cần mở cổng `8080` ra toàn cầu nữa:
+1. Vào AWS Console $\rightarrow$ **EC2** $\rightarrow$ **Instances** $\rightarrow$ Chọn máy của bạn.
+2. Chọn tab **Security** $\rightarrow$ Bấm vào tên Security Group (`railway-backend-sg`).
+3. Chọn **Edit inbound rules** $\rightarrow$ Xóa dòng có Port **`8080`** $\rightarrow$ Bấm **Save rules**.
+*(Giờ đây, cổng 8080 chỉ có Nginx nội bộ truy cập được, hacker không thể quét trực tiếp vào backend NestJS của bạn).*
+
+---
+
+### 7.8. Bước 8: Kiểm tra thành quả trên trình duyệt
+
+Mở trình duyệt trên máy tính của bạn và kiểm tra:
+1. `https://api.vetautet.app/auth/health` $\rightarrow$ Trả về JSON `{ "service": "api-gateway", "status": "ok" }` với biểu tượng **ổ khóa an toàn (HTTPS)**.
+2. `https://api.vetautet.app/api/docs` $\rightarrow$ Mở giao diện Swagger API Documentation trực tiếp qua HTTPS tên miền của bạn!
+
+---
+
+## 8. Giai Đoạn 8: Các lệnh vận hành thường dùng
 
 | Tác vụ                               | Lệnh thực thi (trong thư mục `infra/docker`)                                         |
 | :----------------------------------- | :----------------------------------------------------------------------------------- |
@@ -308,10 +593,13 @@ Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`):
 | **Tạm dừng toàn bộ**                 | `docker compose down`                                                                |
 | **Cập nhật code mới nhất từ GitHub** | `git pull origin main`<br>`docker compose --env-file .env.docker up -d --build`      |
 | **Xem mức tiêu thụ RAM / CPU**       | `docker stats`                                                                       |
+| **Kiểm tra trạng thái Nginx**        | `sudo systemctl status nginx`                                                        |
+| **Xem log truy cập Nginx**           | `sudo tail -f /var/log/nginx/access.log`                                             |
+| **Xem log lỗi Nginx**                | `sudo tail -f /var/log/nginx/error.log`                                              |
 
 ---
 
-## 8. Giai Đoạn 8: Cấu hình CI/CD Tự Động (GitHub Actions & AWS ECR)
+## 9. Giai Đoạn 9: Cấu hình CI/CD Tự Động (GitHub Actions & AWS ECR)
 
 Hệ thống đã được thiết lập pipeline tự động tại file `.github/workflows/ci.yml`. Mỗi khi bạn `git push` lên nhánh `main`, GitHub Actions sẽ tự động:
 1. Chạy linter, unit tests, và build kiểm tra toàn bộ 6 microservices.
@@ -320,14 +608,14 @@ Hệ thống đã được thiết lập pipeline tự động tại file `.gith
 4. Build và đẩy Docker images của tất cả microservices lên ECR song song.
 5. SSH vào máy ảo EC2, kéo Docker images mới nhất về và cập nhật các container với zero downtime.
 
-### 8.1. Cài đặt AWS CLI trên EC2 (chỉ cần chạy 1 lần duy nhất trên EC2)
+### 9.1. Cài đặt AWS CLI trên EC2 (chỉ cần chạy 1 lần duy nhất trên EC2)
 
 SSH vào EC2 và cài AWS CLI:
 ```bash
 sudo apt-get update && sudo apt-get install -y awscli
 ```
 
-### 8.2. Cấu hình Secrets và Variables trên GitHub
+### 9.2. Cấu hình Secrets và Variables trên GitHub
 
 Vào repository GitHub của bạn: **Settings** $\rightarrow$ **Secrets and variables** $\rightarrow$ **Actions**.
 
@@ -335,26 +623,26 @@ Vào repository GitHub của bạn: **Settings** $\rightarrow$ **Secrets and var
 
 Bấm **New repository secret** và thêm lần lượt 4 biến sau:
 
-| Tên Secret | Giá trị cần điền |
-| :--- | :--- |
-| `AWS_ACCESS_KEY_ID` | Access Key ID của tài khoản AWS IAM có quyền truy cập ECR (ví dụ: `AKIA...`) |
-| `AWS_SECRET_ACCESS_KEY` | Secret Access Key tương ứng của IAM user trên |
-| `EC2_HOST` | Địa chỉ IP Public IPv4 của máy chủ EC2 (ví dụ: `54.254.120.45` hoặc Elastic IP) |
-| `EC2_SSH_PRIVATE_KEY` | Toàn bộ nội dung file khóa SSH `railway-backend-key.pem` (mở bằng Notepad, copy toàn bộ từ `-----BEGIN ...` đến `-----END ...`) |
+| Tên Secret              | Giá trị cần điền                                                                                                                |
+| :---------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| `AWS_ACCESS_KEY_ID`     | Access Key ID của tài khoản AWS IAM có quyền truy cập ECR (ví dụ: `AKIA...`)                                                    |
+| `AWS_SECRET_ACCESS_KEY` | Secret Access Key tương ứng của IAM user trên                                                                                   |
+| `EC2_HOST`              | Địa chỉ IP Public IPv4 của máy chủ EC2 (ví dụ: `54.254.120.45` hoặc Elastic IP)                                                 |
+| `EC2_SSH_PRIVATE_KEY`   | Toàn bộ nội dung file khóa SSH `railway-backend-key.pem` (mở bằng Notepad, copy toàn bộ từ `-----BEGIN ...` đến `-----END ...`) |
 
 #### 🌐 Repository Variables (3 biến cấu hình)
 
 Chuyển sang tab **Variables** $\rightarrow$ Bấm **New repository variable** và thêm lần lượt 3 biến sau:
 
-| Tên Variable | Giá trị cần điền | Ghi chú |
-| :--- | :--- | :--- |
-| `AWS_REGION` | `ap-southeast-1` | Vùng AWS Singapore bạn đang dùng ECR & EC2 |
-| `EC2_USER` | `ubuntu` | Tên user đăng nhập mặc định của máy ảo Ubuntu |
-| `ECR_REPOSITORY` | `railway-ticket_booking` | Tên repository ECR bạn đã tạo trên AWS |
+| Tên Variable     | Giá trị cần điền         | Ghi chú                                       |
+| :--------------- | :----------------------- | :-------------------------------------------- |
+| `AWS_REGION`     | `ap-southeast-1`         | Vùng AWS Singapore bạn đang dùng ECR & EC2    |
+| `EC2_USER`       | `ubuntu`                 | Tên user đăng nhập mặc định của máy ảo Ubuntu |
+| `ECR_REPOSITORY` | `railway-ticket_booking` | Tên repository ECR bạn đã tạo trên AWS        |
 
 ---
 
-## 9. Xử lý lỗi thường gặp (Troubleshooting)
+## 10. Xử lý lỗi thường gặp (Troubleshooting)
 
 ### Lỗi 1: Không mở được `http://<EC2_PUBLIC_IP>:8080` từ trình duyệt
 
@@ -378,4 +666,3 @@ Chuyển sang tab **Variables** $\rightarrow$ Bấm **New repository variable** 
   3. Chọn IP vừa tạo $\rightarrow$ Bấm **Actions** $\rightarrow$ **Associate Elastic IP address**.
   4. Chọn Instance máy ảo của bạn $\rightarrow$ Bấm **Associate**.
      _(Địa chỉ IP này sẽ trở thành IP tĩnh vĩnh viễn, không bao giờ thay đổi)._
-
