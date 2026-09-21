@@ -1,5 +1,8 @@
 # Railway Ticket Booking
 
+[![CI](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml/badge.svg)](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/ci.yml)
+[![CD](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/cd.yml/badge.svg)](https://github.com/aurelynnio/railway_ticket_booking/actions/workflows/cd.yml)
+
 Repo nay chua cac backend microservices cua he thong dat ve tau:
 
 - `api-gateway`: NestJS HTTP gateway cho browser/client
@@ -345,4 +348,43 @@ Neu sua backend:
 cd <service>
 npm run typecheck:tsc
 npm run build
+npm test
 ```
+
+## Quy trinh CI/CD (GitHub Actions)
+
+Repo tich hop san 2 workflow GitHub Actions tu dong hoa toan dien:
+
+### 1. Continuous Integration (`.github/workflows/ci.yml`)
+* **Trigger**: Moi khi tao Pull Request hoac Push vao branch `main`.
+* **Matrix Testing**: Chay song song tren 6 runner doc lap cho ca 6 microservices:
+  * `api-gateway`
+  * `auth-service`
+  * `notification-service`
+  * `orders-service`
+  * `payments-service`
+  * `tickets-service`
+* **Cac buoc kiem thu**:
+  1. `npm ci` (kem npm cache theo tung service)
+  2. `npx prisma generate` (tu dong phat hien cac service co schema Prisma)
+  3. `npm run lint` (ESLint)
+  4. `npm run build` (TypeScript compilation / tsgo)
+  5. `npm test` (Jest unit test suites)
+* **Docker Compose Validation**: Kiem tra tinh hop le cua syntax Docker Compose va env template.
+
+### 2. Continuous Delivery & Deployment (`.github/workflows/cd.yml`)
+* **Trigger**: Khi merge vao `main`, tao Git Release tag (`v*`), hoac trigger thu cong (`workflow_dispatch`).
+* **Packaging**: Dong goi va publish multi-service Docker images len **GitHub Container Registry (GHCR)**:
+  * `ghcr.io/aurelynnio/railway-api-gateway`
+  * `ghcr.io/aurelynnio/railway-auth-service`
+  * `ghcr.io/aurelynnio/railway-notification-service`
+  * `ghcr.io/aurelynnio/railway-orders-service`
+  * `ghcr.io/aurelynnio/railway-payments-service`
+  * `ghcr.io/aurelynnio/railway-tickets-service`
+* **Docker Layer Cache**: Su dung GitHub Actions cache (`type=gha`) giup giam thoi gian build container xuong chi con vai giay.
+* **Auto Deploy (Tuy chon)**: Ho tro deploy tu dong qua SSH len VPS/Server khi cau hinh cac Secret trong GitHub:
+  * `SSH_HOST`: IP hoac domain cua server
+  * `SSH_USER`: SSH username (vi du `ubuntu`)
+  * `SSH_KEY`: Private SSH Key dung de dang nhap
+  * `SSH_PORT`: (Tuy chon, mac dinh 22)
+

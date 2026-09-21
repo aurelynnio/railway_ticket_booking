@@ -67,9 +67,18 @@ describe('OrderService', () => {
     const usersClient = {
       send: jest.fn(),
     };
+    const voucherService = {
+      validateAndApplyVoucher: jest.fn().mockImplementation(async (code: string, amount: number) => ({
+        voucher: { id: 'v-1', code, discountType: 'FIXED', discountValue: 0 },
+        discountAmount: 0,
+        finalAmount: amount,
+      })),
+      rollbackUsage: jest.fn().mockResolvedValue(true),
+    };
 
     service = new OrderService(
       prisma as unknown as PrismaService,
+      voucherService as unknown as any,
       paymentClient as unknown as any,
       ticketClient as unknown as any,
       expirationClient as unknown as any,
