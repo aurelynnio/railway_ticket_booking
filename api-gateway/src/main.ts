@@ -23,8 +23,35 @@ async function bootstrap() {
     }),
   );
 
+  const configuredOrigins = (process.env.CLIENT_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim());
+
   app.enableCors({
-    origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:3000',
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) return callback(null, true);
+
+      const isAllowed = configuredOrigins.some((allowed) => {
+        if (allowed === '*' || allowed === requestOrigin) return true;
+        try {
+          const allowedHost = new URL(allowed).host;
+          const reqHost = new URL(requestOrigin).host;
+          return (
+            reqHost === allowedHost ||
+            reqHost === `www.${allowedHost}` ||
+            `www.${reqHost}` === allowedHost
+          );
+        } catch {
+          return false;
+        }
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked for origin: ${requestOrigin}`));
+      }
+    },
     credentials: true,
   });
 
