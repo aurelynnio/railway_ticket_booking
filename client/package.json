@@ -1,7 +1,8 @@
 {
-  "name": "client",
+  "name": "railway-ticket-client",
   "version": "0.1.0",
   "private": true,
+  "description": "Next.js frontend client for Railway Ticket Booking System",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
