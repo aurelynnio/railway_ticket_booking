@@ -399,7 +399,7 @@ services:
       SMTP_HOST: ${SMTP_HOST:-smtp.example.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-user@example.com}
-      SMTP_PASS: ${SMTP_PASS:?Set SMTP_PASS in .env.docker}
+      SMTP_PASS: ${SMTP_PASS:-change-me-smtp}
       EMAIL_FROM: ${EMAIL_FROM:-no-reply@example.com}
     depends_on:
       db-migrate:
@@ -460,7 +460,7 @@ services:
       context: ${CLIENT_PATH:-../../../railway-ticket-client}
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL in .env.docker}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://vetautet.app}
     container_name: railway-ticket-client
     restart: unless-stopped
     expose:
