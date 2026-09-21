@@ -170,22 +170,14 @@ jobs:
           script: |
             set -e
             echo "🚀 Starting deployment on EC2..."
-            DEPLOY_DIR="$HOME/railway_ticket_booking"
 
-            if [ ! -d "$DEPLOY_DIR" ]; then
-              echo "Repository not found on EC2. Cloning repository..."
-              git clone https://github.com/${{ github.repository }}.git "$DEPLOY_DIR"
-            fi
-
-            cd "$DEPLOY_DIR"
-            git fetch origin main
-            git reset --hard origin/main
-
-            cd infra/docker
-
-            if [ ! -f .env.docker ]; then
-              echo "Warning: .env.docker not found. Creating from .env.docker.example..."
-              cp .env.docker.example .env.docker
+            if [ -d "/srv/railway-ticket" ]; then
+              cd /srv/railway-ticket
+            elif [ -d "$HOME/railway-ticket" ]; then
+              cd "$HOME/railway-ticket"
+            else
+              echo "❌ Deployment directory (/srv/railway-ticket or ~/railway-ticket) not found!"
+              exit 1
             fi
 
             echo "🔑 Logging in to Amazon ECR on EC2..."
@@ -199,10 +191,10 @@ jobs:
             export ECR_REPOSITORY="$ECR_REPOSITORY"
             docker compose pull
 
-            echo "🔄 Updating and running services..."
+            echo "🔄 Updating and running services with zero-downtime..."
             docker compose up -d --remove-orphans
 
             echo "🧹 Cleaning up old unused images..."
-            docker image prune -f
+            docker image prune -af
 
             echo "✅ Deployment completed successfully!"

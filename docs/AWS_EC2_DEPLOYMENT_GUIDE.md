@@ -9,7 +9,7 @@ Tài liệu này hướng dẫn chi tiết từng bước để bạn tự cấu
 1. [Giai Đoạn 1: Tạo máy chủ EC2 trên AWS Console](#1-giai-đoạn-1-tạo-máy-chủ-ec2-trên-aws-console)
 2. [Giai Đoạn 2: Kết nối vào máy chủ EC2](#2-giai-đoạn-2-kết-nối-vào-máy-chủ-ec2)
 3. [Giai Đoạn 3: Cài đặt Docker, Docker Compose & Tạo Swap](#3-giai-đoạn-3-cài-đặt-docker-docker-compose--tạo-swap)
-4. [Giai Đoạn 4: Clone Code & Cấu hình biến môi trường (`.env.docker`)](#4-giai-đoạn-4-clone-code--cấu-hình-biến-môi-trường-envdocker)
+4. [Giai Đoạn 4: Thiết lập Thư Mục Triển Khai (`/srv/railway-ticket`) & Cấu hình `.env.docker`](#4-giai-đoạn-4-thiết-lập-thư-mục-triển-khai-srvrailway-ticket--cấu-hình-envdocker)
 5. [Giai Đoạn 5: Khởi chạy toàn bộ hệ thống bằng Docker Compose](#5-giai-đoạn-5-khởi-chạy-toàn-bộ-hệ-thống-bằng-docker-compose)
 6. [Giai Đoạn 6: Kiểm tra hoạt động (Verification)](#6-giai-đoạn-6-kiểm-tra-hoạt-động-verification)
 7. [Giai Đoạn 7: Trỏ Tên Miền (Name.com) & Cấu hình Nginx Reverse Proxy với HTTPS](#7-giai-đoạn-7-trỏ-tên-miền-namecom--cấu-hình-nginx-reverse-proxy-với-https)
@@ -158,23 +158,40 @@ _(Lệnh `free -h` hiện dòng Swap `4.0Gi` là thành công)._
 
 ---
 
-## 4. Giai Đoạn 4: Clone Code & Cấu hình biến môi trường (`.env.docker`)
+## 4. Giai Đoạn 4: Thiết lập Thư Mục Triển Khai (`/srv/railway-ticket`) & Cấu hình `.env.docker`
 
-### 4.1. Clone source code backend
+> 💡 **Bảo mật & Tối ưu chuẩn Production**:  
+> Bạn **KHÔNG CẦN clone toàn bộ mã nguồn (.ts, test, node_modules)** về EC2! Mã nguồn đã được GitHub Actions tự động build thành các Docker image tối ưu và đẩy lên **AWS ECR**. Máy chủ EC2 chỉ đóng vai trò là môi trường chạy (Runtime Host), giúp bảo mật mã nguồn tối đa và tiết kiệm RAM/CPU không phải tốn tài nguyên build trên máy chủ.
+
+### 4.1. Tạo thư mục vận hành `/srv/railway-ticket`
 
 ```bash
-git clone https://github.com/aurelynnio/railway_ticket_booking.git
-cd railway_ticket_booking/infra/docker
+sudo mkdir -p /srv/railway-ticket
+sudo chown -R ubuntu:ubuntu /srv/railway-ticket
+cd /srv/railway-ticket
 ```
 
-### 4.2. Tạo file `.env.docker`
+### 4.2. Lấy các file cấu hình hạ tầng Docker Compose
+
+Chúng ta chỉ cần lấy đúng các file cấu hình hạ tầng (`docker-compose.yml`, `init-databases.sql`, thư mục `redis/`) mà không cần lưu giữ mã nguồn:
+
+```bash
+# Tải nhanh các file cấu hình hạ tầng vào /srv/railway-ticket
+git clone --depth 1 https://github.com/aurelynnio/railway_ticket_booking.git /tmp/repo
+cp -r /tmp/repo/infra/docker/* /srv/railway-ticket/
+rm -rf /tmp/repo
+```
+
+Sau bước này, trong thư mục `/srv/railway-ticket/` chỉ có đúng các file cấu hình Docker, hoàn toàn không chứa bất kỳ file code backend nào.
+
+### 4.3. Tạo file biến môi trường `.env.docker`
 
 ```bash
 cp .env.docker.example .env.docker
 nano .env.docker
 ```
 
-### 4.3. Chỉnh sửa nội dung file `.env.docker`
+### 4.4. Chỉnh sửa nội dung file `.env.docker`
 
 Sử dụng các phím mũi tên để di chuyển, điền các giá trị an toàn:
 
@@ -199,13 +216,12 @@ VNPAY_TMN_CODE=
 VNPAY_SECURE_SECRET=
 VNPAY_HOST=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
 VNPAY_TEST_MODE=true
-VNPAY_PUBLIC_BASE_URL=http://<EC2_PUBLIC_IP>:8080
-VNPAY_RETURN_URL=http://<EC2_PUBLIC_IP>:8080/payments/vnpay/return
+VNPAY_PUBLIC_BASE_URL=https://api.vetautet.app
+VNPAY_RETURN_URL=https://api.vetautet.app/payments/vnpay/return
 
 # ---------- Client / CORS Configuration ----------
-# Điền domain frontend Vercel của bạn hoặc để localhost:3000 khi đang dev
-CLIENT_ORIGIN=http://localhost:3000
-CLIENT_URL=http://localhost:3000
+CLIENT_ORIGIN=https://vetautet.app
+CLIENT_URL=https://vetautet.app
 
 # ---------- Order Expiration (10 phút = 600000ms) ----------
 ORDER_EXPIRATION_TTL_MS=600000
@@ -216,6 +232,10 @@ SMTP_PORT=587
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_app_password
 EMAIL_FROM=no-reply@vietrail.com
+
+# ---------- AWS ECR ----------
+ECR_REGISTRY=406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/
+ECR_REPOSITORY=railway-ticket_booking
 ```
 
 - Nhấn `Ctrl + O` rồi nhấn `Enter` để lưu file.
@@ -225,10 +245,22 @@ EMAIL_FROM=no-reply@vietrail.com
 
 ## 5. Giai Đoạn 5: Khởi chạy toàn bộ hệ thống bằng Docker Compose
 
-Ngay tại thư mục `railway_ticket_booking/infra/docker`:
+Ngay tại thư mục `/srv/railway-ticket`:
+
+### 5.1. Đăng nhập vào AWS ECR để kéo Docker images
 
 ```bash
-docker compose --env-file .env.docker -f docker-compose.yml up -d --build
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 406715718964.dkr.ecr.ap-southeast-1.amazonaws.com
+```
+
+### 5.2. Kéo images và khởi động hệ thống
+
+```bash
+# Kéo toàn bộ Docker images mới nhất từ AWS ECR (không tốn tài nguyên build trên EC2)
+docker compose pull
+
+# Khởi chạy toàn bộ hệ thống
+docker compose up -d
 ```
 
 ### 🔄 Quá trình tự động diễn ra:
@@ -303,6 +335,7 @@ Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`):
 ## 7. Giai Đoạn 7: Trỏ Tên Miền (Name.com) & Cấu hình Nginx Reverse Proxy với HTTPS
 
 Để hệ thống hoạt động chuyên nghiệp trên môi trường production, bạn cần:
+
 1. Gắn tên miền thật **`vetautet.app`** (quản lý tại **Name.com**).
 2. Dùng **Nginx** làm Reverse Proxy để tiếp nhận traffic ở cổng `80` (HTTP) và `443` (HTTPS).
 3. Sử dụng **Certbot (Let's Encrypt)** để cấp chứng chỉ SSL miễn phí (ổ khóa xanh bảo mật).
@@ -319,31 +352,35 @@ Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`):
 3. Chọn mục **Manage DNS Records** (hoặc **DNS Records**).
 4. Thêm các bản ghi DNS sau (thay `<EC2_PUBLIC_IP>` bằng IP Public của máy ảo EC2 của bạn):
 
-| Type (Loại) | Host (Tên máy chủ) | Answer / Target (Địa chỉ đích) | TTL | Giải thích |
-| :--- | :--- | :--- | :--- | :--- |
-| **A** | `api` | `<EC2_PUBLIC_IP>` | `300` | Trỏ subdomain `api.vetautet.app` về EC2 để phục vụ Backend API Gateway |
-| **A** | `@` | `<EC2_PUBLIC_IP>` | `300` | Trỏ root domain `vetautet.app` về EC2 (nếu host cả Frontend trên EC2) |
-| **CNAME** | `www` | `vetautet.app` | `300` | Chuyển hướng `www.vetautet.app` về root domain |
+| Type (Loại) | Host (Tên máy chủ) | Answer / Target (Địa chỉ đích) | TTL   | Giải thích                                                             |
+| :---------- | :----------------- | :----------------------------- | :---- | :--------------------------------------------------------------------- |
+| **A**       | `api`              | `<EC2_PUBLIC_IP>`              | `300` | Trỏ subdomain `api.vetautet.app` về EC2 để phục vụ Backend API Gateway |
+| **A**       | `@`                | `<EC2_PUBLIC_IP>`              | `300` | Trỏ root domain `vetautet.app` về EC2 (nếu host cả Frontend trên EC2)  |
+| **CNAME**   | `www`              | `vetautet.app`                 | `300` | Chuyển hướng `www.vetautet.app` về root domain                         |
 
 > 💡 **Mẹo**: Nếu Frontend Next.js của bạn deploy trên **Vercel**, thì bản ghi `@` và `www` bạn trỏ về IP của Vercel (`76.76.21.21`), còn bản ghi `api` vẫn trỏ về `<EC2_PUBLIC_IP>` của AWS EC2.
 
 Sau khi lưu bản ghi, chờ khoảng 1–5 phút để DNS lan truyền. Bạn có thể kiểm tra trên terminal máy tính:
+
 ```powershell
 ping api.vetautet.app
 ```
-*(Nếu hiển thị đúng địa chỉ `<EC2_PUBLIC_IP>` là DNS đã trỏ thành công).*
+
+_(Nếu hiển thị đúng địa chỉ `<EC2_PUBLIC_IP>` là DNS đã trỏ thành công)._
 
 ---
 
 ### 7.2. Bước 2: Cài đặt Nginx & Certbot trên máy chủ EC2
 
 SSH vào máy ảo EC2 của bạn:
+
 ```bash
 sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 ```
 
 Kiểm tra Nginx đã khởi động thành công:
+
 ```bash
 sudo systemctl status nginx
 ```
@@ -501,11 +538,14 @@ sudo nginx -t
 ```
 
 Nếu màn hình báo:
+
 ```text
 nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
 nginx: configuration file /etc/nginx/nginx.conf test is successful
 ```
+
 Thì bạn chạy lệnh reload lại Nginx:
+
 ```bash
 sudo systemctl reload nginx
 ```
@@ -520,9 +560,10 @@ Chạy lệnh tự động kích hoạt HTTPS:
 sudo certbot --nginx -d api.vetautet.app -d vetautet.app -d www.vetautet.app
 ```
 
-*(Nếu bạn chỉ muốn cấp SSL cho subdomain API trước, chỉ cần chạy: `sudo certbot --nginx -d api.vetautet.app`)*.
+_(Nếu bạn chỉ muốn cấp SSL cho subdomain API trước, chỉ cần chạy: `sudo certbot --nginx -d api.vetautet.app`)_.
 
 **Quá trình tương tác:**
+
 1. **Enter email address**: Nhập email của bạn (dùng để nhận cảnh báo gia hạn).
 2. **Terms of Service**: Nhấn `Y` để đồng ý điều khoản.
 3. **Share email with EFF**: Nhấn `N` hoặc `Y` tùy bạn.
@@ -532,10 +573,12 @@ sudo certbot --nginx -d api.vetautet.app -d vetautet.app -d www.vetautet.app
    - Tự động chỉnh sửa file `/etc/nginx/sites-available/vetautet.app`, cấu hình cổng `443 SSL`, certificate path và tự động redirect toàn bộ lượt truy cập HTTP `port 80` sang HTTPS `port 443`!
 
 Kiểm tra cơ chế tự động gia hạn chứng chỉ (Certbot tự gia hạn mỗi 90 ngày):
+
 ```bash
 sudo certbot renew --dry-run
 ```
-*(Thấy báo `Congratulations, all simulated renewals succeeded` là hoàn tất 100%).*
+
+_(Thấy báo `Congratulations, all simulated renewals succeeded` là hoàn tất 100%)._
 
 ---
 
@@ -549,6 +592,7 @@ nano .env.docker
 ```
 
 Cập nhật các dòng sau:
+
 ```bash
 # Frontend cho phép CORS và Email verification link
 CLIENT_ORIGIN=https://vetautet.app
@@ -560,6 +604,7 @@ VNPAY_RETURN_URL=https://api.vetautet.app/payments/vnpay/return
 ```
 
 Lưu file (`Ctrl + O`, `Enter`, `Ctrl + X`) và restart lại các container để áp dụng cấu hình:
+
 ```bash
 docker compose up -d
 ```
@@ -569,16 +614,18 @@ docker compose up -d
 ### 7.7. Bước 7: Tăng cường bảo mật — Đóng cổng 8080 trên AWS Security Group
 
 Vì mọi request từ bên ngoài bây giờ đã đi an toàn qua Nginx trên cổng **`80`** và **`443`**, bạn không cần mở cổng `8080` ra toàn cầu nữa:
+
 1. Vào AWS Console $\rightarrow$ **EC2** $\rightarrow$ **Instances** $\rightarrow$ Chọn máy của bạn.
 2. Chọn tab **Security** $\rightarrow$ Bấm vào tên Security Group (`railway-backend-sg`).
 3. Chọn **Edit inbound rules** $\rightarrow$ Xóa dòng có Port **`8080`** $\rightarrow$ Bấm **Save rules**.
-*(Giờ đây, cổng 8080 chỉ có Nginx nội bộ truy cập được, hacker không thể quét trực tiếp vào backend NestJS của bạn).*
+   _(Giờ đây, cổng 8080 chỉ có Nginx nội bộ truy cập được, hacker không thể quét trực tiếp vào backend NestJS của bạn)._
 
 ---
 
 ### 7.8. Bước 8: Kiểm tra thành quả trên trình duyệt
 
 Mở trình duyệt trên máy tính của bạn và kiểm tra:
+
 1. `https://api.vetautet.app/auth/health` $\rightarrow$ Trả về JSON `{ "service": "api-gateway", "status": "ok" }` với biểu tượng **ổ khóa an toàn (HTTPS)**.
 2. `https://api.vetautet.app/api/docs` $\rightarrow$ Mở giao diện Swagger API Documentation trực tiếp qua HTTPS tên miền của bạn!
 
@@ -586,12 +633,12 @@ Mở trình duyệt trên máy tính của bạn và kiểm tra:
 
 ## 8. Giai Đoạn 8: Các lệnh vận hành thường dùng
 
-| Tác vụ                               | Lệnh thực thi (trong thư mục `infra/docker`)                                         |
+| Tác vụ                               | Lệnh thực thi (trong thư mục `/srv/railway-ticket`)                                         |
 | :----------------------------------- | :----------------------------------------------------------------------------------- |
 | **Xem log realtime**                 | `docker compose logs -f <service-name>` _(vd: `docker compose logs -f api-gateway`)_ |
 | **Khởi động lại 1 service**          | `docker compose restart <service-name>`                                              |
-| **Tạm dừng toàn bộ**                 | `docker compose down`                                                                |
-| **Cập nhật code mới nhất từ GitHub** | `git pull origin main`<br>`docker compose --env-file .env.docker up -d --build`      |
+| **Tạm dừng toàn bộ hệ thống**        | `docker compose down`                                                                |
+| **Kéo và cập nhật images mới nhất**  | `docker compose pull && docker compose up -d`                                        |
 | **Xem mức tiêu thụ RAM / CPU**       | `docker stats`                                                                       |
 | **Kiểm tra trạng thái Nginx**        | `sudo systemctl status nginx`                                                        |
 | **Xem log truy cập Nginx**           | `sudo tail -f /var/log/nginx/access.log`                                             |
@@ -602,6 +649,7 @@ Mở trình duyệt trên máy tính của bạn và kiểm tra:
 ## 9. Giai Đoạn 9: Cấu hình CI/CD Tự Động (GitHub Actions & AWS ECR)
 
 Hệ thống đã được thiết lập pipeline tự động tại file `.github/workflows/ci.yml`. Mỗi khi bạn `git push` lên nhánh `main`, GitHub Actions sẽ tự động:
+
 1. Chạy linter, unit tests, và build kiểm tra toàn bộ 6 microservices.
 2. Kiểm tra tính hợp lệ của cấu hình Docker Compose.
 3. Đăng nhập vào **AWS ECR** (`406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/railway-ticket_booking`).
@@ -611,6 +659,7 @@ Hệ thống đã được thiết lập pipeline tự động tại file `.gith
 ### 9.1. Cài đặt AWS CLI trên EC2 (chỉ cần chạy 1 lần duy nhất trên EC2)
 
 SSH vào EC2 và cài AWS CLI:
+
 ```bash
 sudo apt-get update && sudo apt-get install -y awscli
 ```
