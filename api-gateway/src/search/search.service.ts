@@ -19,4 +19,11 @@ export class SearchService {
   suggestStations(query: string) {
     return this.searchClient.send({ cmd: 'search.suggest_stations' }, { query });
   }
+
+  searchByName(name: string, limit?: number) {
+    return this.searchClient.send(
+      { cmd: 'search.by_name' },
+      { name, limit: limit ? Number(limit) : 10 },
+    );
+  }
 }

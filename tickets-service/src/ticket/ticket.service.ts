@@ -886,6 +886,21 @@ export class TicketService extends TicketBaseService {
 
     const andClauses: Prisma.TicketWhereInput[] = [];
 
+    if (query.q?.trim()) {
+      const q = query.q.trim();
+      andClauses.push({
+        OR: [
+          { trainNumber: { contains: q, mode: 'insensitive' } },
+          { title: { contains: q, mode: 'insensitive' } },
+          { departureStationName: { contains: q, mode: 'insensitive' } },
+          { departureStationCode: { contains: q, mode: 'insensitive' } },
+          { arrivalStationName: { contains: q, mode: 'insensitive' } },
+          { arrivalStationCode: { contains: q, mode: 'insensitive' } },
+          { journeyNote: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
     if (query.from?.trim()) {
       const from = query.from.trim();
       andClauses.push({
@@ -1020,6 +1035,38 @@ export class TicketService extends TicketBaseService {
       );
       return [];
     }
+  }
+
+  async searchByName(
+    name: string,
+    limit = 10,
+  ): Promise<SearchTripResponse[]> {
+    const trimmed = (name || '').trim();
+    const where: Prisma.TicketWhereInput = {
+      deletedAt: null,
+      status: TicketStatus.Published,
+    };
+
+    if (trimmed) {
+      where.OR = [
+        { trainNumber: { contains: trimmed, mode: 'insensitive' } },
+        { title: { contains: trimmed, mode: 'insensitive' } },
+        { departureStationName: { contains: trimmed, mode: 'insensitive' } },
+        { departureStationCode: { contains: trimmed, mode: 'insensitive' } },
+        { arrivalStationName: { contains: trimmed, mode: 'insensitive' } },
+        { arrivalStationCode: { contains: trimmed, mode: 'insensitive' } },
+        { journeyNote: { contains: trimmed, mode: 'insensitive' } },
+      ];
+    }
+
+    const tickets = await this.prisma.ticket.findMany({
+      where,
+      take: Math.min(Math.max(1, limit), 50),
+      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
+      include: { ticketItems: true },
+    });
+
+    return tickets.map((ticket) => this.toSearchTrip(ticket));
   }
 
   private matchesRoute(ticket: TicketWithItems, query: SearchTripsQuery) {

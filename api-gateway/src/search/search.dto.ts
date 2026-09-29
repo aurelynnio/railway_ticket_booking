@@ -12,6 +12,10 @@ import {
 export class SearchTripsQuery {
   @IsOptional()
   @IsString()
+  q?: string;
+
+  @IsOptional()
+  @IsString()
   from?: string;
 
   @IsOptional()
@@ -42,6 +46,23 @@ export class SearchTripsQuery {
   @IsInt()
   @Min(1)
   page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
+export class SearchByNameQuery {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  q?: string;
 
   @IsOptional()
   @Type(() => Number)

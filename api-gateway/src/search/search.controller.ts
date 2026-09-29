@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
-import { SearchTripsQuery } from './search.dto';
+import { SearchByNameQuery, SearchTripsQuery } from './search.dto';
 import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('Search')
@@ -25,5 +25,19 @@ export class SearchController {
   @Public()
   suggestStations(@Query('q') query: string) {
     return this.searchService.suggestStations(query || '');
+  }
+
+  @Get('by-name')
+  @Public()
+  searchByName(@Query() query: SearchByNameQuery) {
+    const keyword = query.name || query.q || '';
+    return this.searchService.searchByName(keyword, query.limit);
+  }
+
+  @Get('trains')
+  @Public()
+  searchTrains(@Query() query: SearchByNameQuery) {
+    const keyword = query.name || query.q || '';
+    return this.searchService.searchByName(keyword, query.limit);
   }
 }

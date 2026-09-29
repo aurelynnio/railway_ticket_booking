@@ -46,6 +46,12 @@ export class TicketController {
     return this.ticketService.suggestStations(data.query || '');
   }
 
+  @MessagePattern({ cmd: 'search.by_name' })
+  searchByName(@Payload() data: { name?: string; q?: string; limit?: number }) {
+    const keyword = data.name || data.q || '';
+    return this.ticketService.searchByName(keyword, data.limit);
+  }
+
   @MessagePattern({ cmd: 'tickets.create' })
   create(@Payload() payload: CreateTicketRequest) {
     return this.ticketService.create(payload);
