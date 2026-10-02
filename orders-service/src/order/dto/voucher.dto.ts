@@ -82,6 +82,13 @@ export class CreateVoucherRequest {
   @Min(1)
   usageLimit?: number;
 
+  /** Optional cap on how many times ONE customer may redeem this voucher. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  perUserLimit?: number;
+
   @IsOptional()
   @IsString()
   validFrom?: string;
@@ -133,6 +140,13 @@ export class UpdateVoucherRequest {
   @Min(1)
   usageLimit?: number;
 
+  /** Optional cap on how many times ONE customer may redeem this voucher. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  perUserLimit?: number;
+
   @IsOptional()
   @IsString()
   validFrom?: string;
@@ -178,6 +192,7 @@ export interface VoucherResponse {
   maxDiscount: number | null;
   minOrderAmount: number | null;
   usageLimit: number | null;
+  perUserLimit: number | null;
   usedCount: number;
   validFrom: string;
   validTo: string;

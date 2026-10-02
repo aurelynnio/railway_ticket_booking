@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
 } from 'class-validator';
 import { IsUuidLike } from '../common/validators/uuid-like.validator';
@@ -65,6 +66,13 @@ export class CreateVoucherRequest {
   @Min(1)
   usageLimit?: number;
 
+  /** Optional cap on how many times ONE customer may redeem this voucher. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  perUserLimit?: number;
+
   @IsOptional()
   @IsString()
   validFrom?: string;
@@ -116,6 +124,13 @@ export class UpdateVoucherRequest {
   @Min(1)
   usageLimit?: number;
 
+  /** Optional cap on how many times ONE customer may redeem this voucher. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  perUserLimit?: number;
+
   @IsOptional()
   @IsString()
   validFrom?: string;
@@ -140,6 +155,7 @@ export class ListVouchersQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @IsOptional()

@@ -20,6 +20,7 @@ import {
 } from './voucher.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles, UserRole } from '../common/decorators/roles.decorator';
+import { Throttle } from '@nestjs/throttler';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @ApiTags('Vouchers')
@@ -29,14 +30,21 @@ export class VoucherController {
 
   @Post('vouchers/validate')
   @Public()
+  // Public + tells the caller whether a code exists, so it is an enumeration
+  // surface. Rate-limit it hard; the client only needs a few attempts.
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   validateVoucher(
     @Body() payload: ValidateVoucherRequest,
     @Req() request: { user?: RequestUser },
   ) {
-    if (!payload.userId && request.user?.userId) {
-      payload.userId = request.user.userId;
-    }
-    return this.voucherService.validateVoucher(payload);
+    // Only ever use the authenticated caller's id. Accepting a client-supplied
+    // `userId` on a public endpoint let a caller present someone else's identity
+    // to dodge per-customer voucher limits and to probe another user's usage.
+    // The authoritative per-user check happens in orders-service from the JWT.
+    return this.voucherService.validateVoucher({
+      ...payload,
+      userId: request.user?.userId,
+    });
   }
 
   @Get('vouchers/available')

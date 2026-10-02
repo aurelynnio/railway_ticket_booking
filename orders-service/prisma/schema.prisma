@@ -87,6 +87,7 @@ model Voucher {
   maxDiscount    BigInt?   @map("max_discount")
   minOrderAmount BigInt?   @map("min_order_amount")
   usageLimit     Int?      @map("usage_limit")
+  perUserLimit   Int?      @map("per_user_limit")
   usedCount      Int       @default(0) @map("used_count")
   validFrom      DateTime  @default(now()) @map("valid_from")
   validTo        DateTime  @map("valid_to")

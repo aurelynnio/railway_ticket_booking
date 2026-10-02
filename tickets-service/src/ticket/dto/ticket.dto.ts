@@ -1,14 +1,18 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
+  Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -17,6 +21,13 @@ export enum TicketStatus {
   Draft = 0,
   Published = 1,
 }
+
+/** Upper bound for seat-label arrays. */
+export const MAX_SEAT_LABELS = 500;
+/** Upper bound for stock counters. */
+export const MAX_STOCK = 1_000_000;
+/** Upper bound for a single order's seat count. */
+export const MAX_RESERVE_QUANTITY = 50;
 
 export class FindTicketsQuery {
   @IsOptional()
@@ -45,6 +56,7 @@ export class FindTicketsQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 }
 
@@ -72,25 +84,31 @@ export class CreateTicketItemRequest {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_SEAT_LABELS)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   seatLabels?: string[];
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_SEAT_LABELS)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   availableSeatLabels?: string[];
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK)
   stockInitial?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK)
   stockAvailable?: number;
 
   @IsOptional()
@@ -140,25 +158,31 @@ export class UpdateTicketItemRequest {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_SEAT_LABELS)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   seatLabels?: string[];
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_SEAT_LABELS)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   availableSeatLabels?: string[];
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK)
   stockInitial?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK)
   stockAvailable?: number;
 
   @IsOptional()
@@ -280,63 +304,78 @@ export class UpdateTicketRequest {
 
 export class ReserveTicketRequest {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
   ticketItemId!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(16)
   seatLabel?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_RESERVE_QUANTITY)
   quantity?: number;
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   passengerId?: string;
 }
 
 export class ReleaseTicketRequest {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
   ticketItemId!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(16)
   seatLabel?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_RESERVE_QUANTITY)
   quantity?: number;
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   passengerId?: string;
 }
 
 export class PrepareStockRequest {
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   ticketItemId?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK)
   stockInitial?: number;
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_SEAT_LABELS)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   availableSeatLabels?: string[];
 }
 
 export class OpenSaleRequest {
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   ticketItemId?: string;
 
   @IsOptional()
@@ -350,19 +389,25 @@ export class OpenSaleRequest {
 
 export class ReserveSeatRequest {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(16)
   seatLabel!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   passengerId?: string;
 }
 
 export class ReleaseSeatRequest {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(16)
   seatLabel!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   passengerId?: string;
 }
 

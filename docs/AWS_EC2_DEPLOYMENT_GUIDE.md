@@ -56,7 +56,12 @@ Chọn **Create security group** và đặt tên `railway-backend-sg`. Thiết l
 | **SSH**        | TCP      | `22`       | **My IP** (hoặc `0.0.0.0/0`) | Đăng nhập điều khiển máy chủ |
 | **HTTP**       | TCP      | `80`       | `0.0.0.0/0` (Anywhere)       | Web Nginx Reverse Proxy      |
 | **HTTPS**      | TCP      | `443`      | `0.0.0.0/0` (Anywhere)       | Web bảo mật SSL/TLS          |
-| **Custom TCP** | TCP      | `8080`     | `0.0.0.0/0` (Anywhere)       | API Gateway trực tiếp        |
+
+> [!IMPORTANT]
+> **Không mở cổng `8080` ra Internet.** Cổng này chỉ được nginx truy cập qua mạng
+> nội bộ Docker (`expose`, không `ports`). Nếu mở `8080`, client sẽ đi thẳng vào
+> gateway, bỏ qua rate limit 5r/s của nginx và có thể giả mạo header
+> `X-Forwarded-For` để vô hiệu hoá throttler của gateway (brute-force login).
 
 _(Tùy chọn: Nếu muốn mở trang quản lý RabbitMQ Management, thêm Port `15672` với Source là **My IP**)._
 
@@ -198,24 +203,30 @@ Sử dụng các phím mũi tên để di chuyển, điền các giá trị an t
 ```env
 # ---------- PostgreSQL ----------
 POSTGRES_USER=app
-POSTGRES_PASSWORD=MatKhauDatabaseBaoMat2026!
+POSTGRES_PASSWORD=<openssl rand -hex 32>
 POSTGRES_DB=railway_ticket_booking
 
 # ---------- Redis ----------
-REDIS_PASSWORD=MatKhauRedisBaoMat2026!
+REDIS_PASSWORD=<openssl rand -hex 32>
 
 # ---------- RabbitMQ ----------
 RABBITMQ_DEFAULT_USER=railway
-RABBITMQ_DEFAULT_PASS=MatKhauRabbitMq2026!
+RABBITMQ_DEFAULT_PASS=<openssl rand -hex 32>
 
 # ---------- JWT Secret (Chuỗi ngẫu nhiên > 32 ký tự) ----------
-JWT_SECRET=c2e8a1f490bd4830a1e0b5718dfb9302e6a17bfae804f32901a8c4029471b021
+JWT_SECRET=<openssl rand -hex 32>
+
+# ---------- API Gateway ----------
+# Swagger mo ta toan bo API cho nguoi chua dang nhap: de false o production.
+ENABLE_SWAGGER=false
+# So hop reverse proxy tin cay phia truoc gateway (nginx = 1).
+TRUST_PROXY=1
 
 # ---------- VNPay Configuration ----------
 VNPAY_TMN_CODE=
 VNPAY_SECURE_SECRET=
 VNPAY_HOST=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
-VNPAY_TEST_MODE=true
+VNPAY_TEST_MODE=false
 VNPAY_PUBLIC_BASE_URL=https://api.vetautet.app
 VNPAY_RETURN_URL=https://api.vetautet.app/payments/vnpay/return
 
@@ -229,14 +240,29 @@ ORDER_EXPIRATION_TTL_MS=600000
 # ---------- SMTP Email (notification-service) ----------
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
+SMTP_USER=<dia-chi-gmail-gui-mail>
+SMTP_PASS=<gmail-app-password>
 EMAIL_FROM=no-reply@vietrail.com
 
 # ---------- AWS ECR ----------
-ECR_REGISTRY=406715718964.dkr.ecr.ap-southeast-1.amazonaws.com/
+ECR_REGISTRY=<aws-account-id>.dkr.ecr.<region>.amazonaws.com/
 ECR_REPOSITORY=railway-ticket_booking
 ```
+
+> [!CAUTION]
+> **Không dùng giá trị mẫu trong tài liệu này.** Mọi secret phải được sinh ngẫu nhiên
+> trên máy của bạn. Nếu bạn copy một secret từ tài liệu/repo, secret đó đã công khai
+> trên GitHub và bất kỳ ai cũng có thể giả mạo token hoặc đăng nhập vào database.
+>
+> Sinh secret bằng lệnh sau (chạy nhiều lần để lấy các giá trị khác nhau):
+>
+> ```bash
+> openssl rand -hex 32
+> ```
+>
+> `JWT_SECRET` phải **>= 32 ký tự** và không được chứa các chuỗi kiểu `replace-with`,
+> `change-me`, `placeholder`. auth-service sẽ **từ chối khởi động** nếu phát hiện
+> placeholder, và pipeline CD cũng sẽ dừng deploy nếu `.env.docker` còn giá trị mẫu.
 
 - Nhấn `Ctrl + O` rồi nhấn `Enter` để lưu file.
 - Nhấn `Ctrl + X` để thoát khỏi trình soạn thảo `nano`.
@@ -311,11 +337,19 @@ _(Thấy log báo `Nest application successfully started` là chuẩn)._
 
 ### 6.3. Kiểm tra từ trình duyệt máy tính của bạn
 
-Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`):
+Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`).
 
-- Mở trình duyệt truy cập:
+Vì cổng `8080` **không** được publish ra host (chỉ nginx nội bộ truy cập được), hãy
+kiểm tra qua SSH tunnel — cách này an toàn và không cần mở Security Group:
+
+```bash
+# Chạy trên máy của bạn, giữ terminal mở
+ssh -i <your-key.pem> -L 8080:localhost:8080 ubuntu@<EC2_PUBLIC_IP>
+```
+
+- Sau đó mở trình duyệt truy cập:
   ```text
-  http://<EC2_PUBLIC_IP>:8080/auth/health
+  http://localhost:8080/auth/health
   ```
 - Kết quả trả về JSON:
   ```json
@@ -325,10 +359,17 @@ Lấy **Public IPv4 Address** của EC2 (ví dụ: `54.254.120.45`):
     "timestamp": "2026-09-22T00:15:00.000Z"
   }
   ```
-- Truy cập tài liệu Swagger API:
-  ```text
-  http://<EC2_PUBLIC_IP>:8080/api/docs
-  ```
+
+Sau khi đã cấu hình xong Nginx + HTTPS (Giai đoạn 7), kiểm tra trực tiếp qua tên miền:
+
+```text
+https://api.vetautet.app/auth/health
+```
+
+> [!NOTE]
+> Swagger mặc định **tắt** ở production (`ENABLE_SWAGGER=false`) vì nó mô tả toàn bộ
+> API cho người chưa đăng nhập. Chỉ bật tạm khi cần demo:
+> `ENABLE_SWAGGER=true` trong `.env.docker` rồi `docker compose up -d api-gateway`.
 
 ---
 
@@ -611,14 +652,23 @@ docker compose up -d
 
 ---
 
-### 7.7. Bước 7: Tăng cường bảo mật — Đóng cổng 8080 trên AWS Security Group
+### 7.7. Bước 7: Xác nhận cổng 8080 KHÔNG mở ra Internet
 
-Vì mọi request từ bên ngoài bây giờ đã đi an toàn qua Nginx trên cổng **`80`** và **`443`**, bạn không cần mở cổng `8080` ra toàn cầu nữa:
+Cổng `8080` của gateway hiện chỉ được bind vào **loopback** (`127.0.0.1:8080`) để host
+nginx proxy tới, nên mặc định Internet **không** truy cập được. Hãy kiểm tra lại
+Security Group để chắc chắn không còn rule `8080` nào:
 
 1. Vào AWS Console $\rightarrow$ **EC2** $\rightarrow$ **Instances** $\rightarrow$ Chọn máy của bạn.
 2. Chọn tab **Security** $\rightarrow$ Bấm vào tên Security Group (`railway-backend-sg`).
-3. Chọn **Edit inbound rules** $\rightarrow$ Xóa dòng có Port **`8080`** $\rightarrow$ Bấm **Save rules**.
-   _(Giờ đây, cổng 8080 chỉ có Nginx nội bộ truy cập được, hacker không thể quét trực tiếp vào backend NestJS của bạn)._
+3. Chọn **Edit inbound rules** $\rightarrow$ Xóa **mọi** dòng có Port **`8080`** $\rightarrow$ Bấm **Save rules**.
+   _(Nhờ vậy chỉ Nginx nội bộ truy cập được gateway: giữ nguyên rate limit và không
+   thể giả mạo `X-Forwarded-For` để bypass throttler.)_
+
+Kiểm tra nhanh từ máy bên ngoài (phải bị timeout/refused):
+
+```bash
+curl -m 5 http://<EC2_PUBLIC_IP>:8080/auth/health   # mong đợi: không kết nối được
+```
 
 ---
 
@@ -695,8 +745,15 @@ Chuyển sang tab **Variables** $\rightarrow$ Bấm **New repository variable** 
 
 ### Lỗi 1: Không mở được `http://<EC2_PUBLIC_IP>:8080` từ trình duyệt
 
-- **Nguyên nhân**: Security Group của AWS chưa mở cổng `8080`.
-- **Cách khắc phục**: Vào AWS Console $\rightarrow$ EC2 $\rightarrow$ Instances $\rightarrow$ Chọn máy của bạn $\rightarrow$ Tab **Security** $\rightarrow$ Bấm vào tên **Security Group** $\rightarrow$ Chọn **Edit inbound rules** $\rightarrow$ Thêm rule: **Custom TCP**, Port **`8080`**, Source **`0.0.0.0/0`** $\rightarrow$ Bấm **Save rules**.
+- **Nguyên nhân**: Đây là **hành vi đúng, không phải lỗi**. Cổng `8080` không được
+  publish ra host và Security Group không mở cổng này; chỉ nginx nội bộ gọi được
+  gateway. Đừng mở `8080` ra `0.0.0.0/0`.
+- **Cách kiểm tra đúng**: dùng SSH tunnel (xem mục 6.3):
+  ```bash
+  ssh -i <your-key.pem> -L 8080:localhost:8080 ubuntu@<EC2_PUBLIC_IP>
+  ```
+  rồi mở `http://localhost:8080/auth/health`, hoặc kiểm tra qua tên miền
+  `https://api.vetautet.app/auth/health` sau khi đã cấu hình Nginx + HTTPS.
 
 ### Lỗi 2: Tràn dung lượng ổ cứng sau một thời gian dài sử dụng
 

@@ -9,6 +9,32 @@ import Redis, { RedisOptions } from 'ioredis';
 import { Redis_Client, Redis_Replica_Clients } from './redis.constants';
 import { RedisCacheService } from './redis.service';
 
+/**
+ * TLS options for Redis, enabled with `REDIS_TLS=true`.
+ *
+ * Required whenever Redis is reached over a non-private network (e.g. a managed
+ * cloud Redis such as Redis Cloud). Without it the AUTH password and every
+ * cached value — including seat locks — travel in plaintext.
+ */
+function buildTlsOptions(): RedisOptions['tls'] {
+  if (process.env.REDIS_TLS !== 'true') {
+    return undefined;
+  }
+
+  const ca = process.env.REDIS_TLS_CA?.replace(/\\n/g, '\n');
+
+  return {
+    // Verify the server certificate by default. Only set
+    // REDIS_TLS_REJECT_UNAUTHORIZED=false when using a self-signed cert you
+    // control, and never in production.
+    rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== 'false',
+    ...(ca ? { ca } : {}),
+    ...(process.env.REDIS_TLS_SERVERNAME
+      ? { servername: process.env.REDIS_TLS_SERVERNAME }
+      : {}),
+  };
+}
+
 @Global()
 @Module({
   providers: [
@@ -21,10 +47,12 @@ import { RedisCacheService } from './redis.service';
         const redisPassword = process.env.REDIS_PASSWORD;
         const sentinelPassword = process.env.REDIS_SENTINEL_PASSWORD;
         const db = parseInt(process.env.REDIS_DB as string) || 0;
+        const tls = buildTlsOptions();
         // Cấu hình chung cho cả hai chế độ (Sentinel & Standalone)
         const commonOptions: RedisOptions = {
           password: redisPassword,
           db,
+          ...(tls ? { tls } : {}),
           connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT as string) || 10000,
           maxRetriesPerRequest: 3,
           enableReadyCheck: true,
@@ -104,6 +132,7 @@ import { RedisCacheService } from './redis.service';
         const sentinelPassword = process.env.REDIS_SENTINEL_PASSWORD;
         const db = parseInt(process.env.REDIS_DB as string) || 0;
         const replicaCount = parseInt(process.env.REDIS_REPLICA_COUNT as string) || 2;
+        const tls = buildTlsOptions();
 
         // Nếu không có Sentinel, fallback về master (vì standalone không có replica)
         if (!sentinelsEnv) {
@@ -122,6 +151,7 @@ import { RedisCacheService } from './redis.service';
         const commonOptions: RedisOptions = {
           password: redisPassword,
           db,
+          ...(tls ? { tls } : {}),
           connectTimeout: 10000,
           maxRetriesPerRequest: 3,
           enableReadyCheck: true,

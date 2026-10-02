@@ -1,16 +1,27 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsEmail,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { IsUuidLike } from '../common/validators/uuid-like.validator';
+
+/**
+ * Upper bound for a single booking. Without a cap, `quantity` accepted any
+ * positive integer, and the value flows into price arithmetic and inventory
+ * calls.
+ */
+export const MAX_ORDER_QUANTITY = 20;
 
 export enum OrderStatus {
   Draft = 0,
@@ -23,13 +34,30 @@ export enum OrderStatus {
   Refunded = 7,
 }
 
+/** Accepted fare classes — mirrors orders-service. */
+export enum PassengerType {
+  ADULT = 'ADULT',
+  CHILD = 'CHILD',
+  STUDENT = 'STUDENT',
+  SENIOR = 'SENIOR',
+}
+
+export const PASSENGER_TYPES: readonly string[] = Object.values(PassengerType);
+
 export class OrderPassengerPayload {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   fullName: string;
 
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsIn(PASSENGER_TYPES, {
+    message: `passengerType must be one of: ${PASSENGER_TYPES.join(', ')}`,
+  })
   passengerType: string;
 
   @IsOptional()
@@ -210,6 +238,7 @@ export class CreateOrderRequest {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_ORDER_QUANTITY)
   quantity: number;
 
   @Type(() => Number)
@@ -220,11 +249,14 @@ export class CreateOrderRequest {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_ORDER_QUANTITY)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   seatLabels?: string[];
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(MAX_ORDER_QUANTITY)
   @ValidateNested({ each: true })
   @Type(() => OrderPassengerPayload)
   passengers?: OrderPassengerPayload[];
@@ -237,16 +269,20 @@ export class CreateOrderRequest {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(32)
   contactPhone?: string | null;
 
+  /** Unique per attempt; column is VarChar(64), so bound it before the DB does. */
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   idempotencyKey?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   voucherCode?: string | null;
 }
 
@@ -268,6 +304,7 @@ export class ListOrdersQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @IsOptional()
@@ -298,6 +335,7 @@ export class ListOrdersQuery {
 
 export class UpdateOrderPassengersRequest {
   @IsArray()
+  @ArrayMaxSize(MAX_ORDER_QUANTITY)
   @ValidateNested({ each: true })
   @Type(() => OrderPassengerPayload)
   passengers: OrderPassengerPayload[];
@@ -306,7 +344,9 @@ export class UpdateOrderPassengersRequest {
 export class UpdateOrderSeatLabelsRequest {
   @IsArray()
   @ArrayUnique()
+  @ArrayMaxSize(MAX_ORDER_QUANTITY)
   @IsString({ each: true })
+  @MaxLength(16, { each: true })
   seatLabels: string[];
 }
 
@@ -314,5 +354,6 @@ export class CancelOrderRequest {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(500)
   reason?: string;
 }

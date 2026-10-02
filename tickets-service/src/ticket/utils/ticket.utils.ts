@@ -223,6 +223,92 @@ export function ensureItemCanBeSold(item: TicketItem) {
   }
 }
 
+/**
+ * Free inventory for an item: `stockAvailable` is authoritative when set,
+ * otherwise the seat-label pool is.
+ */
+export function getAvailableStock(item: TicketItem): number {
+  return item.stockAvailable ?? item.availableSeatLabels.length;
+}
+
+/**
+ * Removes `quantity` seats from an item's free inventory.
+ *
+ * `stockAvailable` and `availableSeatLabels` are two views of ONE pool, so they
+ * must be mutated together. The count-based reserve used to decrement only
+ * `stockAvailable`, leaving the labels marked as available — so the same
+ * physical seat could then be sold again through `reserveSeat`, driving
+ * `stockAvailable` negative and producing more sold orders than seats.
+ */
+export function consumeAvailableStock(
+  item: TicketItem,
+  quantity: number,
+): Pick<TicketItem, 'availableSeatLabels' | 'stockAvailable'> {
+  const available = getAvailableStock(item);
+  if (available < quantity) {
+    throw new HttpException(
+      'Not enough stock available',
+      HttpStatus.CONFLICT,
+    );
+  }
+
+  // Drop the first `quantity` free labels so they can no longer be reserved
+  // individually. Items without a seat map simply keep an empty pool.
+  const availableSeatLabels =
+    item.availableSeatLabels.length >= quantity
+      ? item.availableSeatLabels.slice(quantity)
+      : [];
+
+  return {
+    availableSeatLabels,
+    stockAvailable: available - quantity,
+  };
+}
+
+/**
+ * Returns `quantity` seats to an item's free inventory, re-opening the first
+ * `quantity` currently-occupied seats in the item's seat order.
+ *
+ * Mirrors `consumeAvailableStock` so releasing cannot inflate `stockAvailable`
+ * independently of the label pool.
+ */
+export function returnStockToPool(
+  item: TicketItem,
+  quantity: number,
+): Pick<TicketItem, 'availableSeatLabels' | 'stockAvailable'> {
+  const stockInitial =
+    item.stockInitial ??
+    (item.seatLabels.length > 0
+      ? item.seatLabels.length
+      : item.availableSeatLabels.length);
+  const current = getAvailableStock(item);
+  const next = current + quantity;
+
+  if (next > stockInitial) {
+    throw new HttpException(
+      'Release quantity exceeds initial stock',
+      HttpStatus.CONFLICT,
+    );
+  }
+
+  const nextAvailable = [...item.availableSeatLabels];
+  let remaining = quantity;
+  for (const label of item.seatLabels) {
+    if (remaining === 0) {
+      break;
+    }
+    if (!nextAvailable.includes(label)) {
+      nextAvailable.push(label);
+      remaining -= 1;
+    }
+  }
+
+  return {
+    availableSeatLabels: sortSeatLabels(nextAvailable, item.seatLabels),
+    stockAvailable: next,
+  };
+}
+
 export function ensureTicketItemId(ticketItemId?: string) {
   if (!ticketItemId?.trim()) {
     throw new HttpException('ticketItemId is required', HttpStatus.BAD_REQUEST);

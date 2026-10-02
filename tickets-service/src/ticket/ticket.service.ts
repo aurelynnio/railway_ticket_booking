@@ -39,18 +39,21 @@ import {
 } from './utils/search.utils';
 import {
   buildTicketItemCreateInput,
+  consumeAvailableStock,
   ensureItemCanBeSold,
   ensureJourneyDates,
   ensureSaleDates,
   ensureTicketItemId,
   getActiveItemOrThrow,
   getActiveItems,
+  getAvailableStock,
   mergeTicketItem,
   normalizeQuantity,
   normalizeTicketItemStock,
   parseOptionalDate,
   pickBigInt,
   pickNullableString,
+  returnStockToPool,
   sortSeatLabels,
   toNullableString,
   toTicketItemResponse,
@@ -274,7 +277,11 @@ export class TicketBaseService {
     ensureTicketItemId(payload.ticketItemId);
 
     if (payload.seatLabel) {
-      return this.reserveSeat(ticketId, payload.ticketItemId, {
+      // Delegate to the lock-free core, NOT to this.reserveSeat(): the caching
+      // subclass already wraps this call in the per-seat distributed lock, and
+      // Redlock is not reentrant, so re-acquiring the same resource here used to
+      // retry until it surfaced a spurious 409.
+      return this.reserveSeatInternal(ticketId, payload.ticketItemId, {
         seatLabel: payload.seatLabel,
         passengerId: payload.passengerId,
       });
@@ -290,18 +297,13 @@ export class TicketBaseService {
 
         ensureItemCanBeSold(item);
 
-        const available = item.stockAvailable ?? item.availableSeatLabels.length;
-        if (available < quantity) {
-          throw new HttpException(
-            'Not enough stock available',
-            HttpStatus.CONFLICT,
-          );
-        }
-
-        const nextItem = mergeTicketItem(item, {
-          stockAvailable: available - quantity,
-          updatedAt: new Date(),
-        });
+        // Consumes seats from BOTH counters so the label pool cannot be resold.
+        const nextItem = normalizeTicketItemStock(
+          mergeTicketItem(item, {
+            ...consumeAvailableStock(item, quantity),
+            updatedAt: new Date(),
+          }),
+        );
 
         await this.updateTicketItemRow(tx, nextItem);
         return nextItem;
@@ -405,7 +407,8 @@ export class TicketBaseService {
     ensureTicketItemId(payload.ticketItemId);
 
     if (payload.seatLabel) {
-      return this.releaseSeat(ticketId, payload.ticketItemId, {
+      // Same reasoning as reserve(): the caller already holds the per-seat lock.
+      return this.releaseSeatInternal(ticketId, payload.ticketItemId, {
         seatLabel: payload.seatLabel,
         passengerId: payload.passengerId,
       });
@@ -419,21 +422,13 @@ export class TicketBaseService {
         const ticket = await this.getTicketOrThrow(ticketId, tx);
         const item = getActiveItemOrThrow(ticket, payload.ticketItemId);
 
-        const stockInitial = item.stockInitial ?? item.availableSeatLabels.length;
-        const current = item.stockAvailable ?? item.availableSeatLabels.length;
-        const next = current + quantity;
-
-        if (next > stockInitial) {
-          throw new HttpException(
-            'Release quantity exceeds initial stock',
-            HttpStatus.CONFLICT,
-          );
-        }
-
-        const nextItem = mergeTicketItem(item, {
-          stockAvailable: next,
-          updatedAt: new Date(),
-        });
+        // Same helper as the count-based path so the two counters stay in sync.
+        const nextItem = normalizeTicketItemStock(
+          mergeTicketItem(item, {
+            ...returnStockToPool(item, quantity),
+            updatedAt: new Date(),
+          }),
+        );
 
         await this.updateTicketItemRow(tx, nextItem);
         return nextItem;
@@ -614,6 +609,21 @@ export class TicketBaseService {
     ticketItemId: string,
     payload: ReserveSeatRequest,
   ): Promise<TicketItemResponse> {
+    return this.reserveSeatInternal(ticketId, ticketItemId, payload);
+  }
+
+  /**
+   * Lock-free core of seat reservation.
+   *
+   * Split out so callers that ALREADY hold the per-seat distributed lock (the
+   * caching subclass, and `reserve` with a seatLabel) do not try to take the
+   * same non-reentrant Redlock resource twice.
+   */
+  protected async reserveSeatInternal(
+    ticketId: string,
+    ticketItemId: string,
+    payload: ReserveSeatRequest,
+  ): Promise<TicketItemResponse> {
     if (!payload.seatLabel?.trim()) {
       throw new HttpException('seatLabel is required', HttpStatus.BAD_REQUEST);
     }
@@ -643,13 +653,21 @@ export class TicketBaseService {
           (label: string) => label !== seatLabel,
         );
 
+        // Floor check: a seat label must never be reservable once the pool is
+        // exhausted. Without this, `stockAvailable - 1` could go negative when
+        // the count-based reserve had already consumed the inventory.
+        const available = getAvailableStock(item);
+        if (available < 1) {
+          throw new HttpException(
+            'Not enough stock available',
+            HttpStatus.CONFLICT,
+          );
+        }
+
         const nextItem = normalizeTicketItemStock(
           mergeTicketItem(item, {
             availableSeatLabels: nextAvailable,
-            stockAvailable:
-              item.stockAvailable !== null && item.stockAvailable !== undefined
-                ? item.stockAvailable - 1
-                : nextAvailable.length,
+            stockAvailable: available - 1,
             updatedAt: new Date(),
           }),
         );
@@ -663,6 +681,15 @@ export class TicketBaseService {
   }
 
   async releaseSeat(
+    ticketId: string,
+    ticketItemId: string,
+    payload: ReleaseSeatRequest,
+  ): Promise<TicketItemResponse> {
+    return this.releaseSeatInternal(ticketId, ticketItemId, payload);
+  }
+
+  /** Lock-free core of seat release — see reserveSeatInternal. */
+  protected async releaseSeatInternal(
     ticketId: string,
     ticketItemId: string,
     payload: ReleaseSeatRequest,
@@ -699,10 +726,7 @@ export class TicketBaseService {
         const nextItem = normalizeTicketItemStock(
           mergeTicketItem(item, {
             availableSeatLabels: nextAvailable,
-            stockAvailable:
-              item.stockAvailable !== null && item.stockAvailable !== undefined
-                ? item.stockAvailable + 1
-                : nextAvailable.length,
+            stockAvailable: getAvailableStock(item) + 1,
             updatedAt: new Date(),
           }),
         );

@@ -143,12 +143,31 @@ export class AuthController {
 
   @Post('change-password')
   @Post('changePassword')
-  changePassword(
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async changePassword(
     @Req() request: { user?: RequestUser },
     @Body() changePasswordDto: ChangePasswordRequest,
+    @Res({ passthrough: true }) response: Response,
   ) {
     const userId = request.user?.userId ?? '';
-    return this.authService.changePassword(userId, changePasswordDto);
+    const result = await firstValueFrom(
+      this.authService.changePassword(userId, changePasswordDto),
+    );
+
+    // auth-service bumps tokenVersion on password change, invalidating every
+    // session. Adopt the freshly issued pair so this caller stays signed in
+    // while any other session is now dead.
+    if (result?.accessToken && result?.refreshToken) {
+      this.setAuthCookies(response, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+    }
+
+    return {
+      success: result?.success ?? true,
+      message: result?.message ?? 'Password changed successfully',
+    };
   }
 
   @Post('verify-email')

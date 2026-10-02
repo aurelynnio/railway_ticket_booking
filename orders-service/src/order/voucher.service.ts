@@ -96,6 +96,24 @@ export class VoucherService {
       };
     }
 
+    // Per-customer cap, when the voucher configures one and we know who is
+    // asking. The authoritative check happens atomically in reserveUsage();
+    // this early check only produces a friendly message.
+    if (voucher.perUserLimit !== null && payload.userId) {
+      const userUsages = await this.prisma.voucherUsage.count({
+        where: { voucherId: voucher.id, userId: payload.userId },
+      });
+      if (userUsages >= voucher.perUserLimit) {
+        return {
+          isValid: false,
+          code,
+          discountAmount: 0,
+          finalAmount: payload.orderAmount,
+          message: 'Bạn đã sử dụng mã khuyến mãi này rồi.',
+        };
+      }
+    }
+
     const minAmount = voucher.minOrderAmount
       ? Number(voucher.minOrderAmount)
       : 0;
@@ -135,6 +153,106 @@ export class VoucherService {
       finalAmount,
       message: `Áp dụng thành công! Bạn được giảm ${discountAmount.toLocaleString('vi-VN')} VND.`,
     };
+  }
+
+  /**
+   * Atomically claims one redemption of a voucher for an order.
+   *
+   * The global limit is enforced by a CONDITIONAL update
+   * (`usedCount < usageLimit`) inside the same transaction that inserts the
+   * usage row. The previous implementation read `usedCount`, compared it, and
+   * incremented later in a separate write, so N concurrent checkouts all passed
+   * the check and all got the discount (overshoot = N-1).
+   *
+   * The per-customer cap is checked after the claim: the claim takes a row lock
+   * on the voucher, and the count is re-read under READ COMMITTED, so a
+   * concurrent transaction observes the committed usage row and rolls back.
+   *
+   * @returns true when the redemption was recorded.
+   */
+  async reserveUsage(params: {
+    voucherId: string;
+    userId: string;
+    orderId: string;
+    discountAmount: bigint;
+  }): Promise<boolean> {
+    const { voucherId, userId, orderId, discountAmount } = params;
+
+    return this.prisma.$transaction(async (tx) => {
+      const voucher = await tx.voucher.findUnique({ where: { id: voucherId } });
+      if (!voucher || voucher.deletedAt || !voucher.isActive) {
+        return false;
+      }
+
+      const claimed = await tx.voucher.updateMany({
+        where: {
+          id: voucherId,
+          deletedAt: null,
+          isActive: true,
+          ...(voucher.usageLimit !== null
+            ? { usedCount: { lt: voucher.usageLimit } }
+            : {}),
+        },
+        data: { usedCount: { increment: 1 } },
+      });
+
+      if (claimed.count === 0) {
+        return false;
+      }
+
+      if (voucher.perUserLimit !== null) {
+        const userUsages = await tx.voucherUsage.count({
+          where: { voucherId, userId },
+        });
+        if (userUsages >= voucher.perUserLimit) {
+          // Roll back the counter increment claimed above.
+          throw new ConflictException(
+            'Bạn đã sử dụng mã khuyến mãi này rồi.',
+          );
+        }
+      }
+
+      await tx.voucherUsage.create({
+        data: { voucherId, userId, orderId, discountAmount },
+      });
+
+      return true;
+    });
+  }
+
+  /**
+   * Gives a claimed redemption back (order cancelled / checkout rolled back), so
+   * a failed attempt does not permanently consume a limited voucher.
+   * Best-effort: failures are logged and never block the caller.
+   */
+  async releaseUsage(params: {
+    voucherId: string;
+    orderId: string;
+  }): Promise<void> {
+    const { voucherId, orderId } = params;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const deleted = await tx.voucherUsage.deleteMany({
+          where: { voucherId, orderId },
+        });
+
+        if (deleted.count === 0) {
+          return;
+        }
+
+        await tx.voucher.updateMany({
+          where: { id: voucherId, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        });
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to release voucher usage for order ${orderId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   async listAvailable(): Promise<VoucherResponse[]> {
@@ -212,6 +330,7 @@ export class VoucherService {
           ? BigInt(payload.minOrderAmount)
           : null,
         usageLimit: payload.usageLimit ?? null,
+        perUserLimit: payload.perUserLimit ?? null,
         validFrom: payload.validFrom
           ? new Date(payload.validFrom)
           : new Date(),
@@ -252,6 +371,8 @@ export class VoucherService {
         : null;
     if (payload.usageLimit !== undefined)
       updateData.usageLimit = payload.usageLimit ?? null;
+    if (payload.perUserLimit !== undefined)
+      updateData.perUserLimit = payload.perUserLimit ?? null;
     if (payload.validFrom !== undefined)
       updateData.validFrom = new Date(payload.validFrom);
     if (payload.validTo !== undefined)
@@ -295,6 +416,7 @@ export class VoucherService {
         ? Number(voucher.minOrderAmount)
         : null,
       usageLimit: voucher.usageLimit,
+      perUserLimit: voucher.perUserLimit,
       usedCount: voucher.usedCount,
       validFrom: voucher.validFrom.toISOString(),
       validTo: voucher.validTo.toISOString(),

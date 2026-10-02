@@ -3,21 +3,36 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TicketService } from './ticket.service';
 import { SearchTripsQuery } from './dto/search.dto';
 import {
-  ChangePriceRequest,
-  ChangeSaleWindowRequest,
-  CreateTicketItemRequest,
   CreateTicketRequest,
   FindTicketsQuery,
-  OpenSaleRequest,
-  PrepareStockRequest,
-  ReleaseSeatRequest,
-  ReleaseTicketRequest,
-  ReserveSeatRequest,
-  ReserveTicketRequest,
-  UpdateTicketItemRequest,
-  UpdateTicketRequest,
 } from './dto/ticket.dto';
+import {
+  AddTicketItemMessage,
+  ChangePriceMessage,
+  ChangeSaleWindowMessage,
+  OpenSaleMessage,
+  PrepareStockMessage,
+  ReleaseSeatMessage,
+  ReleaseTicketMessage,
+  ReserveSeatMessage,
+  ReserveTicketMessage,
+  SearchByNameMessage,
+  SuggestStationsMessage,
+  TicketIdMessage,
+  TicketItemIdMessage,
+  UpdateTicketItemMessage,
+  UpdateTicketMessage,
+} from './dto/ticket-message.dto';
 
+/**
+ * Every handler declares a real DTO class for its payload.
+ *
+ * Inline type literals compile to `Object`, which makes Nest's ValidationPipe
+ * skip the handler entirely — so `whitelist` and all the rules declared on the
+ * nested DTOs silently did not apply to 20 of the 23 commands. Using classes
+ * here is what makes those rules effective on the queue, which is otherwise a
+ * validation-free path around the gateway.
+ */
 @Controller('tickets')
 export class TicketController {
   constructor(private readonly ticketService: TicketService) {}
@@ -42,12 +57,12 @@ export class TicketController {
   }
 
   @MessagePattern({ cmd: 'search.suggest_stations' })
-  suggestStations(@Payload() data: { query: string }) {
+  suggestStations(@Payload() data: SuggestStationsMessage) {
     return this.ticketService.suggestStations(data.query || '');
   }
 
   @MessagePattern({ cmd: 'search.by_name' })
-  searchByName(@Payload() data: { name?: string; q?: string; limit?: number }) {
+  searchByName(@Payload() data: SearchByNameMessage) {
     const keyword = data.name || data.q || '';
     return this.ticketService.searchByName(keyword, data.limit);
   }
@@ -63,183 +78,130 @@ export class TicketController {
   }
 
   @MessagePattern({ cmd: 'tickets.find_one' })
-  findOne(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.findOne(ticketId);
+  findOne(@Payload() data: TicketIdMessage) {
+    return this.ticketService.findOne(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.update' })
-  update(@Payload() data: { ticketId: string; payload: UpdateTicketRequest }) {
-    const { ticketId, payload } = data;
-    return this.ticketService.update(ticketId, payload);
+  update(@Payload() data: UpdateTicketMessage) {
+    return this.ticketService.update(data.ticketId, data.payload);
   }
 
   @MessagePattern({ cmd: 'tickets.remove' })
-  remove(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.remove(ticketId);
+  remove(@Payload() data: TicketIdMessage) {
+    return this.ticketService.remove(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.availability' })
-  availability(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.availability(ticketId);
+  availability(@Payload() data: TicketIdMessage) {
+    return this.ticketService.availability(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.reserve' })
-  reserve(
-    @Payload() data: { ticketId: string; payload: ReserveTicketRequest },
-  ) {
-    const { ticketId, payload } = data;
-    return this.ticketService.reserve(ticketId, payload);
+  reserve(@Payload() data: ReserveTicketMessage) {
+    return this.ticketService.reserve(data.ticketId, data.payload);
   }
 
   @MessagePattern({ cmd: 'tickets.add_ticket_item' })
-  addTicketItem(
-    @Payload() data: { ticketId: string; payload: CreateTicketItemRequest },
-  ) {
-    const { ticketId, payload } = data;
-    return this.ticketService.addTicketItem(ticketId, payload);
+  addTicketItem(@Payload() data: AddTicketItemMessage) {
+    return this.ticketService.addTicketItem(data.ticketId, data.payload);
   }
 
   @MessagePattern({ cmd: 'tickets.update_ticket_item' })
-  updateTicketItem(
-    @Payload()
-    data: {
-      ticketId: string;
-      ticketItemId: string;
-      payload: UpdateTicketItemRequest;
-    },
-  ) {
-    const { ticketId, ticketItemId, payload } = data;
+  updateTicketItem(@Payload() data: UpdateTicketItemMessage) {
     return this.ticketService.updateTicketItem(
-      ticketId,
-      ticketItemId,
-      payload,
+      data.ticketId,
+      data.ticketItemId,
+      data.payload,
     );
   }
 
   @MessagePattern({ cmd: 'tickets.remove_ticket_item' })
-  removeTicketItem(
-    @Payload() data: { ticketId: string; ticketItemId: string },
-  ) {
-    const { ticketId, ticketItemId } = data;
-    return this.ticketService.removeTicketItem(ticketId, ticketItemId);
+  removeTicketItem(@Payload() data: TicketItemIdMessage) {
+    return this.ticketService.removeTicketItem(data.ticketId, data.ticketItemId);
   }
 
   @MessagePattern({ cmd: 'tickets.release' })
-  release(
-    @Payload() data: { ticketId: string; payload: ReleaseTicketRequest },
-  ) {
-    const { ticketId, payload } = data;
-    return this.ticketService.release(ticketId, payload);
+  release(@Payload() data: ReleaseTicketMessage) {
+    return this.ticketService.release(data.ticketId, data.payload);
   }
 
   @MessagePattern({ cmd: 'tickets.publish' })
-  publish(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.publish(ticketId);
+  publish(@Payload() data: TicketIdMessage) {
+    return this.ticketService.publish(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.unpublish' })
-  unpublish(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.unpublish(ticketId);
+  unpublish(@Payload() data: TicketIdMessage) {
+    return this.ticketService.unpublish(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.prepare_stock' })
-  prepareStock(
-    @Payload() data: { ticketId: string; payload: PrepareStockRequest },
-  ) {
-    const { ticketId, payload } = data;
-    return this.ticketService.prepareStock(ticketId, payload);
+  prepareStock(@Payload() data: PrepareStockMessage) {
+    return this.ticketService.prepareStock(data.ticketId, data.payload);
   }
 
   @MessagePattern({ cmd: 'tickets.open_sale' })
-  openSale(@Payload() data: { ticketId: string; payload: OpenSaleRequest }) {
-    const { ticketId, payload } = data;
-    return this.ticketService.openSale(ticketId, payload);
+  openSale(@Payload() data: OpenSaleMessage) {
+    return this.ticketService.openSale(data.ticketId, data.payload);
   }
 
   @MessagePattern({ cmd: 'tickets.close_sale' })
-  closeSale(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.closeSale(ticketId);
+  closeSale(@Payload() data: TicketIdMessage) {
+    return this.ticketService.closeSale(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.seat_map' })
-  seatMap(@Payload() data: { ticketId: string }) {
-    const { ticketId } = data;
-    return this.ticketService.seatMap(ticketId);
+  seatMap(@Payload() data: TicketIdMessage) {
+    return this.ticketService.seatMap(data.ticketId);
   }
 
   @MessagePattern({ cmd: 'tickets.find_ticket_item' })
-  findTicketItem(@Payload() data: { ticketId: string; ticketItemId: string }) {
-    const { ticketId, ticketItemId } = data;
-    return this.ticketService.findTicketItem(ticketId, ticketItemId);
+  findTicketItem(@Payload() data: TicketItemIdMessage) {
+    return this.ticketService.findTicketItem(data.ticketId, data.ticketItemId);
   }
 
   @MessagePattern({ cmd: 'tickets.ticket_item_availability' })
-  ticketItemAvailability(
-    @Payload() data: { ticketId: string; ticketItemId: string },
-  ) {
-    const { ticketId, ticketItemId } = data;
-    return this.ticketService.ticketItemAvailability(ticketId, ticketItemId);
+  ticketItemAvailability(@Payload() data: TicketItemIdMessage) {
+    return this.ticketService.ticketItemAvailability(
+      data.ticketId,
+      data.ticketItemId,
+    );
   }
 
   @MessagePattern({ cmd: 'tickets.reserve_seat' })
-  reserveSeat(
-    @Payload()
-    data: {
-      ticketId: string;
-      ticketItemId: string;
-      payload: ReserveSeatRequest;
-    },
-  ) {
-    const { ticketId, ticketItemId, payload } = data;
-    return this.ticketService.reserveSeat(ticketId, ticketItemId, payload);
+  reserveSeat(@Payload() data: ReserveSeatMessage) {
+    return this.ticketService.reserveSeat(
+      data.ticketId,
+      data.ticketItemId,
+      data.payload,
+    );
   }
 
   @MessagePattern({ cmd: 'tickets.release_seat' })
-  releaseSeat(
-    @Payload()
-    data: {
-      ticketId: string;
-      ticketItemId: string;
-      payload: ReleaseSeatRequest;
-    },
-  ) {
-    const { ticketId, ticketItemId, payload } = data;
-    return this.ticketService.releaseSeat(ticketId, ticketItemId, payload);
+  releaseSeat(@Payload() data: ReleaseSeatMessage) {
+    return this.ticketService.releaseSeat(
+      data.ticketId,
+      data.ticketItemId,
+      data.payload,
+    );
   }
 
   @MessagePattern({ cmd: 'tickets.change_price' })
-  changePrice(
-    @Payload()
-    data: {
-      ticketId: string;
-      ticketItemId: string;
-      payload: ChangePriceRequest;
-    },
-  ) {
-    const { ticketId, ticketItemId, payload } = data;
-    return this.ticketService.changePrice(ticketId, ticketItemId, payload);
+  changePrice(@Payload() data: ChangePriceMessage) {
+    return this.ticketService.changePrice(
+      data.ticketId,
+      data.ticketItemId,
+      data.payload,
+    );
   }
 
   @MessagePattern({ cmd: 'tickets.change_sale_window' })
-  changeSaleWindow(
-    @Payload()
-    data: {
-      ticketId: string;
-      ticketItemId: string;
-      payload: ChangeSaleWindowRequest;
-    },
-  ) {
-    const { ticketId, ticketItemId, payload } = data;
+  changeSaleWindow(@Payload() data: ChangeSaleWindowMessage) {
     return this.ticketService.changeSaleWindow(
-      ticketId,
-      ticketItemId,
-      payload,
+      data.ticketId,
+      data.ticketItemId,
+      data.payload,
     );
   }
 }

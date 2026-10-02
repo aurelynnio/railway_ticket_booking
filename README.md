@@ -180,7 +180,7 @@ Neu can full stack Docker, copy `infra/docker/.env.docker.example` thanh `.env.d
 docker compose --env-file infra/docker/.env.docker -f infra/docker/docker-compose.yml up -d --build
 ```
 
-Full Compose chi expose Nginx o port `80`; API gateway va client chi truy cap noi bo. Phai dat TLS/HTTPS o reverse proxy hoac load balancer truoc khi dung production. Khi `NODE_ENV=production`, gateway tu choi CORS HTTP, VNPay test mode va cac VNPay secret/URL placeholder.
+Full Compose chi expose Nginx o port `80`; `api-gateway` duoc bind vao `127.0.0.1:8080` (loopback) de host nginx proxy toi, nen Internet khong truy cap truc tiep duoc gateway. Khong mo cong `8080` tren Security Group. Phai dat TLS/HTTPS o reverse proxy hoac load balancer truoc khi dung production. Khi `NODE_ENV=production`, gateway tu choi CORS HTTP, CORS wildcard, VNPay test mode va cac VNPay secret/URL placeholder.
 
 > [!TIP]
 > **Huong dan deploy AWS EC2**: Xem chi tiet tung buoc tai 👉 [AWS_EC2_DEPLOYMENT_GUIDE.md](docs/AWS_EC2_DEPLOYMENT_GUIDE.md).
@@ -341,6 +341,55 @@ Khoi dong tat ca service backend (kem auto-detect client neu co):
 - Google OAuth dang duoc an o client va gateway tra `501` thay vi redirect bang client id gia; chi mo lai sau khi co provider flow day du.
 
 Khi deploy len RabbitMQ da co queue cu, RabbitMQ khong cho doi `durable` hay DLQ arguments tren queue dang ton tai. Sau khi drain message an toan, can xoa va de service tao lai: `auth_queue`, `tickets_queue`, `orders_queue`, `orders_expiration_queue`, `orders_expired_process_queue`, `payments_queue`, va `notifications_queue`. Khong purge hoac xoa queue khi chua backup/kiem dem message dang cho xu ly.
+
+## Bao mat & cac thay doi can luu y khi deploy
+
+> [!IMPORTANT]
+> Cac thay doi duoi day co anh huong van hanh. Doc ky truoc khi deploy lai.
+
+### Bat buoc phai lam khi deploy
+
+1. **Doi `JWT_SECRET`.** auth-service **tu choi khoi dong** neu secret la placeholder
+   (`replace-with*`, `change-me*`, `placeholder`, ...) hoac ngan hon 32 ky tu hoac
+   qua it ky tu phan biet. Sinh bang `openssl rand -hex 32`.
+   Pipeline CD cung se **dung deploy** neu `.env.docker` con gia tri mau — truoc day
+   no tu dong copy `.env.docker.example` va chay production voi secret cong khai.
+2. **Chay migration moi** cua orders-service (`per_user_limit` cho voucher). Service
+   `db-migrate` trong full Compose tu ap dung; neu chay tay thi dung
+   `.\scripts\migrate-databases.ps1`.
+3. **Tat Swagger o production**: `ENABLE_SWAGGER=false` (nay la mac dinh trong
+   `.env.docker.example`). Swagger mo ta toan bo API cho nguoi chua dang nhap.
+4. **Giu cong 8080 o loopback.** `docker-compose.yml` bind `127.0.0.1:8080` de host
+   nginx proxy toi, nhung Internet khong truy cap duoc. Khong mo port 8080 tren
+   Security Group: neu mo, client di thang vao gateway, bo qua rate limit cua nginx
+   va co the gia mao `X-Forwarded-For` de vo hieu hoa throttler (brute-force login).
+5. **Bat TLS cho Redis** khi Redis khong nam trong mang rieng:
+   `REDIS_TLS=true` (xem `tickets-service/.env.example`).
+
+### Thay doi hanh vi nguoi dung se thay
+
+- **Sau khi deploy, moi phien dang nhap cu se het hieu luc** (token nay co claim `typ`,
+  va token cu khong co). Nguoi dung phai dang nhap lai mot lan.
+- **Doi mat khau / reset mat khau se huy toan bo phien khac** (`tokenVersion` tang).
+  Phien hien tai duoc cap lai token moi nen van dung duoc.
+- **Chi duoc sua hanh khach / ghe khi don chua thanh toan.** Don da `Paid` tro len bi
+  khoa; muon sua phai huy/hoan tien roi dat lai.
+- **Gia ve giam gia can giay to.** Ve `CHILD`/`STUDENT`/`SENIOR` chi duoc giam khi
+  hanh khach co `identityNumber`; khong co thi tinh gia nguoi lon. `passengerType`
+  phai thuoc `ADULT | CHILD | STUDENT | SENIOR`.
+- **`GET /tickets` chi tra ve chuyen da publish** voi nguoi khong phai admin.
+- **Doi hanh khach se tinh lai tong tien** va huy cac payment pending cu; client can
+  tao payment moi theo so tien moi.
+- `Resend verification` luon tra cung mot message (khong con phan biet email da ton tai).
+
+### Cac bien moi
+
+| Bien | Y nghia | Mac dinh |
+| --- | --- | --- |
+| `TRUST_PROXY` | So hop reverse proxy tin cay truoc gateway (`false` = khong tin) | `1` |
+| `ENABLE_SWAGGER` | Bat Swagger UI | `false` khi dung Docker Compose |
+| `REDIS_TLS` / `REDIS_TLS_CA` / `REDIS_TLS_SERVERNAME` / `REDIS_TLS_REJECT_UNAUTHORIZED` | TLS cho Redis | tat |
+| `perUserLimit` (voucher) | So lan toi da MOT khach duoc dung voucher | null = khong gioi han |
 
 ## Goi y verify sau khi sua code
 
