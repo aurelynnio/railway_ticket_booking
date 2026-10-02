@@ -181,6 +181,28 @@ jobs:
               exit 1
             fi
 
+            # The compose file, nginx config and .env templates live in THIS repo,
+            # not in the images -- the images only carry application code. Without
+            # syncing the checkout, infra changes in the repo (published ports,
+            # env defaults, reverse-proxy config) silently never reach the host.
+            # Only sync when the checkout is clean, and never let a fetch problem
+            # (auth/network) abort the deploy: stale infra beats a dead pipeline.
+            echo "🔄 Checking the deployment checkout..."
+            if [ -d .git ]; then
+              if [ -n "$(git status --porcelain)" ]; then
+                echo "⚠️  Checkout has local modifications; skipping repo sync."
+                git status --porcelain
+              elif git fetch --prune origin main; then
+                git reset --hard FETCH_HEAD
+                echo "✅ Checkout synced to:"
+                git log --oneline -1
+              else
+                echo "⚠️  git fetch failed; continuing with the existing checkout."
+              fi
+            else
+              echo "⚠️  $PWD is not a git checkout; skipping repo sync."
+            fi
+
             # Fail closed instead of copying .env.docker.example into place.
             # Auto-copying used to let a deploy boot with repository-visible
             # placeholder secrets (including JWT_SECRET), which is equivalent to
