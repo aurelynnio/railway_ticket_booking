@@ -82,6 +82,21 @@ ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discount_amount" BIGINT NOT NULL 
 
 CREATE INDEX IF NOT EXISTS "orders_voucher_id_idx" ON "orders"("voucher_id");
 
+-- Clear dangling voucher references before adding the foreign key.
+--
+-- `vouchers` never existed, so any value already stored in `orders.voucher_id`
+-- is by definition dangling (it cannot point at a voucher row). Creating the FK
+-- with such rows present fails with:
+--   ERROR: insert or update on table "orders" violates foreign key constraint
+-- and would keep the whole deploy blocked. `voucher_code` and `discount_amount`
+-- are left untouched, so the audit trail of what was applied is preserved.
+UPDATE "orders"
+   SET "voucher_id" = NULL
+ WHERE "voucher_id" IS NOT NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM "vouchers" v WHERE v."id" = "orders"."voucher_id"
+   );
+
 DO $$
 BEGIN
     IF NOT EXISTS (
