@@ -185,23 +185,34 @@ jobs:
             # not in the images -- the images only carry application code. Without
             # syncing the checkout, infra changes in the repo (published ports,
             # env defaults, reverse-proxy config) silently never reach the host.
-            # Only sync when the checkout is clean, and never let a fetch problem
-            # (auth/network) abort the deploy: stale infra beats a dead pipeline.
+            #
+            # This runs in a subshell whose failure is REPORTED but never allowed
+            # to abort the deploy: stale infra is bad, a pipeline that cannot
+            # deploy at all is worse. It also prints enough detail to diagnose a
+            # checkout that cannot be synced.
             echo "🔄 Checking the deployment checkout..."
-            if [ -d .git ]; then
-              if [ -n "$(git status --porcelain)" ]; then
-                echo "⚠️  Checkout has local modifications; skipping repo sync."
-                git status --porcelain
-              elif git fetch --prune origin main; then
-                git reset --hard FETCH_HEAD
-                echo "✅ Checkout synced to:"
-                git log --oneline -1
+            (
+              set +e
+              echo "   cwd: $PWD"
+              echo "   git: $(command -v git 2>/dev/null || echo 'NOT INSTALLED')"
+              if [ -d .git ]; then
+                echo "   .git present: yes"
+                echo "   --- git status --porcelain ---"
+                git status --porcelain 2>&1 | head -20
+                echo "   --- end git status ---"
+                if git fetch --prune origin main 2>&1; then
+                  if git reset --hard FETCH_HEAD 2>&1; then
+                    echo "   synced to: $(git log --oneline -1 2>&1)"
+                  else
+                    echo "   git reset --hard FAILED"
+                  fi
+                else
+                  echo "   git fetch FAILED"
+                fi
               else
-                echo "⚠️  git fetch failed; continuing with the existing checkout."
+                echo "   .git present: NO - treating this directory as a plain copy"
               fi
-            else
-              echo "⚠️  $PWD is not a git checkout; skipping repo sync."
-            fi
+            ) || echo "repo sync step failed; continuing with the existing checkout."
 
             # Fail closed instead of copying .env.docker.example into place.
             # Auto-copying used to let a deploy boot with repository-visible
