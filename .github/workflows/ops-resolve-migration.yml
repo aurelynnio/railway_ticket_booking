@@ -1,0 +1,109 @@
+name: Ops - Resolve failed migration
+
+# One-off operations workflow.
+#
+# Prisma refuses to run further migrations while the target database holds a
+# failed migration (P3009). Clearing that state needs `prisma migrate resolve`
+# ON THE DEPLOYMENT HOST, which a normal code change cannot do -- pushing more
+# migrations just fails again. This workflow reuses the same EC2 credentials as
+# the deploy job so the unblock can be performed without SSH access.
+#
+# Manual-only (workflow_dispatch) and gated on typing RESOLVE, so it can never
+# run as part of a push.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type RESOLVE to confirm running this against production'
+        required: true
+        type: string
+
+jobs:
+  resolve:
+    name: Resolve failed migration and restart stack
+    runs-on: ubuntu-latest
+    if: ${{ inputs.confirm == 'RESOLVE' }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR (to get registry URI)
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve failed migration, then roll the stack
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ vars.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          envs: AWS_REGION,ECR_REGISTRY,ECR_REPOSITORY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY
+          # Never stop on the first error: the whole point of this run is to
+          # print the real Prisma output, which lives in the container.
+          script_stop: false
+          command_timeout: 15m
+          script: |
+            set -u
+
+            if [ -d "/srv/railway-ticket" ]; then
+              cd /srv/railway-ticket
+            elif [ -d "$HOME/railway-ticket" ]; then
+              cd "$HOME/railway-ticket"
+            else
+              echo "!! deployment directory not found"
+              exit 1
+            fi
+
+            if [ ! -f .env ] && [ -f .env.docker ]; then
+              ln -sf .env.docker .env
+            fi
+
+            # Log in with the bare registry, then add the trailing slash that the
+            # compose file expects when it builds the image reference.
+            export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+            export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+            export AWS_DEFAULT_REGION="$AWS_REGION"
+
+            echo "===================== 1. ECR login ====================="
+            if aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"; then
+              echo "ECR login ok"
+            else
+              echo "!! ECR login failed - will use the locally cached image if present"
+            fi
+            export ECR_REGISTRY="${ECR_REGISTRY}/"
+
+            echo "===================== 2. migrate status (BEFORE) ====================="
+            docker compose run --rm --entrypoint sh db-migrate -c 'cd /workspace/orders-service && DATABASE_URL="$ORDERS_DATABASE_URL" npx prisma migrate status' 2>&1 || true
+
+            echo "===================== 3. clear the failed migration ====================="
+            docker compose run --rm --entrypoint sh db-migrate -c 'cd /workspace/orders-service && DATABASE_URL="$ORDERS_DATABASE_URL" npx prisma migrate resolve --rolled-back 20260902000000_add_voucher_per_user_limit' 2>&1 || true
+
+            echo "===================== 4. refresh the db-migrate image ====================="
+            docker compose pull db-migrate 2>&1 || echo "!! pull failed, using the locally cached image"
+
+            echo "===================== 5. apply migrations ====================="
+            docker compose run --rm db-migrate 2>&1
+            echo "apply_exit=$?"
+
+            echo "===================== 6. migrate status (AFTER) ====================="
+            docker compose run --rm --entrypoint sh db-migrate -c 'cd /workspace/orders-service && DATABASE_URL="$ORDERS_DATABASE_URL" npx prisma migrate status' 2>&1 || true
+
+            echo "===================== 7. db-migrate log ====================="
+            docker compose logs db-migrate 2>&1 | tail -40 || true
+
+            echo "===================== 8. bring the stack up ====================="
+            docker compose up -d --remove-orphans 2>&1
+            echo "up_exit=$?"
+
+            echo "===================== 9. container status ====================="
+            docker compose ps 2>&1 || true
