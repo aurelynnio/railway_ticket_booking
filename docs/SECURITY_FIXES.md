@@ -137,6 +137,35 @@ còn forward `Error.message` (chỉ log nội bộ). Message 4xx vẫn giữ ngu
    auth-service sẽ **không khởi động** nếu còn placeholder.
 2. **Chạy migration mới**: `orders-service/prisma/migrations/20260902000000_add_voucher_per_user_limit`.
    Service `db-migrate` trong full Compose tự áp dụng.
+
+   > [!IMPORTANT]
+   > Migration này **sửa luôn drift có sẵn**: `vouchers`/`voucher_usages` được khai báo trong
+   > `schema.prisma` nhưng **chưa từng có migration nào tạo**, và bảng `orders` thiếu
+   > `voucher_id`/`voucher_code`/`discount_amount`. Bản đầu tiên chỉ có
+   > `ALTER TABLE "vouchers" ADD COLUMN ...` nên **fail trên DB chưa có bảng đó**, khiến Prisma để
+   > lại trạng thái **P3009** (failed migration) và mọi deploy sau đó bị chặn.
+   > Nay migration dùng `CREATE TABLE IF NOT EXISTS` + `ADD COLUMN IF NOT EXISTS` + kiểm tra
+   > `pg_constraint`, nên an toàn ở mọi trạng thái (đã kiểm chứng trên Postgres thật: chạy lần 2
+   > không lỗi và `prisma migrate diff` báo `No difference detected`).
+   >
+   > **Nếu DB đang kẹt P3009**, phải gỡ khoá trước khi deploy lại (một lần duy nhất). Trên EC2,
+   > trong `/srv/railway-ticket` (thư mục có `.env`/`.env.docker`):
+   >
+   > ```bash
+   > # 1) Gỡ trạng thái failed của migration
+   > docker compose run --rm --entrypoint sh db-migrate -c \
+   >   'cd /workspace/orders-service && npx prisma migrate resolve --rolled-back 20260902000000_add_voucher_per_user_limit'
+   >
+   > # 2) Áp dụng migration đã sửa
+   > docker compose run --rm db-migrate
+   >
+   > # 3) Khởi động lại stack
+   > docker compose up -d
+   > ```
+   >
+   > PostgreSQL chạy mỗi Prisma migration trong một transaction, nên migration fail **không** để lại
+   > thay đổi schema dở dang — `--rolled-back` an toàn. Kiểm tra nhanh sau bước 2:
+   > `docker compose run --rm --entrypoint sh db-migrate -c 'cd /workspace/orders-service && npx prisma migrate status'`
 3. **Không mở cổng 8080** trên Security Group.
 4. Giữ `ENABLE_SWAGGER=false` ở production.
 5. Bật `REDIS_TLS=true` nếu Redis không nằm trong mạng riêng.
