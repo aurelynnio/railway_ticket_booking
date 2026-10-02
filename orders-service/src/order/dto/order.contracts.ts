@@ -1,5 +1,18 @@
 export type PaymentStatus = 0 | 1 | 2 | 3 | 4 | 5;
 
+/**
+ * Status values as sent by payments-service. Kept as a const map so this
+ * service never compares a settlement against a bare magic number.
+ */
+export const PAYMENT_STATUS = {
+  Pending: 0,
+  Processing: 1,
+  Paid: 2,
+  Failed: 3,
+  Cancelled: 4,
+  Expired: 5,
+} as const;
+
 export interface PaymentDto {
   id: string;
   orderId: string;

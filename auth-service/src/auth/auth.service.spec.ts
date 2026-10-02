@@ -207,11 +207,45 @@ describe('AuthService', () => {
       refreshToken: 'refresh-token',
     });
 
-    expect(tokenService.verifyToken).toHaveBeenCalledWith('refresh-token');
+    expect(tokenService.verifyToken).toHaveBeenCalledWith(
+      'refresh-token',
+      'refresh',
+    );
     expect(result).toEqual({
       accessToken: 'new-access-token',
       refreshToken: 'new-refresh-token',
     });
+  });
+
+  it('refreshToken should revoke the presented token when rotating it', async () => {
+    tokenService.verifyToken.mockResolvedValue({
+      userId: 'user-1',
+      email: 'alice@example.com',
+    });
+    prisma.authAccount.findFirst.mockResolvedValue({
+      id: 'user-1',
+      email: 'alice@example.com',
+      role: 1,
+      deletedAt: null,
+    });
+    tokenService.generateAccessToken.mockResolvedValue('new-access-token');
+    tokenService.generateRefreshToken.mockResolvedValue('new-refresh-token');
+    prisma.refreshToken.upsert.mockResolvedValue({ id: 'token-1' });
+
+    await service.refreshToken({ refreshToken: 'refresh-token' });
+
+    // Rotation: the exchanged token must be marked revoked, otherwise a stolen
+    // refresh token stays usable for its whole 7-day lifetime.
+    expect(prisma.refreshToken.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tokenHash: createHash('sha256')
+            .update('refresh-token')
+            .digest('hex'),
+        },
+        update: expect.objectContaining({ revokedAt: expect.any(Date) }),
+      }),
+    );
   });
 
   it('logout should revoke the presented refresh token and return success', async () => {
@@ -223,7 +257,10 @@ describe('AuthService', () => {
 
     const result = await service.logout({ refreshToken: 'refresh-token' });
 
-    expect(tokenService.verifyToken).toHaveBeenCalledWith('refresh-token');
+    expect(tokenService.verifyToken).toHaveBeenCalledWith(
+      'refresh-token',
+      'refresh',
+    );
     expect(prisma.refreshToken.upsert).toHaveBeenCalledWith({
       where: {
         tokenHash: createHash('sha256').update('refresh-token').digest('hex'),
@@ -314,12 +351,20 @@ describe('AuthService', () => {
       newPassword: 'new-secret',
     });
 
-    expect(tokenService.verifyToken).toHaveBeenCalledWith('reset-token');
+    expect(tokenService.verifyToken).toHaveBeenCalledWith(
+      'reset-token',
+      'password_reset',
+    );
     expect(comparePassword).toHaveBeenCalledWith('new-secret', 'old-hash');
     expect(hashPassword).toHaveBeenCalledWith('new-secret');
+    // A password reset must also bump tokenVersion so every session that
+    // existed before the reset stops working.
     expect(prisma.authAccount.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
-      data: { password: 'new-hash' },
+      data: {
+        password: 'new-hash',
+        tokenVersion: { increment: 1 },
+      },
     });
     expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
@@ -495,16 +540,26 @@ describe('AuthService', () => {
       expect(result).not.toHaveProperty('token');
     });
 
-    it('should throw BadRequestException if email is already verified', async () => {
+    it('should return an identical response for a verified email (no enumeration)', async () => {
       prisma.authAccount.findFirst.mockResolvedValue({
         id: 'user-1',
         email: 'alice@example.com',
         emailVerified: true,
       });
 
-      await expect(
-        service.resendVerification({ email: 'alice@example.com' }),
-      ).rejects.toThrow(BadRequestException);
+      const verified = await service.resendVerification({
+        email: 'alice@example.com',
+      });
+
+      // A verified address used to produce a 400 while an unknown address
+      // produced a 200, which let anyone enumerate registered accounts.
+      prisma.authAccount.findFirst.mockResolvedValue(null);
+      const unknown = await service.resendVerification({
+        email: 'nobody@example.com',
+      });
+
+      expect(verified).toEqual(unknown);
+      expect(tokenService.generateEmailVerificationToken).not.toHaveBeenCalled();
     });
   });
 
@@ -531,6 +586,7 @@ describe('AuthService', () => {
         data: {
           tokenVersion: { increment: 1 },
         },
+        select: { tokenVersion: true },
       });
       expect(result).toEqual({
         success: true,

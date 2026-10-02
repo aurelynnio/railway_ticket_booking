@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { UuidLikePipe } from '../common/pipes/uuid-like.pipe';
@@ -25,9 +26,11 @@ import {
   UpdateTicketItemRequest,
   UpdateTicketRequest,
 } from './ticket.dto';
+import { TicketStatus } from './ticket.dto';
 import { TicketService } from './ticket.service';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles, UserRole } from '../common/decorators/roles.decorator';
+import type { RequestUser } from '../common/interfaces/request-user.interface';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -48,7 +51,18 @@ export class TicketController {
 
   @Get()
   @Public()
-  findAll(@Query() query: FindTicketsQuery) {
+  findAll(
+    @Req() request: { user?: RequestUser },
+    @Query() query: FindTicketsQuery,
+  ) {
+    // This route is public, so unauthenticated callers and non-admins must only
+    // ever see PUBLISHED departures. The service-side query has no status filter
+    // of its own, so without this an anonymous caller could enumerate draft
+    // departures and their internal inventory fields by paging through.
+    if (request.user?.role !== UserRole.ADMIN) {
+      query.status = String(TicketStatus.Published);
+    }
+
     return this.ticketService.findAll(query);
   }
 

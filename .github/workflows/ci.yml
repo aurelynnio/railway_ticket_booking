@@ -181,11 +181,25 @@ jobs:
               exit 1
             fi
 
-            # Ensure .env exists so docker compose automatically reads it
-            if [ -f .env.docker ] && [ ! -f .env ]; then
+            # Fail closed instead of copying .env.docker.example into place.
+            # Auto-copying used to let a deploy boot with repository-visible
+            # placeholder secrets (including JWT_SECRET), which is equivalent to
+            # publishing the token-signing key.
+            if [ ! -f .env.docker ]; then
+              echo "❌ .env.docker is missing on the deployment host."
+              echo "   Create it from infra/docker/.env.docker.example and fill in real secrets:"
+              echo "     openssl rand -hex 32   # for JWT_SECRET and every password"
+              exit 1
+            fi
+
+            if grep -qE '^(JWT_SECRET|POSTGRES_PASSWORD|REDIS_PASSWORD|RABBITMQ_DEFAULT_PASS|VNPAY_SECURE_SECRET)=.*(replace-with|change-me|placeholder)' .env.docker; then
+              echo "❌ .env.docker still contains placeholder secrets. Refusing to deploy."
+              exit 1
+            fi
+
+            # Keep docker compose happy: it reads .env by default.
+            if [ ! -f .env ]; then
               ln -sf .env.docker .env
-            elif [ ! -f .env ] && [ -f .env.docker.example ]; then
-              cp .env.docker.example .env
             fi
 
             echo "🔑 Logging in to Amazon ECR on EC2..."

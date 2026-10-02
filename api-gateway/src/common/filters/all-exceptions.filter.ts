@@ -29,6 +29,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: unknown = 'Internal server error';
+    /** Full detail for the server log only — never sent to the client on 5xx. */
+    let internalDetail: string | undefined;
+    let internalStack: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -39,6 +42,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       exception.status >= 400 &&
       exception.status < 600
     ) {
+      // Error forwarded from a microservice as { status, message }.
       status = exception.status;
       const body = isRecord(exception.response) ? exception.response : undefined;
       message =
@@ -58,18 +62,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? exception.message
           : 'Microservice error';
     } else if (exception instanceof Error) {
-      // Never leak internal error details to the client in production.
+      internalDetail = exception.message;
+      internalStack = exception.stack;
       if (process.env.NODE_ENV !== 'production') {
         message = exception.message;
       }
-      this.logger.error(
-        `Unhandled exception: ${exception.message}`,
-        exception.stack,
-      );
     }
 
-    if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(`Request failed with status ${status}: ${String(message)}`);
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      // 4xx messages are intentional business messages written by our own
+      // services, so they pass through. 5xx messages are NOT: a microservice
+      // forwards raw Error/Prisma text (table and column names, query
+      // fragments, file paths), so in production the client gets a generic
+      // message while the detail goes to the log.
+      this.logger.error(
+        `Request failed with status ${status}: ${
+          internalDetail ?? String(message)
+        }`,
+        internalStack,
+      );
+
+      if (process.env.NODE_ENV === 'production') {
+        message = 'Internal server error';
+      }
     }
 
     response.status(status).json({

@@ -5,11 +5,16 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { IsUuidLike } from '../common/validators/uuid-like.validator';
+
+/** Upper bound for paginated reads. */
+export const MAX_PAGE_LIMIT = 100;
 
 export enum PaymentStatus {
   Pending = 0,
@@ -46,6 +51,7 @@ export class PaginationQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_PAGE_LIMIT)
   limit?: number;
 }
 
@@ -61,10 +67,12 @@ export class CreatePaymentRequest {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(18)
   amount: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(32)
   paymentMethod: string;
 
   @IsOptional()
@@ -113,6 +121,7 @@ export class ListPaymentsQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_PAGE_LIMIT)
   limit?: number;
 
   @IsOptional()

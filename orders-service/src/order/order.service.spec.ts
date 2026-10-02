@@ -74,6 +74,8 @@ describe('OrderService', () => {
         finalAmount: amount,
       })),
       rollbackUsage: jest.fn().mockResolvedValue(true),
+      reserveUsage: jest.fn().mockResolvedValue(true),
+      releaseUsage: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new OrderService(
@@ -129,20 +131,46 @@ describe('OrderService', () => {
         {
           fullName: 'Em Be',
           passengerType: 'CHILD', // 75% -> 75,000
+          identityNumber: '012345678901',
         },
         {
           fullName: 'Sinh Vien',
           passengerType: 'STUDENT', // 90% -> 90,000
+          identityNumber: '012345678902',
         },
         {
           fullName: 'Nguoi Cao Tuoi',
           passengerType: 'SENIOR', // 85% -> 85,000
+          identityNumber: '012345678903',
         },
       ],
     });
 
     // 75,000 + 90,000 + 85,000 = 250,000
     expect(order.totalPrice).toBe('250000');
+  });
+
+  it('create should charge full fare when a discounted class has no identity evidence', async () => {
+    // Declaring a discounted fare class is not by itself enough: without a
+    // document number on record the passenger pays the full fare, so an adult
+    // ticket cannot be bought at the child rate by editing a JSON field.
+    const order = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 100000,
+      seatLabels: ['A1'],
+      passengers: [
+        {
+          fullName: 'Nguoi Lon',
+          passengerType: 'CHILD',
+        },
+      ],
+    });
+
+    expect(order.totalPrice).toBe('100000');
   });
 
   it('checkout should reserve inventory and create a payment', async () => {
@@ -285,6 +313,30 @@ describe('OrderService', () => {
       unitPrice: 90000,
     });
 
+    // The handler re-reads payment state instead of trusting the event, so a
+    // settled payment covering the order total must exist.
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.listByOrderId') {
+        return of([
+          {
+            id: 'payment-1',
+            orderId: created.id,
+            userId: 'user-1',
+            amount: '90000',
+            paymentMethod: 'VNPAY',
+            status: 2, // Paid
+            transactionId: 'txn-1',
+            paidAt: '2026-06-12T09:00:00.000Z',
+            createdAt: '2026-06-12T08:00:00.000Z',
+            updatedAt: '2026-06-12T09:00:00.000Z',
+            deletedAt: null,
+          },
+        ]);
+      }
+
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
+
     const result = await service.handlePaymentPaidEvent({
       paymentId: 'payment-1',
       orderId: created.id,
@@ -301,6 +353,68 @@ describe('OrderService', () => {
     expect(result.order.status).toBe(OrderStatus.TicketIssued);
     expect(result.order.ticketCode).toBeTruthy();
     expect(result.order.qrPayload).toBeTruthy();
+  });
+
+  it('handlePaymentPaidEvent should refuse an event whose payment does not cover the order', async () => {
+    const created = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+    });
+
+    // Settled payment for less than the order total.
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.listByOrderId') {
+        return of([
+          {
+            id: 'payment-1',
+            orderId: created.id,
+            userId: 'user-1',
+            amount: '1',
+            paymentMethod: 'VNPAY',
+            status: 2,
+            transactionId: 'txn-1',
+            paidAt: '2026-06-12T09:00:00.000Z',
+            createdAt: '2026-06-12T08:00:00.000Z',
+            updatedAt: '2026-06-12T09:00:00.000Z',
+            deletedAt: null,
+          },
+        ]);
+      }
+
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
+
+    const result = await service.handlePaymentPaidEvent({
+      paymentId: 'payment-1',
+      orderId: created.id,
+    });
+
+    expect(result.advancedOrderStatuses).toEqual([]);
+    expect(result.order.status).toBe(OrderStatus.PendingPayment);
+  });
+
+  it('handlePaymentPaidEvent should refuse an event with no settled payment', async () => {
+    const created = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+    });
+
+    paymentClient.send.mockImplementation(() => of([]));
+
+    const result = await service.handlePaymentPaidEvent({
+      orderId: created.id,
+    });
+
+    expect(result.advancedOrderStatuses).toEqual([]);
+    expect(result.order.status).toBe(OrderStatus.PendingPayment);
   });
 
   it('cancelWorkflow should cancel pending payments and collect downstream warnings', async () => {
@@ -446,9 +560,13 @@ describe('OrderService', () => {
   });
 
   it('create should compute totalPrice with BigInt arithmetic to avoid precision loss', async () => {
-    const quantity = 123456789;
-    const unitPrice = 987654321;
+    // quantity is capped at MAX_ORDER_QUANTITY, so the product is pushed beyond
+    // Number.MAX_SAFE_INTEGER through the unit price instead: 20 x (2^52 + 1).
+    const quantity = 20;
+    const unitPrice = 4503599627370497;
     const exact = BigInt(quantity) * BigInt(unitPrice);
+
+    expect(exact).toBeGreaterThan(BigInt(Number.MAX_SAFE_INTEGER));
 
     await service.create({
       userId: 'user-1',
@@ -461,6 +579,19 @@ describe('OrderService', () => {
 
     const createCall = prisma.order.create.mock.calls[0][0];
     expect(createCall.data.totalPrice).toBe(exact);
+  });
+
+  it('create should reject a quantity above the configured maximum', async () => {
+    await expect(
+      service.create({
+        userId: 'user-1',
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        ticketTitle: 'SE1',
+        quantity: 1000000000,
+        unitPrice: 90000,
+      }),
+    ).rejects.toThrow(HttpException);
   });
 
   it('create should return the existing order when idempotencyKey is reused', async () => {
@@ -712,6 +843,34 @@ function createMockPrisma() {
           }
 
           Object.assign(order, data, { updatedAt: new Date() });
+          return Promise.resolve(withRelations(order));
+        },
+      ),
+      /**
+       * Compare-and-swap used by transitionStatus/cancel: the status is part of
+       * the filter, so a mismatched status yields count 0 instead of applying.
+       */
+      updateMany: jest.fn(
+        ({
+          where,
+          data,
+        }: UpdateOrderArgs): Promise<{ count: number }> => {
+          const order = orders.find((entry) => matchesWhere(entry, where));
+          if (!order) {
+            return Promise.resolve({ count: 0 });
+          }
+
+          Object.assign(order, data, { updatedAt: new Date() });
+          return Promise.resolve({ count: 1 });
+        },
+      ),
+      findFirstOrThrow: jest.fn(
+        ({ where }: WhereArgs): Promise<StoredOrderWithRelations> => {
+          const order = orders.find((entry) => matchesWhere(entry, where));
+          if (!order) {
+            return Promise.reject(new Error('Order not found'));
+          }
+
           return Promise.resolve(withRelations(order));
         },
       ),

@@ -24,6 +24,18 @@ export interface LogoutResponse {
   message: string;
 }
 
+/**
+ * Change-password returns a fresh token pair: auth-service bumps the account's
+ * tokenVersion (killing every existing session), so the caller needs new
+ * credentials to stay signed in.
+ */
+export interface ChangePasswordResponse {
+  success: boolean;
+  message: string;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -77,8 +89,11 @@ export class AuthService {
     );
   }
 
-  changePassword(userId: string, data: ChangePasswordRequest) {
-    return this.authClient.send(
+  changePassword(
+    userId: string,
+    data: ChangePasswordRequest,
+  ): Observable<ChangePasswordResponse> {
+    return this.authClient.send<ChangePasswordResponse>(
       {
         cmd: 'auth.changePassword',
       },

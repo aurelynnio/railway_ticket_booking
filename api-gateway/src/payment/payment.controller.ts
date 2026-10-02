@@ -75,14 +75,22 @@ export class PaymentController {
       )) as PaymentDto[] | null;
 
       const list = payments ?? [];
-      if (list.length > 0) {
-        const ownerUserId = list[0].userId;
-        if (ownerUserId && ownerUserId !== request.user?.userId) {
-          throw new ForbiddenException(
-            'You do not have permission to access payments for this order',
-          );
-        }
+
+      // Fail closed: EVERY payment on the order must belong to the caller. The
+      // previous check only inspected the first entry and skipped the guard
+      // entirely when that entry had no `userId`, so a payment without an owner
+      // (e.g. one created by an admin route) became readable by anyone who knew
+      // the order id.
+      const ownsEveryPayment = list.every(
+        (payment) => payment.userId === request.user?.userId,
+      );
+
+      if (!ownsEveryPayment) {
+        throw new ForbiddenException(
+          'You do not have permission to access payments for this order',
+        );
       }
+
       return list;
     }
     return this.paymentService.getPaymentsByOrderId({ orderId });

@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { TokenService } from './utils/generate-token.utils';
 import { NOTIFICATIONS_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
+import { describeWeakJwtSecret } from '../common/utils/secret-strength.utils';
 
 @Module({
   imports: [
@@ -22,13 +23,13 @@ import { NOTIFICATIONS_QUEUE, DEAD_LETTER_QUEUE } from '../common/constants/queu
           throw new Error('JWT_SECRET is not configured');
         }
 
-        if (
-          process.env.NODE_ENV === 'production' &&
-          (secret.length < 32 || secret.toLowerCase().includes('change-me'))
-        ) {
-          throw new Error(
-            'JWT_SECRET must be at least 32 characters and not a placeholder in production',
-          );
+        // Placeholder-shaped secrets are rejected in EVERY environment, not just
+        // production: shipping a repo-visible secret would let anyone forge a
+        // token for any account whose userId/email is known (the seed script
+        // publishes an admin's UUID, for example).
+        const problem = describeWeakJwtSecret(secret);
+        if (problem) {
+          throw new Error(`JWT_SECRET is not acceptable: ${problem}`);
         }
 
         return {

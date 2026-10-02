@@ -169,6 +169,7 @@ export class AuthService {
 
     const tokenPayload = await this.tokenService.verifyToken(
       payload.refreshToken,
+      'refresh',
     );
     await this.ensureRefreshTokenNotRevoked(payload.refreshToken);
     const user = await this.findActiveUserById(tokenPayload.userId);
@@ -192,6 +193,11 @@ export class AuthService {
       role: user.role,
       tokenVersion: user.tokenVersion ?? 0,
     });
+
+    // Rotation: the presented refresh token is revoked as it is exchanged, so a
+    // stolen refresh token stops working as soon as the legitimate client
+    // refreshes. Without this a leaked token stayed valid for its full 7 days.
+    await this.revokeRefreshToken(payload.refreshToken);
     await this.storeRefreshToken(refreshToken);
 
     return {
@@ -205,7 +211,7 @@ export class AuthService {
       throw new BadRequestException('Missing token');
     }
 
-    const tokenPayload = await this.tokenService.verifyToken(token);
+    const tokenPayload = await this.tokenService.verifyToken(token, 'access');
     const user = await this.findActiveUserById(tokenPayload.userId);
     if (
       !user ||
@@ -237,7 +243,7 @@ export class AuthService {
     }
 
     try {
-      await this.tokenService.verifyToken(refreshToken);
+      await this.tokenService.verifyToken(refreshToken, 'refresh');
     } catch {
       // Invalid or expired tokens carry no session worth revoking.
       return {
@@ -246,21 +252,7 @@ export class AuthService {
       };
     }
 
-    try {
-      await this.prisma.refreshToken.upsert({
-        where: { tokenHash: this.hashToken(refreshToken) },
-        update: { revokedAt: new Date() },
-        create: {
-          tokenHash: this.hashToken(refreshToken),
-          revokedAt: new Date(),
-          expiresAt: this.buildRefreshTokenExpiry(),
-        },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to revoke refresh token on logout: ${getErrorMessage(error)}`,
-      );
-    }
+    await this.revokeRefreshToken(refreshToken);
 
     return {
       success: true,
@@ -331,7 +323,10 @@ export class AuthService {
      * Password reset cross-checks the signed token against the stored hash
      * and account state before replacing credentials inside one transaction.
      */
-    const verifiedPayload = await this.tokenService.verifyToken(payload.token);
+    const verifiedPayload = await this.tokenService.verifyToken(
+      payload.token,
+      'password_reset',
+    );
     const tokenHash = this.hashToken(payload.token);
     const resetToken = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash },
@@ -369,10 +364,21 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(payload.newPassword);
 
+    /*
+     * Bump tokenVersion in the same transaction as the password write, so a
+     * password reset also terminates every existing session. Without this, an
+     * attacker who had already obtained tokens kept access for the remaining
+     * access-token lifetime (and up to 7 days via the refresh token) even after
+     * the victim reset their password — which defeats the usual reason for
+     * resetting it.
+     */
     await this.prisma.$transaction([
       this.prisma.authAccount.update({
         where: { id: resetToken.authAccount.id },
-        data: { password: hashedPassword },
+        data: {
+          password: hashedPassword,
+          tokenVersion: { increment: 1 },
+        },
       }),
       this.prisma.passwordResetToken.delete({
         where: { userId: resetToken.authAccount.id },
@@ -417,6 +423,11 @@ export class AuthService {
    * tokenVersion mechanism.
    */
   private async storeRefreshToken(refreshToken: string) {
+    if (!refreshToken?.trim()) {
+      this.logger.warn('Skipping refresh token persistence: no token was issued');
+      return;
+    }
+
     try {
       await this.prisma.refreshToken.create({
         data: {
@@ -454,6 +465,48 @@ export class AuthService {
     return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // matches refresh token TTL
   }
 
+  /**
+   * Marks a refresh token as revoked (logout, or rotation on refresh).
+   *
+   * Best-effort: a persistence failure is logged but never thrown, because the
+   * `tokenVersion` counter is the authoritative way to invalidate sessions and
+   * the revocation table is an additional layer on top of it.
+   */
+  private async revokeRefreshToken(refreshToken: string): Promise<void> {
+    const tokenHash = this.hashToken(refreshToken);
+
+    try {
+      await this.prisma.refreshToken.upsert({
+        where: { tokenHash },
+        update: { revokedAt: new Date() },
+        create: {
+          tokenHash,
+          revokedAt: new Date(),
+          expiresAt: this.buildRefreshTokenExpiry(),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke refresh token: ${getErrorMessage(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Bumps `tokenVersion` so every token already issued for this account fails
+   * the version check. Used when credentials change: a password reset or change
+   * must not leave an attacker's existing session alive.
+   */
+  private async invalidateAllSessions(userId: string): Promise<number> {
+    const updated = await this.prisma.authAccount.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
+    });
+
+    return updated.tokenVersion;
+  }
+
   async changePassword(userId: string, payload: ChangePasswordRequest) {
     if (!userId || !payload.newPassword) {
       throw new BadRequestException('Missing required fields');
@@ -488,9 +541,34 @@ export class AuthService {
       data: { password: newPasswordHash },
     });
 
+    /*
+     * Terminate every other session, then hand the caller a fresh pair of
+     * tokens. Changing a password while leaving existing sessions alive is the
+     * classic "I changed my password but the intruder is still logged in" gap.
+     * The current session is kept usable by re-issuing tokens with the new
+     * tokenVersion — the gateway replaces the caller's cookies with these.
+     */
+    const tokenVersion = await this.invalidateAllSessions(userId);
+
+    const accessToken = await this.tokenService.generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      tokenVersion,
+    });
+    const refreshToken = await this.tokenService.generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      tokenVersion,
+    });
+    await this.storeRefreshToken(refreshToken);
+
     return {
       success: true,
       message: 'Password changed successfully',
+      accessToken,
+      refreshToken,
     };
   }
 
@@ -499,7 +577,10 @@ export class AuthService {
       throw new BadRequestException('Missing verification token');
     }
 
-    const verifiedPayload = await this.tokenService.verifyToken(payload.token);
+    const verifiedPayload = await this.tokenService.verifyToken(
+      payload.token,
+      'email_verification',
+    );
     const tokenHash = this.hashToken(payload.token);
     const verifyToken = await this.prisma.emailVerificationToken.findUnique({
       where: { tokenHash },
@@ -542,17 +623,18 @@ export class AuthService {
       throw new BadRequestException('Missing email');
     }
 
-    const user = await this.findActiveUserByEmail(payload.email);
-    if (!user) {
-      // Don't reveal whether email exists
-      return {
-        success: true,
-        message: 'If the email exists and is unverified, a verification link has been sent.',
-      };
-    }
+    // Always the same response shape and message, whatever the account state.
+    // Previously an already-verified address produced a 400 while an unknown
+    // address produced a 200, which let anyone enumerate registered accounts.
+    const genericResponse = {
+      success: true,
+      message:
+        'If the email exists and is unverified, a verification link has been sent.',
+    };
 
-    if (user.emailVerified) {
-      throw new BadRequestException('Email is already verified');
+    const user = await this.findActiveUserByEmail(payload.email);
+    if (!user || user.emailVerified) {
+      return genericResponse;
     }
 
     const token = await this.generateAndStoreEmailVerificationToken(
@@ -568,10 +650,7 @@ export class AuthService {
     });
 
     // Never return the raw token in the HTTP response
-    return {
-      success: true,
-      message: 'If the email exists and is unverified, a verification link has been sent.',
-    };
+    return genericResponse;
   }
 
   socialLoginGoogle(payload: SocialLoginGoogleRequest): never {
@@ -594,12 +673,7 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    await this.prisma.authAccount.update({
-      where: { id: userId },
-      data: {
-        tokenVersion: { increment: 1 },
-      },
-    });
+    await this.invalidateAllSessions(userId);
 
     return {
       success: true,

@@ -17,6 +17,7 @@ import type {
   TicketSnapshot,
   TicketItemSnapshot,
 } from './dto/order.contracts';
+import { PAYMENT_STATUS } from './dto/order.contracts';
 import type {
   CancelOrderWorkflowResponse,
   CancelOrderRequest,
@@ -31,7 +32,12 @@ import type {
   UpdateOrderPassengersRequest,
   UpdateOrderSeatLabelsRequest,
 } from './dto/order.dto';
-import { OrderStatus, type OrderPassenger } from './dto/order.dto';
+import {
+  MAX_ORDER_QUANTITY,
+  OrderStatus,
+  PassengerType,
+  type OrderPassenger,
+} from './dto/order.dto';
 import {
   assertRequired,
   buildQrPayload,
@@ -270,6 +276,16 @@ export class OrderService {
     assertRequired(payload.ticketTitle, 'ticketTitle');
 
     const quantity = normalizePositiveInteger(payload.quantity, 'quantity');
+
+    // Enforced here as well as in the DTO: this service is reachable over RMQ,
+    // so the bound must not depend on the caller having gone through HTTP
+    // validation.
+    if (quantity > MAX_ORDER_QUANTITY) {
+      throw new HttpException(
+        `quantity cannot exceed ${MAX_ORDER_QUANTITY}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     const unitPrice = normalizeNonNegativeInteger(
       payload.unitPrice,
       'unitPrice',
@@ -302,51 +318,13 @@ export class OrderService {
     );
     const arrivalTime = toNullableDate(payload.arrivalTime, 'arrivalTime');
 
-    let calculatedTotalPrice = BigInt(0);
-    if (passengers.length > 0) {
-      for (const passenger of passengers) {
-        calculatedTotalPrice += BigInt(
-          this.calculateDiscountedPassengerPrice(
-            unitPrice,
-            passenger.passengerType,
-          ),
-        );
-      }
-      const remainingQuantity = quantity - passengers.length;
-      if (remainingQuantity > 0) {
-        calculatedTotalPrice += BigInt(remainingQuantity) * BigInt(unitPrice);
-      }
-    } else {
-      calculatedTotalPrice = BigInt(quantity) * BigInt(unitPrice);
-    }
-
-    let discountAmount = BigInt(0);
-    let voucherId: string | null = null;
-    let appliedVoucherCode: string | null = null;
-
-    if (payload.voucherCode?.trim()) {
-      const voucherRes = await this.voucherService.validateVoucher({
-        code: payload.voucherCode.trim(),
-        orderAmount: Number(calculatedTotalPrice),
-        userId: payload.userId,
-      });
-
-      if (!voucherRes.isValid) {
-        throw new HttpException(
-          voucherRes.message || 'Mã khuyến mãi không hợp lệ.',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      discountAmount = BigInt(voucherRes.discountAmount);
-      voucherId = voucherRes.voucherId ?? null;
-      appliedVoucherCode = voucherRes.code;
-    }
-
-    const finalTotalPrice =
-      calculatedTotalPrice > discountAmount
-        ? calculatedTotalPrice - discountAmount
-        : BigInt(0);
+    const pricing = await this.calculateOrderPricing({
+      unitPrice,
+      quantity,
+      passengers,
+      voucherCode: payload.voucherCode,
+      userId: payload.userId,
+    });
 
     const order = await this.createOrder(
       {
@@ -366,10 +344,10 @@ export class OrderService {
         seatType: toNullableString(payload.seatType),
         quantity,
         unitPrice: BigInt(unitPrice),
-        totalPrice: finalTotalPrice,
-        voucherId,
-        voucherCode: appliedVoucherCode,
-        discountAmount,
+        totalPrice: pricing.finalTotalPrice,
+        voucherId: pricing.voucherId,
+        voucherCode: pricing.appliedVoucherCode,
+        discountAmount: pricing.discountAmount,
         status: OrderStatus.PendingPayment,
         idempotencyKey,
         seatLabels,
@@ -381,6 +359,82 @@ export class OrderService {
     );
 
     return toOrderResponse(order);
+  }
+
+  /**
+   * Computes an order total from the authoritative unit price and the passenger
+   * mix, then applies the voucher.
+   *
+   * Shared by order creation and by later passenger edits so that the amount
+   * charged always matches the passengers currently on the order — otherwise a
+   * customer could check out with a discounted mix and then swap in full-fare
+   * passengers without paying the difference.
+   */
+  private async calculateOrderPricing(params: {
+    unitPrice: number;
+    quantity: number;
+    passengers: OrderPassenger[];
+    voucherCode?: string | null;
+    userId: string;
+  }): Promise<{
+    calculatedTotalPrice: bigint;
+    discountAmount: bigint;
+    finalTotalPrice: bigint;
+    voucherId: string | null;
+    appliedVoucherCode: string | null;
+  }> {
+    const { unitPrice, quantity, passengers, voucherCode, userId } = params;
+
+    let calculatedTotalPrice = BigInt(0);
+    if (passengers.length > 0) {
+      for (const passenger of passengers) {
+        calculatedTotalPrice += BigInt(
+          this.calculateDiscountedPassengerPrice(unitPrice, passenger),
+        );
+      }
+      const remainingQuantity = quantity - passengers.length;
+      if (remainingQuantity > 0) {
+        calculatedTotalPrice += BigInt(remainingQuantity) * BigInt(unitPrice);
+      }
+    } else {
+      calculatedTotalPrice = BigInt(quantity) * BigInt(unitPrice);
+    }
+
+    let discountAmount = BigInt(0);
+    let voucherId: string | null = null;
+    let appliedVoucherCode: string | null = null;
+
+    if (voucherCode?.trim()) {
+      const voucherRes = await this.voucherService.validateVoucher({
+        code: voucherCode.trim(),
+        orderAmount: Number(calculatedTotalPrice),
+        userId,
+      });
+
+      if (!voucherRes.isValid) {
+        throw new HttpException(
+          voucherRes.message || 'Mã khuyến mãi không hợp lệ.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      discountAmount = BigInt(voucherRes.discountAmount);
+      voucherId = voucherRes.voucherId ?? null;
+      appliedVoucherCode = voucherRes.code;
+    }
+
+    const finalTotalPrice =
+      calculatedTotalPrice > discountAmount
+        ? calculatedTotalPrice - discountAmount
+        : BigInt(0);
+
+    return {
+      calculatedTotalPrice,
+      discountAmount,
+      finalTotalPrice,
+      voucherId,
+      appliedVoucherCode,
+    };
   }
 
   private async createOrder(
@@ -456,22 +510,23 @@ export class OrderService {
         include: orderInclude,
       });
 
+      // Claim the voucher BEFORE returning the order. The claim is atomic, so a
+      // redemption this order cannot actually get is a hard failure rather than
+      // a silently-swallowed warning (which used to leave the order discounted
+      // while the usage counter never moved).
       if (data.voucherId) {
-        try {
-          await this.prisma.voucherUsage.create({
-            data: {
-              voucherId: data.voucherId,
-              userId: data.userId,
-              orderId: order.id,
-              discountAmount: data.discountAmount ?? BigInt(0),
-            },
-          });
-          await this.prisma.voucher.update({
-            where: { id: data.voucherId },
-            data: { usedCount: { increment: 1 } },
-          });
-        } catch (vErr) {
-          this.logger.warn(`Failed to record voucher usage: ${this.getErrorMessage(vErr)}`);
+        const claimed = await this.voucherService.reserveUsage({
+          voucherId: data.voucherId,
+          userId: data.userId,
+          orderId: order.id,
+          discountAmount: data.discountAmount ?? BigInt(0),
+        });
+
+        if (!claimed) {
+          throw new HttpException(
+            'Mã khuyến mãi đã hết lượt sử dụng.',
+            HttpStatus.CONFLICT,
+          );
         }
       }
 
@@ -589,6 +644,18 @@ export class OrderService {
       );
     }
 
+    // Re-price against the new passenger mix. Without this the stored total
+    // would keep reflecting the fare classes declared at checkout, so the
+    // passengers could be changed after the amount was fixed.
+    const previousTotalPrice = order.totalPrice;
+    const pricing = await this.calculateOrderPricing({
+      unitPrice: Number(order.unitPrice),
+      quantity: order.quantity,
+      passengers,
+      voucherCode: order.voucherCode,
+      userId: order.userId,
+    });
+
     await this.prisma.$transaction([
       this.prisma.orderPassenger.deleteMany({ where: { orderId: order.id } }),
       ...passengers.map((passenger) =>
@@ -604,9 +671,24 @@ export class OrderService {
       ),
       this.prisma.order.update({
         where: { id: order.id },
-        data: { updatedAt: new Date() },
+        data: {
+          totalPrice: pricing.finalTotalPrice,
+          discountAmount: pricing.discountAmount,
+          updatedAt: new Date(),
+        },
       }),
     ]);
+
+    // The total changed, so any payment created for the old amount must not be
+    // reused: an under-amount payment would otherwise be a valid-looking way to
+    // settle a more expensive order.
+    if (pricing.finalTotalPrice !== previousTotalPrice) {
+      const warnings: string[] = [];
+      await this.cancelPendingPayments(order.id, warnings);
+      warnings.forEach((warning) =>
+        this.logger.warn(`Re-pricing order ${order.id}: ${warning}`),
+      );
+    }
 
     return this.findOne(order.id);
   }
@@ -673,6 +755,22 @@ export class OrderService {
         OrderStatus.TicketIssued,
       ].includes(order.status)
     ) {
+      return {
+        order,
+        advancedOrderStatuses,
+      };
+    }
+
+    // Verify the settlement BEFORE advancing the order. The event payload alone
+    // is not proof of payment: this handler used to ignore paymentId /
+    // transactionId / the settled amount entirely, so any message that reached
+    // orders_queue with a valid orderId marked the order paid and issued a
+    // ticket with no money collected.
+    const settlement = await this.verifyPaymentSettledForOrder(payload, order);
+    if (!settlement.ok) {
+      this.logger.warn(
+        `Refusing payment.paid for order ${order.id}: ${settlement.reason}`,
+      );
       return {
         order,
         advancedOrderStatuses,
@@ -794,14 +892,41 @@ export class OrderService {
       throw new HttpException('Order is already closed', HttpStatus.CONFLICT);
     }
 
-    const updated = await this.prisma.order.update({
-      where: { id: order.id },
+    // Compare-and-swap on the status we just read: two concurrent cancels would
+    // otherwise both pass the guard above and both run the seat-release
+    // compensation, handing the same seats back to inventory twice.
+    const cancelled = await this.prisma.order.updateMany({
+      where: {
+        id: order.id,
+        status: order.status,
+        deletedAt: null,
+      },
       data: {
         status: OrderStatus.Cancelled,
         cancelReason: toNullableString(payload.reason),
       },
+    });
+
+    if (cancelled.count === 0) {
+      throw new HttpException(
+        `Order ${order.id} was modified concurrently; please retry`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const updated = await this.prisma.order.findFirstOrThrow({
+      where: { id: order.id },
       include: orderInclude,
     });
+
+    // Cancelling frees the voucher redemption so a limited code is not consumed
+    // by an order that never completed.
+    if (order.voucherId) {
+      await this.voucherService.releaseUsage({
+        voucherId: order.voucherId,
+        orderId: order.id,
+      });
+    }
 
     return {
       ...toOrderResponse(updated),
@@ -987,25 +1112,62 @@ export class OrderService {
       );
     }
 
-    const updated = await this.prisma.order.update({
-      where: { id: order.id },
+    /*
+     * Compare-and-swap: the status is part of the WHERE clause, so a concurrent
+     * transition on the same row updates 0 rows instead of silently applying a
+     * second time. The in-memory check above is only for a friendly error — it
+     * cannot serialize two requests that read the same pre-transition status
+     * (which used to let refund/cancel run their compensation twice and release
+     * the same seats to inventory more than once).
+     */
+    const result = await this.prisma.order.updateMany({
+      where: {
+        id: order.id,
+        status: order.status,
+        deletedAt: null,
+      },
       data: { status: nextStatus },
+    });
+
+    if (result.count === 0) {
+      throw new HttpException(
+        `Order ${order.id} was modified concurrently; please retry`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const updated = await this.prisma.order.findFirstOrThrow({
+      where: { id: order.id },
       include: orderInclude,
     });
 
     return toOrderResponse(updated);
   }
 
+  /**
+   * Passenger and seat details may only change while the order is still being
+   * assembled. Once the order is closed OR financially settled
+   * (Paid/Confirmed/TicketIssued) these fields are frozen:
+   *   - a passenger swap would let a customer trade a discounted fare class for
+   *     a full-fare one after paying the discounted amount;
+   *   - a seat-label swap would desynchronise the order from the seat actually
+   *     held at tickets-service, so the held seat could be resold while the
+   *     order points at a seat that was never decremented.
+   * Corrections after payment must go through refund/cancel and rebooking.
+   */
   private ensureMutable(order: OrderWithRelations) {
-    if (
-      [
-        OrderStatus.Cancelled,
-        OrderStatus.Expired,
-        OrderStatus.Refunded,
-      ].includes(order.status)
-    ) {
+    const immutableStatuses: number[] = [
+      OrderStatus.Cancelled,
+      OrderStatus.Expired,
+      OrderStatus.Refunded,
+      OrderStatus.Paid,
+      OrderStatus.Confirmed,
+      OrderStatus.TicketIssued,
+    ];
+
+    if (immutableStatuses.includes(order.status)) {
       throw new HttpException(
-        'Closed orders cannot be modified',
+        'Order details cannot be modified after the order is paid or closed',
         HttpStatus.CONFLICT,
       );
     }
@@ -1051,6 +1213,78 @@ export class OrderService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Confirms that a `payment.paid` event really corresponds to a settled payment
+   * of THIS order, for the full order amount.
+   *
+   * The event is only a notification; payment state is owned by
+   * payments-service, so it is re-read here instead of being trusted. This is
+   * what stops a forged/duplicated/under-valued event from issuing a ticket.
+   */
+  private async verifyPaymentSettledForOrder(
+    payload: PaymentPaidEventPayload,
+    order: OrderResponse,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    let payments: PaymentDto[];
+    try {
+      payments = await this.sendPayment<PaymentDto[]>(
+        'payments.listByOrderId',
+        { orderId: order.id },
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `could not load payments (${this.getErrorMessage(error)})`,
+      };
+    }
+
+    const settled = (Array.isArray(payments) ? payments : []).filter(
+      (payment) => Number(payment.status) === PAYMENT_STATUS.Paid,
+    );
+
+    if (settled.length === 0) {
+      return { ok: false, reason: 'no settled payment exists for this order' };
+    }
+
+    const orderTotal = BigInt(order.totalPrice);
+
+    // When the event names a specific payment, that payment must be settled AND
+    // must cover the order total.
+    const referencedPaymentId = payload.paymentId?.trim();
+    if (referencedPaymentId) {
+      const referenced = settled.find(
+        (payment) => payment.id === referencedPaymentId,
+      );
+      if (!referenced) {
+        return {
+          ok: false,
+          reason: `payment ${referencedPaymentId} is not a settled payment of this order`,
+        };
+      }
+      if (BigInt(referenced.amount) !== orderTotal) {
+        return {
+          ok: false,
+          reason: `payment ${referencedPaymentId} settled ${referenced.amount} but the order total is ${order.totalPrice}`,
+        };
+      }
+      return { ok: true };
+    }
+
+    // Otherwise require at least one settled payment that covers the total.
+    const covering = settled.find(
+      (payment) => BigInt(payment.amount) === orderTotal,
+    );
+    if (!covering) {
+      const amounts = settled.map((payment) => payment.amount).join(', ');
+      return {
+        ok: false,
+        reason: `settled amount(s) [${amounts}] do not match order total ${order.totalPrice}`,
+      };
+    }
+
+    return { ok: true };
   }
 
   private async findTicketItem(ticketId: string, ticketItemId: string) {
@@ -1225,27 +1459,56 @@ export class OrderService {
     }
   }
 
+  /**
+   * Fare-class discount table. The SERVER owns these rates; a client only
+   * declares a passenger's fare class and never supplies a price.
+   *
+   * A reduced fare is granted only when supporting identity evidence
+   * (`identityNumber`) is on record for that passenger. Without it the passenger
+   * is charged the full fare, so declaring `passengerType: 'CHILD'` on an adult
+   * ticket no longer buys a 25% discount for free: the fare class is stored
+   * together with a document number that staff can verify at the station.
+   */
   private calculateDiscountedPassengerPrice(
     unitPrice: number,
-    passengerType?: string,
+    passenger: {
+      passengerType?: string | null;
+      identityNumber?: string | null;
+    },
   ): number {
-    let rate = 1.0;
-    switch (passengerType?.toUpperCase()) {
-      case 'CHILD':
-        rate = 0.75;
-        break;
-      case 'STUDENT':
-        rate = 0.9;
-        break;
-      case 'SENIOR':
-        rate = 0.85;
-        break;
-      case 'ADULT':
-      default:
-        rate = 1.0;
-        break;
-    }
+    const rate = this.resolvePassengerDiscountRate(passenger);
     return Math.round((unitPrice * rate) / 1000) * 1000;
+  }
+
+  /**
+   * Returns the fare multiplier for a passenger: 1 (full fare) unless the
+   * passenger claims a discounted class AND supplied identity evidence.
+   */
+  private resolvePassengerDiscountRate(passenger: {
+    passengerType?: string | null;
+    identityNumber?: string | null;
+  }): number {
+    const passengerType = passenger.passengerType?.trim().toUpperCase();
+    if (!passengerType) {
+      return 1;
+    }
+
+    // No document on record => no discount, regardless of the declared class.
+    if (!passenger.identityNumber?.trim()) {
+      return 1;
+    }
+
+    switch (passengerType) {
+      case PassengerType.CHILD:
+        return 0.75;
+      case PassengerType.STUDENT:
+        return 0.9;
+      case PassengerType.SENIOR:
+        return 0.85;
+      case PassengerType.ADULT:
+      default:
+        return 1;
+    }
   }
 
   private async tryCancelCompensatingOrder(orderId: string): Promise<void> {

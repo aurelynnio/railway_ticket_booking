@@ -419,16 +419,25 @@ services:
       dockerfile: Dockerfile
     container_name: railway-ticket-api-gateway
     restart: unless-stopped
-    expose:
-      - '8080'
+    # Bound to LOOPBACK ONLY. This keeps the two supported topologies working:
+    #   - host nginx (AWS guide) proxies to 127.0.0.1:8080
+    #   - container nginx (with-client profile) proxies to api-gateway:8080
+    # while making the port unreachable from outside the host. A public publish
+    # (`8080:8080`) would let clients bypass nginx entirely, dropping its rate
+    # limits and enabling X-Forwarded-For spoofing that defeats the gateway
+    # throttler (brute-force login).
     ports:
-      - '8080:8080'
+      - '127.0.0.1:8080:8080'
     environment:
       PORT: 8080
-      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-true}
+      # Swagger is opt-in: it documents the entire API surface to anonymous callers.
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:?Set CLIENT_ORIGIN in .env.docker}
+      # Trusted reverse-proxy hops in front of the gateway (nginx = 1).
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-railway}:${RABBITMQ_DEFAULT_PASS:-change-me}@rabbitmq:5672
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.docker}
+      # JWT_SECRET intentionally NOT set here: only auth-service signs/verifies
+      # tokens, so the gateway never needs the signing key.
       # VNPay Configuration
       VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-}
       VNPAY_SECURE_SECRET: ${VNPAY_SECURE_SECRET:-}
