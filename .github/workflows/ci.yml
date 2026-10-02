@@ -157,20 +157,26 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # The compose file and nginx config live in THIS repository, not in the
-      # images -- the images only carry application code. The host keeps its own
-      # checkout, but nothing ever updated it, so infra changes in the repo
-      # (published ports, env defaults, reverse-proxy config) never reached
-      # production. Push the infra files from the CI workspace instead of relying
-      # on the host's checkout being current.
+      # The compose file lives in THIS repository, not in the images -- the images
+      # only carry application code. The host keeps its own copy, but nothing ever
+      # updated it, so infra changes in the repo (published ports, env defaults)
+      # never reached production.
+      #
+      # NOTE the destination: the deployment host holds the FLATTENED contents of
+      # infra/docker (see docs/AWS_EC2_DEPLOYMENT_GUIDE.md section 4.2), so
+      # `docker-compose.yml` sits at the ROOT of /srv/railway-ticket and
+      # `docker compose` (run without -f) reads it from there. strip_components: 2
+      # drops the "infra/docker" prefix so the file lands in the right place --
+      # sending it to infra/docker/ would be silently ignored by compose.
       - name: Push infra files to the deployment host
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ vars.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          source: 'infra/docker/docker-compose.yml,infra/nginx/default.conf'
+          source: 'infra/docker/docker-compose.yml'
           target: '/srv/railway-ticket'
+          strip_components: 2
           overwrite: true
 
       - name: Execute deployment via SSH
@@ -257,6 +263,12 @@ jobs:
 
             echo "🔄 Updating and running services with zero-downtime..."
             docker compose up -d --remove-orphans
+
+            # Print the resulting state, including published ports. Without this
+            # the deploy log said nothing about whether the port binding from the
+            # pushed compose file actually took effect.
+            echo "🩺 Container status after deploy..."
+            docker compose ps || true
 
             echo "🧹 Cleaning up old unused images..."
             docker image prune -af
