@@ -148,24 +148,28 @@ còn forward `Error.message` (chỉ log nội bộ). Message 4xx vẫn giữ ngu
    > `pg_constraint`, nên an toàn ở mọi trạng thái (đã kiểm chứng trên Postgres thật: chạy lần 2
    > không lỗi và `prisma migrate diff` báo `No difference detected`).
    >
-   > **Nếu DB đang kẹt P3009**, phải gỡ khoá trước khi deploy lại (một lần duy nhất). Trên EC2,
-   > trong `/srv/railway-ticket` (thư mục có `.env`/`.env.docker`):
+   > **Nếu DB đang kẹt P3009** (hoặc P3018 lúc fail lần đầu), phải gỡ khoá trước khi deploy lại
+   > (một lần duy nhất). Trên EC2, trong `/srv/railway-ticket` (thư mục có `.env`/`.env.docker`):
    >
    > ```bash
-   > # 1) Gỡ trạng thái failed của migration
+   > # 1) Gỡ trạng thái failed của migration.
+   > #    LƯU Ý: service db-migrate inject ORDERS_DATABASE_URL, KHÔNG inject DATABASE_URL
+   > #    (run-migrations.sh tự gán khi gọi prisma). Vì ta override entrypoint nên phải gán tay,
+   > #    nếu không prisma sẽ báo P1012 "Environment variable not found: DATABASE_URL".
    > docker compose run --rm --entrypoint sh db-migrate -c \
-   >   'cd /workspace/orders-service && npx prisma migrate resolve --rolled-back 20260902000000_add_voucher_per_user_limit'
+   >   'cd /workspace/orders-service && DATABASE_URL="$ORDERS_DATABASE_URL" npx prisma migrate resolve --rolled-back 20260902000000_add_voucher_per_user_limit'
    >
-   > # 2) Áp dụng migration đã sửa
-   > docker compose run --rm db-migrate
-   >
-   > # 3) Khởi động lại stack
-   > docker compose up -d
+   > # 2) Kiểm tra đã hết kẹt chưa (mong đợi: "No pending migrations" hoặc áp dụng thành công)
+   > docker compose run --rm --entrypoint sh db-migrate -c \
+   >   'cd /workspace/orders-service && DATABASE_URL="$ORDERS_DATABASE_URL" npx prisma migrate status'
    > ```
    >
+   > Sau đó **merge PR chứa migration đã sửa rồi để CD deploy** (image `db-migrate` đang có trên EC2
+   > vẫn chứa SQL lỗi, nên đừng chạy `docker compose run --rm db-migrate` trước khi image mới được
+   > build — sẽ fail lại `42P01` và tạo thêm một row failed nữa).
+   >
    > PostgreSQL chạy mỗi Prisma migration trong một transaction, nên migration fail **không** để lại
-   > thay đổi schema dở dang — `--rolled-back` an toàn. Kiểm tra nhanh sau bước 2:
-   > `docker compose run --rm --entrypoint sh db-migrate -c 'cd /workspace/orders-service && npx prisma migrate status'`
+   > thay đổi schema dở dang — `--rolled-back` an toàn.
 3. **Không mở cổng 8080** trên Security Group.
 4. Giữ `ENABLE_SWAGGER=false` ở production.
 5. Bật `REDIS_TLS=true` nếu Redis không nằm trong mạng riêng.
