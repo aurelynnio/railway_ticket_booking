@@ -20,11 +20,21 @@
  *   API_URL=http://localhost:8081 DEMO_PASSWORD=DemoPass123 PACE_MS=600 node scripts/api-integration-test.mjs
  */
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BASE = process.env.API_URL || "http://localhost:8081";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const detectGatewayUrl = () => {
+  const gwEnvPath = join(__dirname, "..", "api-gateway", ".env");
+  if (existsSync(gwEnvPath)) {
+    const match = readFileSync(gwEnvPath, "utf8").match(/^PORT=["']?(\d+)["']?/m);
+    if (match) return `http://localhost:${match[1]}`;
+  }
+  return "http://localhost:8080";
+};
+
+const BASE = process.env.API_URL || detectGatewayUrl();
 const PASSWORD = process.env.DEMO_PASSWORD || "DemoPass123";
 const PACE_MS = Number(process.env.PACE_MS ?? 600);
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "ops.admin@railway.demo";
@@ -230,12 +240,20 @@ await checkCase({ id: "auth.V02", group: "Auth", name: "POST /auth/resend-verifi
 await checkCase({ id: "auth.G01", group: "Auth", name: "GET /auth/google → 501 (not implemented)", method: "GET", path: "/auth/google", expectedStatus: 501 });
 await checkCase({ id: "auth.G02", group: "Auth", name: "GET /auth/google/callback no code → 401", method: "GET", path: "/auth/google/callback", expectedStatus: 401 });
 
-// Revoke-all-sessions invalidates refresh tokens; access tokens are JWT-stateless.
+// Revoke-all-sessions invalidates refresh tokens and bumps tokenVersion so existing access tokens are rejected with 401.
 await checkCase({ id: "auth.RS01", group: "Auth", name: "POST /auth/revoke-all-sessions → ok", method: "POST", path: "/auth/revoke-all-sessions", cookies: "user", expectedStatus: 200 });
-await checkCase({ id: "auth.RS02", group: "Auth", name: "existing access token still accepted after revoke-all (issue documented)", method: "GET", path: "/users/me", cookies: "user", expectedStatus: 401 });
+await checkCase({ id: "auth.RS02", group: "Auth", name: "existing access token rejected after revoke-all (tokenVersion bumped) → 401", method: "GET", path: "/users/me", cookies: "user", expectedStatus: 401 });
 sessions.set("user", { access: "", refresh: "" });
-// Re-login the main user (password changed in C02).
+// Re-login the main user (password changed in C02) and restore password back to PASSWORD so re-runs stay idempotent.
 await checkCase({ id: "auth.RS03", group: "Auth", name: "re-login user after password change", method: "POST", path: "/auth/login", body: { email: USER_EMAIL, password: "NewPass123" }, cookies: "user", expectedStatus: 200 });
+{
+  const restoreRes = await fetch(new URL("/auth/change-password", BASE), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieHeader("user") },
+    body: JSON.stringify({ oldPassword: "NewPass123", newPassword: PASSWORD }),
+  });
+  setCookiesFromResponse("user", restoreRes.headers);
+}
 
 /* ------------------------------ USERS --------------------------------- */
 await checkCase({ id: "users.H01", group: "Users", name: "GET /users/health → 200", method: "GET", path: "/users/health", expectedStatus: 200 });

@@ -81,11 +81,24 @@ if ($appMetrics.Count -eq 0) {
 # 2. Docker Containers
 Write-Host "`n[2] Docker Infrastructure Containers:" -ForegroundColor Cyan
 
+$useWslDocker = $false
 $dockerCheck = docker ps 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $dockerCheck) {
+  $wslDockerCheck = wsl -d Ubuntu -e docker ps 2>$null
+  if ($LASTEXITCODE -eq 0 -and $wslDockerCheck) {
+    $useWslDocker = $true
+    $dockerCheck = $wslDockerCheck
+  }
+}
+
 if (-not $dockerCheck) {
   Write-Host "    Docker is not running or not responsive." -ForegroundColor Yellow
 } else {
-  $containerStats = docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}" 2>$null
+  $containerStats = if ($useWslDocker) {
+    wsl -d Ubuntu -e docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}" 2>$null
+  } else {
+    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}" 2>$null
+  }
   if ($containerStats) {
     $containerStats | Out-String | Write-Host
   } else {

@@ -1,10 +1,20 @@
 import { PrismaClient as AuthPrisma } from '../auth-service/node_modules/@prisma/client/index.js';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const detectGatewayUrl = () => {
+  const gwEnvPath = join(scriptDir, '..', 'api-gateway', '.env');
+  if (existsSync(gwEnvPath)) {
+    const match = readFileSync(gwEnvPath, 'utf8').match(/^PORT=["']?(\d+)["']?/m);
+    if (match) return `http://localhost:${match[1]}`;
+  }
+  return 'http://localhost:8080';
+};
+
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || detectGatewayUrl();
 const PASSWORD = process.env.DEMO_PASSWORD;
 if (!PASSWORD) {
   console.error("Set DEMO_PASSWORD env");
@@ -12,7 +22,6 @@ if (!PASSWORD) {
 }
 
 // Read DATABASE_URL from auth-service/.env instead of hardcoding (project convention).
-const scriptDir = dirname(fileURLToPath(import.meta.url));
 const authEnvPath = join(scriptDir, '..', 'auth-service', '.env');
 const DATABASE_URL = (() => {
   const content = readFileSync(authEnvPath, 'utf8');

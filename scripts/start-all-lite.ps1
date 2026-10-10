@@ -24,10 +24,16 @@
 .PARAMETER SkipClient
   Do not launch the Next.js client (useful when testing backend APIs only).
 
+.PARAMETER Wait
+  Keep this script alive after launching, and stop every process it started when you press
+  Ctrl+C. Without it the script exits immediately and the launched services keep running in
+  the background.
+
 .EXAMPLE
   .\scripts\start-all-lite.ps1
   .\scripts\start-all-lite.ps1 -DevClient
   .\scripts\start-all-lite.ps1 -Rebuild
+  .\scripts\start-all-lite.ps1 -Wait
 #>
 [CmdletBinding()]
 param(
@@ -79,12 +85,31 @@ if (-not $SkipInfra) {
   Write-Step "Checking lightweight Docker infra (Postgres, RabbitMQ, Redis)"
   $composeFile = Join-Path $repoRoot "infra/docker/docker-compose.dev.yml"
   
-  # Check if docker daemon is responsive
+  # Check if Windows docker daemon is responsive, or fall back to WSL Ubuntu docker
+  $useWslDocker = $false
   $dockerCheck = docker info 2>$null
-  if (-not $dockerCheck) {
-    Write-Warn2 "Docker daemon does not appear to be running. Please start Docker Desktop if you need local infra."
+  if ($LASTEXITCODE -ne 0 -or -not $dockerCheck) {
+    $wslCheck = wsl -d Ubuntu -e docker info 2>$null
+    if ($LASTEXITCODE -eq 0 -and $wslCheck) {
+      $useWslDocker = $true
+      # Keep WSL Ubuntu VM from auto-terminating after 8s idle timeout
+      $wslKeepAlive = Get-CimInstance Win32_Process -Filter "Name = 'wsl.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*sleep infinity*" }
+      if (-not $wslKeepAlive) {
+        Start-Process wsl.exe -ArgumentList @('-d', 'Ubuntu', '-e', 'sleep', 'infinity') -WindowStyle Hidden | Out-Null
+      }
+    }
+  }
+
+  if (-not $dockerCheck -and -not $useWslDocker) {
+    Write-Warn2 "Docker daemon does not appear to be running. Please start Docker Desktop (or WSL Ubuntu dockerd) if you need local infra."
   } else {
-    docker compose -f $composeFile up -d --remove-orphans
+    if ($useWslDocker) {
+      $wslCompose = ($composeFile -replace '\\', '/') -replace '^([A-Za-z]):', { "/mnt/$($_.Groups[1].Value.ToLower())" }
+      wsl -d Ubuntu -e docker compose -f $wslCompose up -d --remove-orphans
+    } else {
+      docker compose -f $composeFile up -d --remove-orphans
+    }
     if ($LASTEXITCODE -ne 0) {
       throw "Failed to start Docker infra via $composeFile"
     }
@@ -96,7 +121,11 @@ if (-not $SkipInfra) {
     $ready = $false
     while ($retries -gt 0 -and -not $ready) {
       Start-Sleep -Seconds 1
-      $testPg = docker exec railway-ticket-postgres-dev pg_isready -U app -d railway_ticket_booking 2>$null
+      $testPg = if ($useWslDocker) {
+        wsl -d Ubuntu -e docker exec railway-ticket-postgres-dev pg_isready -U app -d railway_ticket_booking 2>$null
+      } else {
+        docker exec railway-ticket-postgres-dev pg_isready -U app -d railway_ticket_booking 2>$null
+      }
       if ($testPg -match 'accepting connections') {
         $ready = $true
         Write-Host " Ready!" -ForegroundColor Green

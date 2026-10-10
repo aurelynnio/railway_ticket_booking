@@ -229,6 +229,29 @@ jobs:
               exit 1
             fi
 
+            # Mirror auth-service/src/common/utils/secret-strength.utils.ts
+            # (describeWeakJwtSecret: length >= 32, no placeholder fragment,
+            # and >= 12 distinct characters) so any secret that auth-service
+            # would reject on boot is caught before pulling/restarting containers.
+            # An absent or empty key is left to compose `${JWT_SECRET:?...}` so
+            # a host that supplies the secret from its environment still works.
+            jwt_secret_value=$(grep -m1 '^JWT_SECRET=' .env.docker | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+            if [ -n "$jwt_secret_value" ]; then
+              if [ "${#jwt_secret_value}" -lt 32 ]; then
+                echo "❌ JWT_SECRET in .env.docker is shorter than 32 characters; auth-service will refuse to start."
+                exit 1
+              fi
+              if printf '%s' "$jwt_secret_value" | grep -qiE '(change-me|change_me|changeme|replace-with|replace_with|replaceme|placeholder|your-secret|your_secret|your-key|your_key|insert-|todo|xxxxxxxx|aaaaaaaa|example|sample|dummy|test-secret|test_secret|insecure)'; then
+                echo "❌ JWT_SECRET in .env.docker looks like a placeholder; auth-service will refuse to start."
+                exit 1
+              fi
+              jwt_distinct_chars=$(printf '%s' "$jwt_secret_value" | fold -w1 | sort -u | wc -l | tr -d ' ')
+              if [ "$jwt_distinct_chars" -lt 12 ]; then
+                echo "❌ JWT_SECRET in .env.docker has too little entropy (only ${jwt_distinct_chars} distinct characters, need >= 12); auth-service will refuse to start."
+                exit 1
+              fi
+            fi
+
             # Keep docker compose happy: it reads .env by default.
             if [ ! -f .env ]; then
               ln -sf .env.docker .env

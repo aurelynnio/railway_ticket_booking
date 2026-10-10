@@ -42,12 +42,31 @@ function Write-Warn2($msg){ Write-Host "    [!]  $msg" -ForegroundColor Yellow }
 # ---------------------------------------------------------------------------
 if (-not $SkipRabbitMq) {
   Write-Step 'Checking RabbitMQ container'
+  $useWslDocker = $false
   $running = docker ps --filter "name=railway-ticket-rabbitmq-dev" --format '{{.Names}}' 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    $wslCheck = wsl -d Ubuntu -e docker ps --filter "name=railway-ticket-rabbitmq-dev" --format '{{.Names}}' 2>$null
+    if ($LASTEXITCODE -eq 0) {
+      $useWslDocker = $true
+      $running = $wslCheck
+      $wslKeepAlive = Get-CimInstance Win32_Process -Filter "Name = 'wsl.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*sleep infinity*" }
+      if (-not $wslKeepAlive) {
+        Start-Process wsl.exe -ArgumentList @('-d', 'Ubuntu', '-e', 'sleep', 'infinity') -WindowStyle Hidden | Out-Null
+      }
+    }
+  }
   if ($running -match 'railway-ticket-rabbitmq-dev') {
     Write-Ok "RabbitMQ already running"
   } else {
     Write-Step 'Starting RabbitMQ via docker-compose.dev.yml'
-    docker compose -f infra/docker/docker-compose.dev.yml up -d
+    if ($useWslDocker) {
+      $composeFile = Join-Path $repoRoot "infra/docker/docker-compose.dev.yml"
+      $wslCompose = ($composeFile -replace '\\', '/') -replace '^([A-Za-z]):', { "/mnt/$($_.Groups[1].Value.ToLower())" }
+      wsl -d Ubuntu -e docker compose -f $wslCompose up -d
+    } else {
+      docker compose -f infra/docker/docker-compose.dev.yml up -d
+    }
     if ($LASTEXITCODE -ne 0) { throw "docker compose failed for RabbitMQ" }
     Write-Ok "RabbitMQ started"
   }

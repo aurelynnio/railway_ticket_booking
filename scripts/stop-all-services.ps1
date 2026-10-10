@@ -74,6 +74,10 @@ if ($StopInfra -or $StopRabbitMq) {
   $composePath = Join-Path $repoRoot 'infra/docker/docker-compose.dev.yml'
   if (Test-Path $composePath) {
     docker compose -f $composePath down 2>$null
+    if ($LASTEXITCODE -ne 0) {
+      $wslCompose = ($composePath -replace '\\', '/') -replace '^([A-Za-z]):', { "/mnt/$($_.Groups[1].Value.ToLower())" }
+      wsl -d Ubuntu -e docker compose -f $wslCompose down 2>$null
+    }
     Write-Ok 'Docker infrastructure stopped'
   }
 } else {
