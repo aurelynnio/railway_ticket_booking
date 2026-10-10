@@ -493,7 +493,7 @@ server {
     }
 
     # Giới hạn rate limit nghiêm ngặt cho các API nhạy cảm (Login, Register, Reset Pass)
-    location ~ ^/auth/(login|register|forgot-password|reset-password|verify-email) {
+    location ~ ^/auth/(login|register|forgot-password|reset-password|verify-email|resend-verification) {
         limit_req zone=auth_strict_limit burst=10 nodelay;
         limit_req_status 429;
 

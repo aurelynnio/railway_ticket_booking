@@ -36,5 +36,5 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Next.js build cache (cleanable)
-.next/
+# Local background runner logs (start-all-lite.ps1 / start-all-services.ps1)
+.codex/

@@ -100,7 +100,6 @@ Luu y quan trong:
 - File `infra/docker/init-databases.sql` se tu dong tao cac database rieng khi PostgreSQL container khoi dong lan dau. Service `db-migrate` trong full Compose se chay migration truoc khi cac service PostgreSQL khoi dong.
 - tickets-service dung 2 bang `tickets` + `ticket_items` (FK 1:N). Cac flow reserve/release chay trong `$transaction` voi `SELECT ... FOR UPDATE` tren row cua ticket de serialize mutation.
 - Sau khi cai dependency hoac sua schema, can chay `npx prisma generate` trong tung service.
-- De migrate du lieu cu tu MongoDB: `scripts/migrate-tickets-mongo-to-pg.mjs` (idempotent, chay nhieu lan duoc).
 
 ## Yeu cau moi truong
 
@@ -404,7 +403,7 @@ npm test
 
 ## Quy trinh CI/CD (GitHub Actions)
 
-Repo tich hop san 2 workflow GitHub Actions tu dong hoa toan dien:
+Repo tich hop san 2 workflow GitHub Actions:
 
 ### 1. Continuous Integration (`.github/workflows/ci.yml`)
 
@@ -424,19 +423,16 @@ Repo tich hop san 2 workflow GitHub Actions tu dong hoa toan dien:
   5. `npm test` (Jest unit test suites)
 - **Docker Compose Validation**: Kiem tra tinh hop le cua syntax Docker Compose va env template.
 
-### 2. Continuous Delivery & Deployment (`.github/workflows/cd.yml`)
+### 2. Continuous Delivery & Deployment (trong cung `.github/workflows/ci.yml`)
 
-- **Trigger**: Khi merge vao `main`, tao Git Release tag (`v*`), hoac trigger thu cong (`workflow_dispatch`).
-- **Packaging**: Dong goi va publish multi-service Docker images len **GitHub Container Registry (GHCR)**:
-  - `ghcr.io/aurelynnio/railway-api-gateway`
-  - `ghcr.io/aurelynnio/railway-auth-service`
-  - `ghcr.io/aurelynnio/railway-notification-service`
-  - `ghcr.io/aurelynnio/railway-orders-service`
-  - `ghcr.io/aurelynnio/railway-payments-service`
-  - `ghcr.io/aurelynnio/railway-tickets-service`
-- **Docker Layer Cache**: Su dung GitHub Actions cache (`type=gha`) giup giam thoi gian build container xuong chi con vai giay.
-- **Auto Deploy (Tuy chon)**: Ho tro deploy tu dong qua SSH len VPS/Server khi cau hinh cac Secret trong GitHub:
-  - `SSH_HOST`: IP hoac domain cua server
-  - `SSH_USER`: SSH username (vi du `ubuntu`)
-  - `SSH_KEY`: Private SSH Key dung de dang nhap
-  - `SSH_PORT`: (Tuy chon, mac dinh 22)
+- **Trigger**: Chi chay khi Push vao `main` hoac trigger thu cong (`workflow_dispatch`); Pull Request chi chay phan CI.
+- **Build & Push images**: Dong goi va push Docker images len **Amazon ECR** (7 image, gom ca `db-migrate`), tag theo `<service>-latest` va `<service>-<git-sha>`.
+- **Docker Layer Cache**: Su dung GitHub Actions cache (`type=gha`) giup giam thoi gian build container.
+- **Deploy len EC2**: Push `infra/docker/docker-compose.yml` len host deploy, sau do SSH: kiem tra `.env.docker` ton tai va khong chua secret placeholder/qua yeu, login ECR, don image cu, `docker compose pull` + `up -d`.
+- **Secret/Variable can cau hinh trong GitHub**:
+  - Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `EC2_HOST`, `EC2_SSH_PRIVATE_KEY`
+  - Variables: `AWS_REGION`, `ECR_REPOSITORY`, `EC2_USER`
+
+### 3. Ops workflow (`.github/workflows/ops-resolve-migration.yml`)
+
+- Workflow thu cong, chi chay khi go dung `RESOLVE` de xac nhan: go trang thai migration Prisma bi loi (P3009) tren host deploy roi restart stack (dung khi `db-migrate` ket ma khong muon SSH tay).
