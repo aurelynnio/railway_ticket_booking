@@ -209,17 +209,6 @@ export interface PaginatedPaymentsResponse {
   };
 }
 
-export enum OrderStatus {
-  Draft = 0,
-  PendingPayment = 1,
-  Paid = 2,
-  Confirmed = 3,
-  TicketIssued = 4,
-  Cancelled = 5,
-  Expired = 6,
-  Refunded = 7,
-}
-
 export interface PaymentPaidEventPayload {
   paymentId: string;
   orderId: string;

@@ -65,7 +65,9 @@ describe('OrderService', () => {
       emit: jest.fn(),
     };
     const usersClient = {
-      send: jest.fn(),
+      // A real ClientProxy always returns an Observable; `of(null)` models an
+      // account lookup that yields no profile email.
+      send: jest.fn().mockReturnValue(of(null)),
     };
     const voucherService = {
       validateAndApplyVoucher: jest.fn().mockImplementation(async (code: string, amount: number) => ({

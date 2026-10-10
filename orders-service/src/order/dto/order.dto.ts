@@ -54,7 +54,7 @@ export class OrderPassengerPayload {
 
   @IsString()
   @IsNotEmpty()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
   @IsIn(PASSENGER_TYPES, {

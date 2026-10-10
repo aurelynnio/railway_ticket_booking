@@ -64,6 +64,12 @@ const orderInclude = {
 
 const EXPIRED_ORDERS_CRON_BATCH_SIZE = 100;
 
+/** Payment statuses that are still open, i.e. cancellable without a refund. */
+const OPEN_PAYMENT_STATUSES: number[] = [
+  PAYMENT_STATUS.Pending,
+  PAYMENT_STATUS.Processing,
+];
+
 interface UserEmailResponse {
   email?: string;
 }
@@ -189,25 +195,10 @@ export class OrderService {
 
       // Fetch user email for notification — prefer the contact email supplied
       // at checkout (e-ticket delivery address), fall back to account email.
-      let email = order.contactEmail?.trim() || `user-${order.userId}@example.com`;
-      if (!order.contactEmail?.trim()) {
-        try {
-          const observable = this.usersClient.send<UserEmailResponse>(
-            { cmd: 'users.get_by_id' },
-            { userId: order.userId },
-          );
-          if (observable) {
-            const userObj = await lastValueFrom(observable);
-            if (userObj && userObj.email) {
-              email = userObj.email;
-            }
-          }
-        } catch (err) {
-          this.logger.error(
-            `Failed to fetch user profile for userId ${order.userId} during checkout email notification: ${this.getErrorMessage(err)}`,
-          );
-        }
-      }
+      const email = await this.resolveNotificationEmail(
+        order,
+        'checkout email notification',
+      );
 
       try {
         this.notificationClient.emit('notification.order_created', {
@@ -795,25 +786,10 @@ export class OrderService {
 
       // Fetch user email for confirmation notification — prefer the contact
       // email supplied at checkout (e-ticket delivery address).
-      let email = currentOrder.contactEmail?.trim() || `user-${currentOrder.userId}@example.com`;
-      if (!currentOrder.contactEmail?.trim()) {
-        try {
-          const observable = this.usersClient.send<UserEmailResponse>(
-            { cmd: 'users.get_by_id' },
-            { userId: currentOrder.userId },
-          );
-          if (observable) {
-            const userObj = await lastValueFrom(observable);
-            if (userObj && userObj.email) {
-              email = userObj.email;
-            }
-          }
-        } catch (err) {
-          this.logger.error(
-            `Failed to fetch user profile for userId ${currentOrder.userId} during payment confirmation email notification: ${this.getErrorMessage(err)}`,
-          );
-        }
-      }
+      const email = await this.resolveNotificationEmail(
+        currentOrder,
+        'payment confirmation email notification',
+      );
 
       try {
         this.notificationClient.emit('notification.payment_paid', {
@@ -928,9 +904,7 @@ export class OrderService {
       });
     }
 
-    return {
-      ...toOrderResponse(updated),
-    };
+    return toOrderResponse(updated);
   }
 
   async cancelWorkflow(data: {
@@ -1016,26 +990,10 @@ export class OrderService {
     }
 
     // Notify the customer — prefer the contact email supplied at checkout.
-    let email =
-      order.contactEmail?.trim() || `user-${order.userId}@example.com`;
-    if (!order.contactEmail?.trim()) {
-      try {
-        const observable = this.usersClient.send<UserEmailResponse>(
-          { cmd: 'users.get_by_id' },
-          { userId: order.userId },
-        );
-        if (observable) {
-          const userObj = await lastValueFrom(observable);
-          if (userObj && userObj.email) {
-            email = userObj.email;
-          }
-        }
-      } catch (err) {
-        this.logger.error(
-          `Failed to fetch user profile for userId ${order.userId} during refund notification: ${this.getErrorMessage(err)}`,
-        );
-      }
-    }
+    const email = await this.resolveNotificationEmail(
+      order,
+      'refund notification',
+    );
 
     try {
       this.notificationClient.emit('notification.order_refunded', {
@@ -1394,7 +1352,7 @@ export class OrderService {
       );
 
       const pendingPayments = payments.filter((payment: PaymentDto): boolean =>
-        [0, 1].includes(payment.status),
+        OPEN_PAYMENT_STATUSES.includes(payment.status),
       );
 
       const pendingPaymentIds = pendingPayments.map(
@@ -1435,7 +1393,8 @@ export class OrderService {
       );
 
       const paidPayments = payments.filter(
-        (payment: PaymentDto): boolean => payment.status === 2,
+        (payment: PaymentDto): boolean =>
+          payment.status === PAYMENT_STATUS.Paid,
       );
 
       const refundedPaymentIds = paidPayments.map(
@@ -1498,7 +1457,7 @@ export class OrderService {
       return 1;
     }
 
-    switch (passengerType) {
+    switch (passengerType as PassengerType) {
       case PassengerType.CHILD:
         return 0.75;
       case PassengerType.STUDENT:
@@ -1519,6 +1478,39 @@ export class OrderService {
     } catch {
       return;
     }
+  }
+
+  /**
+   * Resolves the delivery address for order notifications: the contact address
+   * captured at checkout (e-ticket delivery), otherwise the account email, and
+   * finally a placeholder so a failed lookup never blocks the workflow.
+   */
+  private async resolveNotificationEmail(
+    order: { userId: string; contactEmail: string | null },
+    context: string,
+  ): Promise<string> {
+    const contactEmail = order.contactEmail?.trim();
+    if (contactEmail) {
+      return contactEmail;
+    }
+
+    try {
+      const userObj = await lastValueFrom(
+        this.usersClient.send<UserEmailResponse>(
+          { cmd: 'users.get_by_id' },
+          { userId: order.userId },
+        ),
+      );
+      if (userObj?.email) {
+        return userObj.email;
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to fetch user profile for userId ${order.userId} during ${context}: ${this.getErrorMessage(err)}`,
+      );
+    }
+
+    return `user-${order.userId}@example.com`;
   }
 
   private async sendPayment<T>(pattern: string, payload: unknown): Promise<T> {
@@ -1582,6 +1574,8 @@ export class OrderService {
   async handleOrderExpireCheck(data: { orderId: string }) {
     try {
       const order = await this.getOrderOrThrow(data.orderId);
+      // Number() keeps the Prisma `number` column comparable with the numeric
+      // enum without tripping no-unsafe-enum-comparison.
       if (order.status === Number(OrderStatus.PendingPayment)) {
         this.logger.log(
           `Order ${data.orderId} is unpaid after TTL. Triggering cancellation workflow...`,

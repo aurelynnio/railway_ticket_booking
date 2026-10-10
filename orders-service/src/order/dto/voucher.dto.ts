@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsEnum,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -10,11 +9,6 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-
-export enum DiscountType {
-  PERCENT = 'PERCENT',
-  FIXED_AMOUNT = 'FIXED_AMOUNT',
-}
 
 export class ValidateVoucherRequest {
   @IsString()

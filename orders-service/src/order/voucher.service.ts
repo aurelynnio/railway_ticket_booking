@@ -1,10 +1,11 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import type { Voucher } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateVoucherRequest,
@@ -25,14 +26,18 @@ export class VoucherService {
     payload: ValidateVoucherRequest,
   ): Promise<ValidateVoucherResponse> {
     const code = (payload.code || '').trim().toUpperCase();
+
+    /** One rejection shape for every failure, so callers see stable fields. */
+    const invalid = (message: string): ValidateVoucherResponse => ({
+      isValid: false,
+      code,
+      discountAmount: 0,
+      finalAmount: payload.orderAmount,
+      message,
+    });
+
     if (!code) {
-      return {
-        isValid: false,
-        code: '',
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: 'Vui lòng cung cấp mã khuyến mãi.',
-      };
+      return invalid('Vui lòng cung cấp mã khuyến mãi.');
     }
 
     const voucher = await this.prisma.voucher.findFirst({
@@ -43,57 +48,27 @@ export class VoucherService {
     });
 
     if (!voucher) {
-      return {
-        isValid: false,
-        code,
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: 'Mã khuyến mãi không tồn tại.',
-      };
+      return invalid('Mã khuyến mãi không tồn tại.');
     }
 
     if (!voucher.isActive) {
-      return {
-        isValid: false,
-        code,
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: 'Mã khuyến mãi hiện đang tạm khóa.',
-      };
+      return invalid('Mã khuyến mãi hiện đang tạm khóa.');
     }
 
     const now = new Date();
     if (voucher.validFrom > now) {
-      return {
-        isValid: false,
-        code,
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: 'Mã khuyến mãi chưa đến ngày bắt đầu áp dụng.',
-      };
+      return invalid('Mã khuyến mãi chưa đến ngày bắt đầu áp dụng.');
     }
 
     if (voucher.validTo < now) {
-      return {
-        isValid: false,
-        code,
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: 'Mã khuyến mãi đã hết hạn sử dụng.',
-      };
+      return invalid('Mã khuyến mãi đã hết hạn sử dụng.');
     }
 
     if (
       voucher.usageLimit !== null &&
       voucher.usedCount >= voucher.usageLimit
     ) {
-      return {
-        isValid: false,
-        code,
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: 'Mã khuyến mãi đã hết lượt sử dụng.',
-      };
+      return invalid('Mã khuyến mãi đã hết lượt sử dụng.');
     }
 
     // Per-customer cap, when the voucher configures one and we know who is
@@ -104,13 +79,7 @@ export class VoucherService {
         where: { voucherId: voucher.id, userId: payload.userId },
       });
       if (userUsages >= voucher.perUserLimit) {
-        return {
-          isValid: false,
-          code,
-          discountAmount: 0,
-          finalAmount: payload.orderAmount,
-          message: 'Bạn đã sử dụng mã khuyến mãi này rồi.',
-        };
+        return invalid('Bạn đã sử dụng mã khuyến mãi này rồi.');
       }
     }
 
@@ -118,13 +87,9 @@ export class VoucherService {
       ? Number(voucher.minOrderAmount)
       : 0;
     if (payload.orderAmount < minAmount) {
-      return {
-        isValid: false,
-        code,
-        discountAmount: 0,
-        finalAmount: payload.orderAmount,
-        message: `Đơn hàng tối thiểu ${minAmount.toLocaleString('vi-VN')} VND để sử dụng mã này.`,
-      };
+      return invalid(
+        `Đơn hàng tối thiểu ${minAmount.toLocaleString('vi-VN')} VND để sử dụng mã này.`,
+      );
     }
 
     // Tính toán số tiền chiết khấu
@@ -275,7 +240,7 @@ export class VoucherService {
     const limit = Math.min(query.limit ?? 20, 100);
     const skip = (page - 1) * limit;
 
-    const where: any = { deletedAt: null };
+    const where: Prisma.VoucherWhereInput = { deletedAt: null };
     if (typeof query.isActive === 'boolean') {
       where.isActive = query.isActive;
     }
@@ -353,7 +318,7 @@ export class VoucherService {
       throw new NotFoundException('Voucher không tồn tại.');
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.VoucherUpdateInput = {};
     if (payload.title !== undefined) updateData.title = payload.title.trim();
     if (payload.description !== undefined)
       updateData.description = payload.description?.trim() ?? null;
@@ -403,7 +368,7 @@ export class VoucherService {
     return { success: true, message: 'Voucher đã được xóa.' };
   }
 
-  mapToResponse(voucher: any): VoucherResponse {
+  mapToResponse(voucher: Voucher): VoucherResponse {
     return {
       id: voucher.id,
       code: voucher.code,

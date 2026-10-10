@@ -167,13 +167,7 @@ export class PaymentService {
     const paidAt = payload.paidAt ?? new Date();
 
     const payment = await this.getPaymentOrThrow(payload);
-
-    if (payment.status === Number(PaymentStatus.Paid)) {
-      throw new HttpException(
-        'Payment is already marked as paid',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    this.assertNotAlreadyPaid(payment);
 
     const updated = await this.prisma.payment.update({
       where: { id: payment.id },
@@ -190,13 +184,7 @@ export class PaymentService {
     payload: MarkPaidRequest,
   ): Promise<PaymentMarkedPaidResponse> {
     const existing = await this.getPaymentOrThrow(payload);
-
-    if (existing.status === Number(PaymentStatus.Paid)) {
-      throw new HttpException(
-        'Payment is already marked as paid',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    this.assertNotAlreadyPaid(existing);
 
     const paidAt = payload.paidAt ?? new Date();
 
@@ -204,34 +192,47 @@ export class PaymentService {
     // transaction that marks the payment as paid, so the event can never be
     // lost if the process crashes between commit and publish. A worker
     // (processOutbox) publishes due rows and marks them processed.
-    let paidPayment: Payment | undefined;
-    await this.prisma.$transaction(async (tx) => {
-      paidPayment = await tx.payment.update({
+    const paidPayment = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.payment.update({
         where: { id: existing.id },
         data: { status: PaymentStatus.Paid, paidAt },
       });
 
       await tx.paymentOutbox.create({
         data: {
-          paymentId: paidPayment.id,
-          orderId: paidPayment.orderId,
-          userId: paidPayment.userId,
-          transactionId: paidPayment.transactionId,
-          paidAt: paidPayment.paidAt ?? paidAt,
+          paymentId: updated.id,
+          orderId: updated.orderId,
+          userId: updated.userId,
+          transactionId: updated.transactionId,
+          paidAt: updated.paidAt ?? paidAt,
         },
       });
+
+      return updated;
     });
 
     const emittedAt = new Date().toISOString();
 
     return {
-      payment: toPaymentDto(paidPayment as Payment),
+      payment: toPaymentDto(paidPayment),
       event: {
         name: 'payment.paid',
-        orderId: (paidPayment as Payment).orderId,
+        orderId: paidPayment.orderId,
         emittedAt,
       },
     };
+  }
+
+  /** A settled payment must never be settled a second time. */
+  private assertNotAlreadyPaid(payment: Payment): void {
+    // Number() keeps the Prisma `number` column comparable with the numeric
+    // enum without tripping no-unsafe-enum-comparison.
+    if (payment.status === Number(PaymentStatus.Paid)) {
+      throw new HttpException(
+        'Payment is already marked as paid',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   /**

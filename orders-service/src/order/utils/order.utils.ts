@@ -30,15 +30,17 @@ export function assertRequired(
   }
 }
 
-export function normalizePositiveInteger(
+function normalizeInteger(
   value: number | string,
   fieldName: string,
+  minimum: number,
+  description: string,
 ) {
   const parsed = Number(value);
 
-  if (!Number.isInteger(parsed) || parsed < 1) {
+  if (!Number.isInteger(parsed) || parsed < minimum) {
     throw new HttpException(
-      `${fieldName} must be a positive integer`,
+      `${fieldName} must be ${description}`,
       HttpStatus.BAD_REQUEST,
     );
   }
@@ -46,20 +48,18 @@ export function normalizePositiveInteger(
   return parsed;
 }
 
+export function normalizePositiveInteger(
+  value: number | string,
+  fieldName: string,
+) {
+  return normalizeInteger(value, fieldName, 1, 'a positive integer');
+}
+
 export function normalizeNonNegativeInteger(
   value: number | string,
   fieldName: string,
 ) {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new HttpException(
-      `${fieldName} must be a non-negative integer`,
-      HttpStatus.BAD_REQUEST,
-    );
-  }
-
-  return parsed;
+  return normalizeInteger(value, fieldName, 0, 'a non-negative integer');
 }
 
 export function toNullableString(value: string | null | undefined) {
