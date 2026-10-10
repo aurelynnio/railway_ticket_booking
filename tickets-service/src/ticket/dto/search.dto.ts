@@ -58,23 +58,6 @@ export class SearchTripsQuery {
   limit?: number;
 }
 
-export class SearchByNameQuery {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  q?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit?: number;
-}
-
 export interface SearchTripResponse {
   ticketId: string;
   title: string | null;

@@ -14,7 +14,10 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    "paths": {
+      "redlock": ["./node_modules/redlock/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

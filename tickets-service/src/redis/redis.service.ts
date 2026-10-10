@@ -1,24 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Redis_Client, Redis_Replica_Clients } from './redis.constants';
 import Redis from 'ioredis';
-import Redlock, { Lock } from 'redlock';
-
-// The installed redlock exposes `using` at runtime; declare a local shape so we
-// don't depend on the library's exact TS type resolution for auto-extension.
-type UsingSignal = AbortSignal & { error?: Error };
-
-interface RedlockUsing {
-  using<T>(
-    resources: string[],
-    duration: number,
-    settings: {
-      retryCount?: number;
-      retryDelay?: number;
-      retryJitter?: number;
-    },
-    routine: (signal: UsingSignal) => Promise<T>,
-  ): Promise<T>;
-}
+import Redlock, { Lock, RedlockAbortSignal } from 'redlock';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -145,22 +128,8 @@ export class RedisCacheService {
       retryDelay?: number;
       retryJitter?: number;
     },
-    routine: (signal: UsingSignal) => Promise<T>,
+    routine: (signal: RedlockAbortSignal) => Promise<T>,
   ): Promise<T> {
-    return (this.redlock as unknown as RedlockUsing).using(
-      resources,
-      ttlMs,
-      settings,
-      routine,
-    );
-  }
-
-  // Expose master & replicas cho ai cần truy cập trực tiếp
-  get master(): Redis {
-    return this.redis;
-  }
-
-  get replicas(): Redis[] {
-    return this.replicaClients;
+    return this.redlock.using(resources, ttlMs, settings, routine);
   }
 }

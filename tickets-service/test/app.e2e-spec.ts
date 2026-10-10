@@ -3,7 +3,14 @@ jest.mock('../src/ticket/ticket.service', () => ({
 }));
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: class PrismaClient {},
+  // PrismaService calls $connect() on init and $disconnect() on destroy, so the
+  // stub must expose both. A bare empty class made the destroy hook throw
+  // ("this.$disconnect is not a function"), which aborted teardown before
+  // RedisModule could quit its clients — leaving the process hanging.
+  PrismaClient: class PrismaClient {
+    async $connect(): Promise<void> {}
+    async $disconnect(): Promise<void> {}
+  },
 }));
 
 import { Test } from '@nestjs/testing';
@@ -16,5 +23,12 @@ describe('TicketModule (e2e)', () => {
     }).compile();
 
     expect(moduleRef).toBeDefined();
+
+    // TicketModule pulls in RedisModule, whose factories open real ioredis
+    // clients with an infinite retryStrategy. Those handles keep the event loop
+    // alive, so without closing the module jest never exits and `npm run
+    // test:e2e` hangs forever (it had to be killed manually). close() runs
+    // RedisModule.onModuleDestroy, which quits every client.
+    await moduleRef.close();
   });
 });

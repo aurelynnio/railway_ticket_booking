@@ -34,9 +34,6 @@ import {
  * keeps the queue from being a validation-free bypass around the gateway.
  */
 
-/** Upper bound for seat arrays coming over the queue. */
-export const MAX_SEAT_LABELS = 500;
-
 export class TicketIdMessage {
   @IsString()
   @IsNotEmpty()

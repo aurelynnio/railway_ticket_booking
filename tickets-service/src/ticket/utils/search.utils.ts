@@ -1,26 +1,5 @@
 import { TicketItem } from '@prisma/client';
-import { isSaleOpen, toIsoString, toPriceString } from './ticket.utils';
-
-export function normalizeText(value: string | null | undefined) {
-  return value?.trim().toLowerCase() || null;
-}
-
-export function matchesStationQuery(
-  query: string | undefined,
-  code: string | null,
-  name: string | null,
-) {
-  const normalizedQuery = normalizeText(query);
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  const candidates = [code, name]
-    .map((value) => normalizeText(value))
-    .filter((value): value is string => Boolean(value));
-
-  return candidates.some((value) => value.includes(normalizedQuery));
-}
+import { isSaleOpen, toPriceString } from './ticket.utils';
 
 export function uniqueValues(values: Array<string | null>) {
   return [
@@ -49,14 +28,6 @@ export function getMinPrice(items: TicketItem[]) {
     .filter((value): value is string => value !== null);
 
   return prices.length > 0 ? Math.min(...prices.map(Number)).toString() : null;
-}
-
-export function getAvailableSeats(item: TicketItem) {
-  if (item.stockAvailable !== null && item.stockAvailable !== undefined) {
-    return item.stockAvailable;
-  }
-
-  return item.availableSeatLabels.length;
 }
 
 export type TimeOfDayFilter = 'morning' | 'afternoon' | 'evening';
@@ -99,5 +70,3 @@ export function startOfUtcDay(value: string) {
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
   );
 }
-
-export { toIsoString };

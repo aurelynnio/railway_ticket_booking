@@ -28,13 +28,10 @@ import type {
   SearchTripsQuery,
 } from './dto/search.dto';
 import {
-  getAvailableSeats,
   getMinPrice,
   matchesSeatClass,
-  matchesStationQuery,
   matchesTimeOfDay,
   startOfUtcDay,
-  toIsoString,
   uniqueValues,
 } from './utils/search.utils';
 import {
@@ -55,6 +52,7 @@ import {
   pickNullableString,
   returnStockToPool,
   sortSeatLabels,
+  toIsoString,
   toNullableString,
   toTicketItemResponse,
   toTicketItemUpdateData,
@@ -170,13 +168,9 @@ export class TicketBaseService {
       where.status = status;
     }
     if (query.dateStart) {
-      const start = parseOptionalDate(query.dateStart, 'dateStart');
-      if (!start) {
-        throw new HttpException(
-          'dateStart is required',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      // parseOptionalDate only yields null for empty input, which the guard
+      // above already excluded — so this is always a real Date (or a 400).
+      const start = parseOptionalDate(query.dateStart, 'dateStart') as Date;
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 1);
       where.dateStart = {
@@ -1093,21 +1087,6 @@ export class TicketService extends TicketBaseService {
     return tickets.map((ticket) => this.toSearchTrip(ticket));
   }
 
-  private matchesRoute(ticket: TicketWithItems, query: SearchTripsQuery) {
-    const fromMatched = matchesStationQuery(
-      query.from,
-      ticket.departureStationCode,
-      ticket.departureStationName,
-    );
-    const toMatched = matchesStationQuery(
-      query.to,
-      ticket.arrivalStationCode,
-      ticket.arrivalStationName,
-    );
-
-    return fromMatched && toMatched;
-  }
-
   private toSearchTrip(ticket: TicketWithItems): SearchTripResponse {
     const activeItems = ticket.ticketItems.filter(
       (item: TicketItem) => !item.deletedAt,
@@ -1116,7 +1095,7 @@ export class TicketService extends TicketBaseService {
     const seatTypes = uniqueValues(activeItems.map((item) => item.seatType));
     const minPrice = getMinPrice(activeItems);
     const availableSeats = activeItems.reduce(
-      (total, item) => total + getAvailableSeats(item),
+      (total, item) => total + getAvailableStock(item),
       0,
     );
     return {
@@ -1210,14 +1189,17 @@ export class TicketService extends TicketBaseService {
     ticketItemId: string,
     payload: ReserveSeatRequest,
   ): Promise<TicketItemResponse> {
+    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
     try {
-      const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
       const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
         super.reserveSeat(ticketId, ticketItemId, payload),
       );
       await this.invalidateTicketCache(ticketId);
       return result;
     } catch (err) {
+      // Seat conflicts are HttpExceptions, which MicroserviceExceptionFilter
+      // does not log (only unhandled 5xx-class errors), so keep a local
+      // breadcrumb for operations.
       this.logger.error(`Error in reserveSeat: ${getErrorMessage(err)}`);
       throw err;
     }

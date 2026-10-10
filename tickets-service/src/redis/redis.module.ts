@@ -35,6 +35,16 @@ function buildTlsOptions(): RedisOptions['tls'] {
   };
 }
 
+/**
+ * Parses `host:port,host:port` sentinel lists (REDIS_SENTINELS).
+ */
+function parseSentinels(value: string) {
+  return value.split(',').map((entry) => {
+    const [host, port] = entry.trim().split(':');
+    return { host, port: parseInt(port) || 26379 };
+  });
+}
+
 @Global()
 @Module({
   providers: [
@@ -71,10 +81,7 @@ function buildTlsOptions(): RedisOptions['tls'] {
 
         if (sentinelsEnv) {
           // Chế độ Sentinel: tự động failover giữa các master/replica
-          const sentinels = sentinelsEnv.split(',').map((s) => {
-            const [host, port] = s.trim().split(':');
-            return { host, port: parseInt(port) || 26379 };
-          });
+          const sentinels = parseSentinels(sentinelsEnv);
 
           logger.log(
             `Connecting to Redis via Sentinel [${masterName}] with ${sentinels.length} sentinels`,
@@ -143,10 +150,7 @@ function buildTlsOptions(): RedisOptions['tls'] {
           return [];
         }
 
-        const sentinels = sentinelsEnv.split(',').map((s) => {
-          const [host, port] = s.trim().split(':');
-          return { host, port: parseInt(port) || 26379 };
-        });
+        const sentinels = parseSentinels(sentinelsEnv);
 
         const commonOptions: RedisOptions = {
           password: redisPassword,
@@ -220,15 +224,24 @@ export class RedisModule implements OnModuleDestroy {
     @Inject(Redis_Replica_Clients) private readonly replicas: Redis[],
   ) {}
 
+  private async closeClient(client: Redis): Promise<void> {
+    if (client.status === 'ready') {
+      try {
+        await client.quit();
+        return;
+      } catch {
+        // Fall through to disconnect() if quit() fails
+      }
+    }
+    client.disconnect(false);
+  }
+
   async onModuleDestroy() {
     this.logger.log('Disconnecting Redis clients on module destroy...');
-    const disconnects: Promise<void>[] = [
-      this.master.quit().then(() => undefined).catch(() => undefined),
-      ...this.replicas.map((r) =>
-        r.quit().then(() => undefined).catch(() => undefined),
-      ),
-    ];
-    await Promise.all(disconnects);
+    await Promise.all([
+      this.closeClient(this.master),
+      ...this.replicas.map((r) => this.closeClient(r)),
+    ]);
     this.logger.log('All Redis clients disconnected');
   }
 }
