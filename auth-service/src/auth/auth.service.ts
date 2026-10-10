@@ -27,6 +27,7 @@ import type {
 import { PrismaService } from '../prisma/prisma.service';
 import { comparePassword, hashPassword } from './utils/auth.utils';
 import { TokenService } from './utils/generate-token.utils';
+import type { AuthTokenPayload } from './utils/generate-token.utils';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -142,24 +143,7 @@ export class AuthService {
      * Token issuance happens only after the active account and password are
      * both verified, keeping access and refresh tokens in the same trust path.
      */
-    const accessToken = await this.tokenService.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion,
-    });
-    const refreshToken = await this.tokenService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion,
-    });
-    await this.storeRefreshToken(refreshToken);
-
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return this.issueTokenPair(user, user.tokenVersion);
   }
 
   async refreshToken(payload: RefreshTokenRequest) {
@@ -172,38 +156,14 @@ export class AuthService {
       'refresh',
     );
     await this.ensureRefreshTokenNotRevoked(payload.refreshToken);
-    const user = await this.findActiveUserById(tokenPayload.userId);
-    if (
-      !user ||
-      user.email !== tokenPayload.email ||
-      (user.tokenVersion ?? 0) !== (tokenPayload.tokenVersion ?? 0)
-    ) {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
-
-    const accessToken = await this.tokenService.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion ?? 0,
-    });
-    const refreshToken = await this.tokenService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion ?? 0,
-    });
+    const user = await this.loadActiveUserForToken(tokenPayload);
 
     // Rotation: the presented refresh token is revoked as it is exchanged, so a
     // stolen refresh token stops working as soon as the legitimate client
     // refreshes. Without this a leaked token stayed valid for its full 7 days.
     await this.revokeRefreshToken(payload.refreshToken);
-    await this.storeRefreshToken(refreshToken);
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return this.issueTokenPair(user, user.tokenVersion ?? 0);
   }
 
   async validateToken(token: string) {
@@ -212,7 +172,23 @@ export class AuthService {
     }
 
     const tokenPayload = await this.tokenService.verifyToken(token, 'access');
+    const user = await this.loadActiveUserForToken(tokenPayload);
+
+    return {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    };
+  }
+
+  /**
+   * Loads the account behind a verified token and rejects the token when the
+   * account is gone, its email changed, or its tokenVersion was bumped (by a
+   * password change or revokeAllSessions).
+   */
+  private async loadActiveUserForToken(tokenPayload: AuthTokenPayload) {
     const user = await this.findActiveUserById(tokenPayload.userId);
+
     if (
       !user ||
       user.email !== tokenPayload.email ||
@@ -221,11 +197,29 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    return {
+    return user;
+  }
+
+  /** Mints a fresh access/refresh pair and persists the refresh token hash. */
+  private async issueTokenPair(
+    user: { id: string; email: string; role: number },
+    tokenVersion?: number,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const accessToken = await this.tokenService.generateAccessToken({
       userId: user.id,
       email: user.email,
       role: user.role,
-    };
+      tokenVersion,
+    });
+    const refreshToken = await this.tokenService.generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      tokenVersion,
+    });
+    await this.storeRefreshToken(refreshToken);
+
+    return { accessToken, refreshToken };
   }
 
   /*
@@ -421,6 +415,16 @@ export class AuthService {
    * Persistence failures are logged but never block token issuance — the
    * revocation table is best-effort state layered on top of the stateless
    * tokenVersion mechanism.
+   *
+   * Upsert rather than create: JWT `iat`/`exp` have second granularity, so two
+   * refreshes inside the same second mint a BYTE-IDENTICAL token. Rotation then
+   * revokes the exact hash it is about to re-insert, and with `create` that
+   * second insert hit the unique `tokenHash` constraint (P2002, only logged) —
+   * leaving the row revoked, so the client, still holding that same token, was
+   * signed out on its next refresh. Re-inserting via upsert (and clearing
+   * `revokedAt`) keeps the row usable. Rotation is still correct for the normal
+   * case: when the new token DIFFERS, it lands on its own row and the presented
+   * token stays revoked.
    */
   private async storeRefreshToken(refreshToken: string) {
     if (!refreshToken?.trim()) {
@@ -428,12 +432,13 @@ export class AuthService {
       return;
     }
 
+    const tokenHash = this.hashToken(refreshToken);
+
     try {
-      await this.prisma.refreshToken.create({
-        data: {
-          tokenHash: this.hashToken(refreshToken),
-          expiresAt: this.buildRefreshTokenExpiry(),
-        },
+      await this.prisma.refreshToken.upsert({
+        where: { tokenHash },
+        update: { revokedAt: null, expiresAt: this.buildRefreshTokenExpiry() },
+        create: { tokenHash, expiresAt: this.buildRefreshTokenExpiry() },
       });
     } catch (error) {
       this.logger.error(
@@ -549,26 +554,12 @@ export class AuthService {
      * tokenVersion — the gateway replaces the caller's cookies with these.
      */
     const tokenVersion = await this.invalidateAllSessions(userId);
-
-    const accessToken = await this.tokenService.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion,
-    });
-    const refreshToken = await this.tokenService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tokenVersion,
-    });
-    await this.storeRefreshToken(refreshToken);
+    const tokens = await this.issueTokenPair(user, tokenVersion);
 
     return {
       success: true,
       message: 'Password changed successfully',
-      accessToken,
-      refreshToken,
+      ...tokens,
     };
   }
 

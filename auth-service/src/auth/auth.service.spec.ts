@@ -248,6 +248,91 @@ describe('AuthService', () => {
     );
   });
 
+  it('refreshToken should keep the client signed in when two refreshes land in the same second', async () => {
+    // JWT iat/exp have second granularity, so a rotation inside the same second
+    // mints a token BYTE-IDENTICAL to the presented one. Rotation revokes that
+    // exact hash and then re-persists it. With a raw `create` that re-insert hit
+    // the unique tokenHash constraint (P2002, only logged), leaving the row
+    // revoked — so the client, still holding that same token, was signed out on
+    // its next refresh. The constraint is emulated here so the regression cannot
+    // pass silently.
+    const rows = new Map<
+      string,
+      { tokenHash: string; revokedAt: Date | null; expiresAt: Date }
+    >();
+    const tokenHash = createHash('sha256')
+      .update('same-second-token')
+      .digest('hex');
+
+    tokenService.verifyToken.mockResolvedValue({
+      userId: 'user-1',
+      email: 'alice@example.com',
+    });
+    prisma.authAccount.findFirst.mockResolvedValue({
+      id: 'user-1',
+      email: 'alice@example.com',
+      role: 1,
+      deletedAt: null,
+    });
+    tokenService.generateAccessToken.mockResolvedValue(
+      'same-second-access-token',
+    );
+    tokenService.generateRefreshToken.mockResolvedValue('same-second-token');
+
+    prisma.refreshToken.create.mockImplementation(
+      async ({ data }: { data: { tokenHash: string; expiresAt: Date } }) => {
+        if (rows.has(data.tokenHash)) {
+          throw Object.assign(
+            new Error('Unique constraint failed on the fields: (`token_hash`)'),
+            { code: 'P2002' },
+          );
+        }
+        rows.set(data.tokenHash, { ...data, revokedAt: null });
+        return data;
+      },
+    );
+    prisma.refreshToken.upsert.mockImplementation(
+      async ({
+        where,
+        update,
+        create,
+      }: {
+        where: { tokenHash: string };
+        update: { revokedAt: Date | null; expiresAt?: Date };
+        create: { tokenHash: string; revokedAt?: Date; expiresAt: Date };
+      }) => {
+        const existing = rows.get(where.tokenHash);
+        if (existing) {
+          return Object.assign(existing, update);
+        }
+        const created = {
+          ...create,
+          revokedAt: create.revokedAt ?? null,
+        };
+        rows.set(create.tokenHash, created);
+        return created;
+      },
+    );
+    prisma.refreshToken.findUnique.mockImplementation(
+      async ({ where }: { where: { tokenHash: string } }) =>
+        rows.get(where.tokenHash) ?? null,
+    );
+
+    await service.refreshToken({ refreshToken: 'same-second-token' });
+    const secondRefresh = await service.refreshToken({
+      refreshToken: 'same-second-token',
+    });
+
+    expect(secondRefresh).toEqual({
+      accessToken: 'same-second-access-token',
+      refreshToken: 'same-second-token',
+    });
+    expect(rows.get(tokenHash)?.revokedAt).toBeNull();
+    // Persistence must go through upsert: a raw insert collides with the hash
+    // that rotation just revoked.
+    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+  });
+
   it('logout should revoke the presented refresh token and return success', async () => {
     tokenService.verifyToken.mockResolvedValue({
       userId: 'user-1',

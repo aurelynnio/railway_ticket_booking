@@ -56,8 +56,6 @@ export class LogoutRequest {
   refreshToken?: string;
 }
 
-export class NewUser {}
-
 export class ResetPasswordRequest {
   @IsString()
   @IsNotEmpty()
