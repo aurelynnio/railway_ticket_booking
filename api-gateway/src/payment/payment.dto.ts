@@ -192,22 +192,3 @@ export class CancelPaymentRequest extends PaymentLookupRequest {}
 export class ExpirePaymentRequest extends PaymentLookupRequest {}
 
 export class SoftDeletePaymentRequest extends PaymentLookupRequest {}
-
-export interface PaginatedPaymentsResponse {
-  data: PaymentDto[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-export interface PaymentMarkedPaidResponse {
-  payment: PaymentDto;
-  event: {
-    name: 'payment.paid';
-    orderId: string;
-    emittedAt: string;
-  };
-}

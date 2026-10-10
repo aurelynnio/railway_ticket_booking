@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -73,7 +74,10 @@ async function bootstrap() {
   // send any X-Forwarded-For value and pick its own rate-limit bucket, which
   // defeats login brute-force protection. Compose therefore binds the port to
   // loopback only. Keep the hop count in sync with the real proxy chain.
-  app.getHttpAdapter().getInstance().set('trust proxy', resolveTrustProxyHops());
+  const expressApp = app.getHttpAdapter().getInstance() as {
+    set(setting: string, val: unknown): void;
+  };
+  expressApp.set('trust proxy', resolveTrustProxyHops());
   const port = Number(process.env.PORT ?? 8080);
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalPipes(

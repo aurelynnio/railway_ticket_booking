@@ -73,10 +73,6 @@ export class OrderService {
     return this.orderClient.send('orders.cancelWorkflow', data);
   }
 
-  cancel(data: { orderId: string; payload?: CancelOrderRequest }) {
-    return this.orderClient.send('orders.cancel', data);
-  }
-
   expire(data: { orderId: string }) {
     return this.orderClient.send('orders.expire', data);
   }

@@ -31,6 +31,18 @@ export class UserProfile {
   userId: string;
 }
 
+/**
+ * Row shape returned by auth-service's `users.list`. Only the fields this
+ * gateway reads are declared.
+ */
+export interface UserRecord {
+  id: string;
+  email: string;
+}
+
+/** `users.list` answers with a paginated `{ data }` envelope or a bare array. */
+export type UserListPayload = UserRecord[] | { data?: UserRecord[] };
+
 export class UpdateProfilePayload {
   @IsOptional()
   @IsString()

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import type { Observable } from 'rxjs';
 import {
   CreateUserRequest,
   DeleteUserRequest,
@@ -9,6 +10,7 @@ import {
   UpdateUserRequest,
   UserProfile,
 } from './user.dto';
+import type { UserListPayload } from './user.dto';
 
 @Injectable()
 export class UserService {
@@ -20,8 +22,8 @@ export class UserService {
     return this.userClient.send({ cmd: 'users.health' }, {});
   }
 
-  list(query: ListUsersQuery) {
-    return this.userClient.send({ cmd: 'users.list' }, query);
+  list(query: ListUsersQuery): Observable<UserListPayload> {
+    return this.userClient.send<UserListPayload>({ cmd: 'users.list' }, query);
   }
 
   profile(userId: UserProfile) {

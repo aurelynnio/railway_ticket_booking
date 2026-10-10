@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { UserService } from '../user/user.service';
+import type { UserListPayload } from '../user/user.dto';
 
 export interface NotificationListResponse {
   data: unknown[];
@@ -74,15 +75,17 @@ export class NotificationService {
     let recipients: Array<{ email: string; userId?: string }> | undefined;
     if (!data.recipientEmails || data.recipientEmails.length === 0) {
       try {
-        const usersRes = await lastValueFrom<any>(this.userService.list({ limit: 1000 }));
+        const usersRes = await lastValueFrom<UserListPayload>(
+          this.userService.list({ limit: 1000 }),
+        );
         const users = Array.isArray(usersRes) ? usersRes : usersRes?.data || [];
         if (users.length > 0) {
-          recipients = users.map((u: any) => ({
-            email: u.email,
-            userId: u.id,
+          recipients = users.map((user) => ({
+            email: user.email,
+            userId: user.id,
           }));
         }
-      } catch (err) {
+      } catch {
         // Continue with empty recipients if list fails
       }
     } else {

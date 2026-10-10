@@ -3,7 +3,6 @@ import {
   Controller,
   ForbiddenException,
   Get,
-  ConflictException,
   Post,
   Query,
   Req,
@@ -17,7 +16,6 @@ import { Public } from '../common/decorators/public.decorator';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { OrderService } from '../order/order.service';
 import type { OrderResponse } from '../order/order.dto';
-import { OrderStatus } from '../order/order.dto';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { UserRole } from '../common/decorators/roles.decorator';
 import { IsUuidLike } from '../common/validators/uuid-like.validator';
@@ -77,15 +75,8 @@ export class VnpayController {
       );
     }
 
-    if (
-      [
-        OrderStatus.Paid,
-        OrderStatus.Confirmed,
-        OrderStatus.TicketIssued,
-      ].includes(order.status)
-    ) {
-      throw new ConflictException('Order is already paid');
-    }
+    // Closed / already-paid orders are rejected inside createPaymentUrl
+    // (assertPayableOrder), so both callers of that guard share one rule.
 
     const ipAddr =
       request.headers['x-forwarded-for'] ||

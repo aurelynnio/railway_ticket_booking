@@ -52,7 +52,7 @@ export class OrderPassengerPayload {
 
   @IsString()
   @IsNotEmpty()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
   @IsIn(PASSENGER_TYPES, {
@@ -108,63 +108,6 @@ export interface OrderResponse {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
-}
-
-export type CancelledOrderResponse = OrderResponse;
-
-export interface OrderSummaryResponse {
-  orderId: string;
-  userId: string;
-  ticketId: string;
-  ticketItemId: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  seatCount: number;
-  passengerCount: number;
-  status: OrderStatus;
-  ticketIssued: boolean;
-}
-
-export interface PaginatedOrdersResponse {
-  data: OrderResponse[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-export interface OrderCheckoutResponse {
-  order: OrderResponse;
-  payment: {
-    id: string;
-    orderId: string;
-    userId: string | null;
-    amount: string;
-    paymentMethod: string;
-    status: number;
-    transactionId: string;
-    paidAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    deletedAt: string | null;
-  };
-  reservation: {
-    ticketId: string;
-    ticketItemId: string;
-    reservedSeatLabels: string[];
-    reservedQuantity: number;
-  };
-}
-
-export interface CancelOrderWorkflowResponse {
-  order: CancelledOrderResponse;
-  releasedSeatLabels: string[];
-  releasedQuantity: number;
-  cancelledPaymentIds: string[];
-  warnings: string[];
 }
 
 export class CreateOrderRequest {

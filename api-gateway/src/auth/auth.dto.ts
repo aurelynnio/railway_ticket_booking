@@ -64,12 +64,6 @@ export class ResetPasswordRequest {
   newPassword: string;
 }
 
-export class ValidateTokenRequest {
-  @IsString()
-  @IsNotEmpty()
-  token: string;
-}
-
 export class ChangePasswordRequest {
   @IsOptional()
   @IsString()

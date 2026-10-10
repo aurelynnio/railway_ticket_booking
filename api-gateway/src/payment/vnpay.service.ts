@@ -7,6 +7,7 @@ import type { OrderResponse } from '../order/order.dto';
 import { PaymentService } from './payment.service';
 import { PaymentStatus } from './payment.dto';
 import type { PaymentDto } from './payment.dto';
+import { normalizeUuid } from '../common/validators/uuid-like.validator';
 
 export type VnpayQuery = Record<string, string | undefined>;
 
@@ -38,13 +39,13 @@ function getErrorStatus(error: unknown): number | undefined {
 /**
  * Convert a hyphen-stripped UUID back to standard UUID format.
  * VNPAY limits vnp_TxnRef to 34 chars, so we strip hyphens (36 → 32) when
- * sending and restore them when receiving the IPN/return callback.
+ * sending and restore them when receiving the IPN/return callback. The
+ * normalisation itself is shared with UuidLikePipe so the two layers cannot
+ * drift apart.
  */
-function toUuidFormat(hex: string): string {
-  if (hex.length === 32 && !hex.includes('-')) {
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-  return hex;
+function toUuidFormat(value: string): string {
+  const normalized = normalizeUuid({ value });
+  return typeof normalized === 'string' ? normalized : value;
 }
 
 @Injectable()
@@ -222,7 +223,7 @@ export class VnpayPaymentService {
         OrderStatus.Cancelled,
         OrderStatus.Expired,
         OrderStatus.Refunded,
-      ].map(Number).includes(order.status)
+      ].includes(order.status)
     ) {
       throw new HttpException(
         'Order is closed and cannot be paid',
@@ -235,7 +236,7 @@ export class VnpayPaymentService {
         OrderStatus.Paid,
         OrderStatus.Confirmed,
         OrderStatus.TicketIssued,
-      ].map(Number).includes(order.status)
+      ].includes(order.status)
     ) {
       throw new HttpException(
         'Order is already paid',
