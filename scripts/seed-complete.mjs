@@ -1,4 +1,3 @@
-import { PrismaClient as AuthPrisma } from '../auth-service/node_modules/@prisma/client/index.js';
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +32,7 @@ const DATABASE_URL = (() => {
 // so the seeded accounts always match whatever password was provided.
 const require = createRequire(import.meta.url);
 const bcrypt = require('../auth-service/node_modules/bcrypt');
+const { Pool } = require('../auth-service/node_modules/pg');
 const HASHED_PASSWORD = bcrypt.hashSync(PASSWORD, 10);
 
 const now = new Date();
@@ -47,37 +47,38 @@ const saleStart = isoAt(-1, 0);
 const saleEnd = isoAt(45, 23, 59);
 
 // Sync user IDs across both databases
+const S3_PUBLIC_BASE = process.env.S3_PUBLIC_URL || "http://localhost:9000/railway-media";
+
 const SEED_USERS = [
   {
     id: "f3c7e090-e837-4d7a-85d8-c92c206f4ee1",
     username: "ops-admin",
     email: "ops.admin@railway.demo",
     role: 1, // ADMIN
+    avatar: `${S3_PUBLIC_BASE}/avatars/ops-admin.jpg`,
   },
   {
     id: "a7b7e090-e837-4d7a-85d8-c92c206f4ee2",
     username: "mai-anh",
     email: "mai.anh@railway.demo",
     role: 0, // USER
+    avatar: `${S3_PUBLIC_BASE}/avatars/mai-anh.jpg`,
   },
   {
     id: "b7b7e090-e837-4d7a-85d8-c92c206f4ee3",
     username: "linh-tran",
     email: "linh.tran@railway.demo",
     role: 0, // USER
+    avatar: `${S3_PUBLIC_BASE}/avatars/linh-tran.jpg`,
   }
 ];
 
 let globalCookies = [];
 
 async function dbSeedUsers() {
-  console.log("Connecting to PostgreSQL database via Prisma...");
-  const authPrisma = new AuthPrisma({
-    datasources: {
-      db: {
-        url: DATABASE_URL
-      }
-    }
+  console.log("Connecting to PostgreSQL database...");
+  const pool = new Pool({
+    connectionString: DATABASE_URL,
   });
 
   try {
@@ -85,29 +86,24 @@ async function dbSeedUsers() {
       console.log(`Upserting user: ${u.username} (${u.email})`);
 
       // AuthAccount is now the single source of truth for users
-      await authPrisma.authAccount.upsert({
-        where: { email: u.email },
-        update: {
-          username: u.username,
-          password: HASHED_PASSWORD,
-          role: u.role,
-        },
-        create: {
-          id: u.id,
-          username: u.username,
-          email: u.email,
-          password: HASHED_PASSWORD,
-          role: u.role,
-          emailVerified: true,
-        }
-      });
+      await pool.query(
+        `INSERT INTO "auth_accounts" ("id", "username", "email", "password", "role", "avatar", "email_verified", "created_at", "updated_at")
+         VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+         ON CONFLICT ("email") DO UPDATE SET
+           "username" = EXCLUDED."username",
+           "password" = EXCLUDED."password",
+           "role" = EXCLUDED."role",
+           "avatar" = EXCLUDED."avatar",
+           "updated_at" = NOW()`,
+        [u.id, u.username, u.email, HASHED_PASSWORD, u.role, u.avatar],
+      );
     }
     console.log("Successfully seeded users!");
   } catch (err) {
     console.error("Database seed failed:", err);
     throw err;
   } finally {
-    await authPrisma.$disconnect();
+    await pool.end();
   }
 }
 
@@ -180,6 +176,7 @@ function ticketItem({
   seats,
   original,
   flash,
+  images = [],
 }) {
   return {
     name,
@@ -195,6 +192,7 @@ function ticketItem({
     priceFlash: String(flash),
     saleStartTime: saleStart,
     saleEndTime: saleEnd,
+    images,
   };
 }
 
@@ -210,6 +208,11 @@ const tickets = [
     dateStart: isoAt(7, 12, 20),
     dateEnd: isoAt(8, 2, 35),
     status: 1,
+    images: [
+      `${S3_PUBLIC_BASE}/trains/se1-en-route-bridge.jpg`,
+      `${S3_PUBLIC_BASE}/trains/se1-hanoi-station.jpg`,
+      `${S3_PUBLIC_BASE}/trains/se1-hue-arrival.jpg`,
+    ],
     ticketItems: [
       ticketItem({
         name: "Soft sleeper cabin",
@@ -219,6 +222,10 @@ const tickets = [
         seats: seatRange("A", 12),
         original: 920000,
         flash: 860000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/se1-coach-a1-sleeper-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/se1-coach-a1-sleeper-2.jpg`,
+        ],
       }),
       ticketItem({
         name: "Soft seat",
@@ -228,6 +235,10 @@ const tickets = [
         seats: seatRange("B", 16),
         original: 640000,
         flash: 590000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/se1-coach-b2-softseat-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/se1-coach-b2-softseat-2.jpg`,
+        ],
       }),
     ],
   },
@@ -242,6 +253,11 @@ const tickets = [
     dateStart: isoAt(10, 15, 45),
     dateEnd: isoAt(11, 8, 10),
     status: 1,
+    images: [
+      `${S3_PUBLIC_BASE}/trains/se3-haivan-pass-1.jpg`,
+      `${S3_PUBLIC_BASE}/trains/se3-haivan-pass-2.jpg`,
+      `${S3_PUBLIC_BASE}/trains/se3-danang-sleeper.jpg`,
+    ],
     ticketItems: [
       ticketItem({
         name: "VIP sleeper",
@@ -251,6 +267,10 @@ const tickets = [
         seats: seatRange("V", 8),
         original: 1320000,
         flash: 1240000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/se3-coach-v1-vip-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/se3-coach-v1-vip-2.jpg`,
+        ],
       }),
       ticketItem({
         name: "Standard sleeper",
@@ -260,6 +280,10 @@ const tickets = [
         seats: seatRange("S", 14),
         original: 980000,
         flash: 930000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/se3-coach-s2-sleeper-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/se3-coach-s2-sleeper-2.jpg`,
+        ],
       }),
     ],
   },
@@ -274,6 +298,11 @@ const tickets = [
     dateStart: isoAt(13, 7, 15),
     dateEnd: isoAt(13, 15, 40),
     status: 1,
+    images: [
+      `${S3_PUBLIC_BASE}/trains/se6-saigon-arrival.jpg`,
+      `${S3_PUBLIC_BASE}/trains/se6-nhatrang-station.jpg`,
+      `${S3_PUBLIC_BASE}/trains/se6-nhatrang-bridge.jpg`,
+    ],
     ticketItems: [
       ticketItem({
         name: "Business seat",
@@ -283,6 +312,10 @@ const tickets = [
         seats: seatRange("C", 10),
         original: 520000,
         flash: 485000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/se6-coach-c1-business-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/se6-coach-c1-business-2.jpg`,
+        ],
       }),
       ticketItem({
         name: "Economy seat",
@@ -292,6 +325,10 @@ const tickets = [
         seats: seatRange("D", 20),
         original: 360000,
         flash: 330000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/se6-coach-d3-economy-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/se6-coach-d3-economy-2.jpg`,
+        ],
       }),
     ],
   },
@@ -306,6 +343,11 @@ const tickets = [
     dateStart: isoAt(18, 21, 30),
     dateEnd: isoAt(19, 5, 55),
     status: 0,
+    images: [
+      `${S3_PUBLIC_BASE}/trains/lp2-laocai-tourist-train.jpg`,
+      `${S3_PUBLIC_BASE}/trains/lp2-mountain-route.jpg`,
+      `${S3_PUBLIC_BASE}/trains/lp2-laocai-station.jpg`,
+    ],
     ticketItems: [
       ticketItem({
         name: "Tourist sleeper",
@@ -315,6 +357,10 @@ const tickets = [
         seats: seatRange("T", 10),
         original: 760000,
         flash: 720000,
+        images: [
+          `${S3_PUBLIC_BASE}/trains/lp2-coach-t1-tourist-1.jpg`,
+          `${S3_PUBLIC_BASE}/trains/lp2-coach-t1-tourist-2.jpg`,
+        ],
       }),
     ],
   },
@@ -384,7 +430,15 @@ async function seedApiData() {
     const existing = findExistingTicket(ticket);
     if (existing) {
       console.log(`Ticket "${ticket.title}" already exists (ID: ${existing.id}) — skipping creation.`);
-      createdTickets.push(existing);
+      if (Array.isArray(ticket.images) && ticket.images.length > 0 && (!existing.images || existing.images.length === 0)) {
+        const updated = await optional(`/tickets/${existing.id}`, {
+          method: "PATCH",
+          body: { images: ticket.images },
+        });
+        createdTickets.push(updated ?? existing);
+      } else {
+        createdTickets.push(existing);
+      }
       continue;
     }
     console.log(`Creating ticket: "${ticket.title}"...`);

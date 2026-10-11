@@ -169,7 +169,7 @@ async function setup() {
   await checkCase({ id: "auth.L08", group: "Auth", name: "login user (linh-tran)", method: "POST", path: "/auth/login", body: { email: SECOND_USER_EMAIL, password: PASSWORD }, cookies: "user2", expectedStatus: 200 });
 
   const suffix = Math.random().toString(36).slice(2, 8);
-  await checkCase({ id: "auth.R01", group: "Auth", name: "register fresh user", method: "POST", path: "/auth/register", body: { username: `tester-${suffix}`, email: `tester-${suffix}@railway.demo`, password: PASSWORD }, expectedStatus: 201, validate: (d) => (d?.id ? note(`id=${d.id}`) : { pass: false, note: "no id in response" }) });
+  await checkCase({ id: "auth.R01", group: "Auth", name: "register fresh user", method: "POST", path: "/auth/register", body: { username: `tester-${suffix}`, email: `tester-${suffix}@railway.demo`, password: PASSWORD, avatar: "https://example.com/avatars/tester.png" }, expectedStatus: 201, validate: (d) => (d?.id && d?.avatar === "https://example.com/avatars/tester.png" ? note(`id=${d.id}`) : { pass: false, note: "no id or avatar in response" }) });
   await checkCase({ id: "auth.L09", group: "Auth", name: "login fresh user", method: "POST", path: "/auth/login", body: { email: `tester-${suffix}@railway.demo`, password: PASSWORD }, cookies: "fresh", expectedStatus: 200 });
 
   const me = await checkCase({ id: "users.M01", group: "Users", name: "GET /users/me (admin)", method: "GET", path: "/users/me", cookies: "admin", expectedStatus: 200, validate: (d) => (d?.id ? ok : { pass: false, note: "missing id" }) });
@@ -185,6 +185,10 @@ async function setup() {
     dateStart: new Date(Date.now() + 86400000).toISOString(),
     dateEnd: new Date(Date.now() + 90000000).toISOString(),
     status: 1,
+    images: [
+      "https://example.com/trains/test-1.jpg",
+      "https://example.com/trains/test-2.jpg",
+    ],
     ticketItems: [{
       name: "Test seat", coachCode: "TA", seatClass: "Seat", seatType: "Standard",
       seatLabels: itemSeats, availableSeatLabels: itemSeats,
@@ -192,8 +196,9 @@ async function setup() {
       priceOriginal: "150000", priceFlash: "120000",
       saleStartTime: new Date(Date.now() - 3600000).toISOString(),
       saleEndTime: new Date(Date.now() + 30 * 86400000).toISOString(),
+      images: ["https://example.com/coaches/ta.jpg"],
     }],
-  }, expectedStatus: 201, validate: (d) => (d?.id && d?.ticketItems?.[0]?.id ? ok : { pass: false, note: "missing id/ticketItems" }) });
+  }, expectedStatus: 201, validate: (d) => (d?.id && d?.ticketItems?.[0]?.id && Array.isArray(d?.images) && d.images.length === 2 ? ok : { pass: false, note: "missing id/ticketItems/images" }) });
 
   return { suffix, adminId: me?.id, ticketId: createRes?.id, itemId: createRes?.ticketItems?.[0]?.id };
 }
@@ -258,7 +263,7 @@ await checkCase({ id: "auth.RS03", group: "Auth", name: "re-login user after pas
 /* ------------------------------ USERS --------------------------------- */
 await checkCase({ id: "users.H01", group: "Users", name: "GET /users/health → 200", method: "GET", path: "/users/health", expectedStatus: 200 });
 await checkCase({ id: "users.M02", group: "Users", name: "GET /users/me (anonymous) → 401", method: "GET", path: "/users/me", expectedStatus: 401 });
-await checkCase({ id: "users.M03", group: "Users", name: "PATCH /users/me update username", method: "PATCH", path: "/users/me", cookies: "user2", body: { username: "linh-tran-updated" }, expectedStatus: 200 });
+await checkCase({ id: "users.M03", group: "Users", name: "PATCH /users/me update username & avatar", method: "PATCH", path: "/users/me", cookies: "user2", body: { username: "linh-tran-updated", avatar: "https://example.com/avatars/linh.png" }, expectedStatus: 200, validate: (d) => (d?.avatar === "https://example.com/avatars/linh.png" ? ok : { pass: false, note: "avatar mismatch" }) });
 
 await checkCase({ id: "users.L01", group: "Users", name: "GET /users ?page limit (admin)", method: "GET", path: "/users", query: { page: 1, limit: 5 }, cookies: "admin", expectedStatus: 200, validate: (d) => (d?.data && d?.pagination ? ok : { pass: false, note: `expected {data,pagination}` }) });
 await checkCase({ id: "users.L02", group: "Users", name: "GET /users (normal user) → 403", method: "GET", path: "/users", cookies: "user2", expectedStatus: 403 });
@@ -294,7 +299,7 @@ await checkCase({ id: "tickets.C02", group: "Tickets", name: "POST /tickets (use
 await checkCase({ id: "tickets.C03", group: "Tickets", name: "POST /tickets invalid body → 400", method: "POST", path: "/tickets", cookies: "admin", body: { title: 123 }, expectedStatus: 400 });
 await checkCase({ id: "tickets.C04", group: "Tickets", name: "POST /tickets unknown field → 400", method: "POST", path: "/tickets", cookies: "admin", body: { title: "X", hacked: true }, expectedStatus: 400 });
 
-await checkCase({ id: "tickets.U01", group: "Tickets", name: "PATCH /tickets/:id (admin)", method: "PATCH", path: `/tickets/${ctx.ticketId}`, cookies: "admin", body: { journeyNote: "updated by test" }, expectedStatus: 200 });
+await checkCase({ id: "tickets.U01", group: "Tickets", name: "PATCH /tickets/:id (admin)", method: "PATCH", path: `/tickets/${ctx.ticketId}`, cookies: "admin", body: { journeyNote: "updated by test", images: ["https://example.com/trains/test-updated.jpg"] }, expectedStatus: 200, validate: (d) => (d?.images?.[0] === "https://example.com/trains/test-updated.jpg" ? ok : { pass: false, note: "images update mismatch" }) });
 await checkCase({ id: "tickets.U02", group: "Tickets", name: "PATCH /tickets/:id (user) → 403", method: "PATCH", path: `/tickets/${ctx.ticketId}`, cookies: "user2", body: { journeyNote: "x" }, expectedStatus: 403 });
 
 /* ------------------------------ SEARCH ---------------------------------- */

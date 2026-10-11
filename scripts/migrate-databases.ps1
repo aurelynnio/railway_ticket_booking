@@ -22,7 +22,7 @@ foreach ($service in $services) {
     throw "Missing service directory: $servicePath"
   }
 
-  Write-Host "[$service] prisma migrate deploy"
+  Write-Host "[$service] drizzle-kit migrate"
 
   if ($DryRun) {
     continue
@@ -30,9 +30,9 @@ foreach ($service in $services) {
 
   Push-Location $servicePath
   try {
-    npx prisma migrate deploy
+    npx drizzle-kit migrate
     if ($LASTEXITCODE -ne 0) {
-      throw "Prisma migration failed for $service"
+      throw "Drizzle migration failed for $service"
     }
   }
   finally {

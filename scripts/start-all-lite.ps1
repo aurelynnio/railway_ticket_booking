@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   - Starts lightweight Docker infrastructure (Postgres, RabbitMQ, Redis) capped under 512MB RAM total.
-  - Ensures Prisma migrations are applied to all per-service databases.
+  - Ensures Drizzle migrations are applied to all per-service databases.
   - Runs all 6 NestJS backend microservices from pre-compiled JavaScript with V8 heap memory capped
     at 128MB per service (--max-old-space-size=128). This reduces RAM usage from ~3GB down to ~300MB total
     and eliminates 100% CPU spikes caused by multiple concurrent TypeScript watch compilers.
@@ -113,7 +113,7 @@ if (-not $SkipInfra) {
     if ($LASTEXITCODE -ne 0) {
       throw "Failed to start Docker infra via $composeFile"
     }
-    Write-Ok "Lean infrastructure is running (Postgres:5432, RabbitMQ:5672, Redis:6379)"
+    Write-Ok "Lean infrastructure is running (Postgres:5432, RabbitMQ:5672, Redis:6379, MinIO:9000)"
     
     # Wait briefly for Postgres to accept connections
     Write-Host "    Waiting for databases to initialize..." -NoNewline

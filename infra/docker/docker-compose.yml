@@ -445,9 +445,18 @@ services:
       VNPAY_TEST_MODE: ${VNPAY_TEST_MODE:-false}
       VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:?Set VNPAY_RETURN_URL in .env.docker}
       VNPAY_PUBLIC_BASE_URL: ${VNPAY_PUBLIC_BASE_URL:-}
+      # Object Storage (MinIO / S3) Configuration
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000/railway-media}
+      S3_BUCKET: ${S3_BUCKET:-railway-media}
+      S3_REGION: ${S3_REGION:-ap-southeast-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin123}
     depends_on:
       rabbitmq:
         condition: service_healthy
+      minio:
+        condition: service_started
     # HTTP healthcheck: /auth/health is @Public() and round-trips to auth-service via RMQ
     healthcheck:
       test:
@@ -460,6 +469,27 @@ services:
       retries: 20
       start_period: 30s
     mem_limit: 384m
+    cpus: '0.50'
+    networks:
+      - railway-ticket-network
+
+  # =========================================================================
+  # OBJECT STORAGE (S3-Compatible SeaweedFS/MinIO on port 9000 for train images & user avatars)
+  # =========================================================================
+  minio:
+    image: chrislusf/seaweedfs:latest
+    container_name: railway-ticket-minio
+    restart: unless-stopped
+    command: 'server -ip=127.0.0.1 -s3 -s3.port=9000 -s3.config=/etc/seaweedfs/s3.config.json -filer -dir=/data -ip.bind=0.0.0.0'
+    environment:
+      TZ: Asia/Bangkok
+    ports:
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:8888'
+    volumes:
+      - ./s3.config.json:/etc/seaweedfs/s3.config.json:ro
+      - minio_data:/data
+    mem_limit: 256m
     cpus: '0.50'
     networks:
       - railway-ticket-network
@@ -524,6 +554,7 @@ volumes:
   redis_sentinel2_data:
   redis_sentinel3_data:
   rabbitmq_data:
+  minio_data:
 
 networks:
   railway-ticket-network:

@@ -61,7 +61,25 @@ services:
       retries: 10
       start_period: 20s
 
+  minio:
+    image: chrislusf/seaweedfs:latest
+    container_name: railway-ticket-minio-dev
+    restart: unless-stopped
+    command: 'server -ip=127.0.0.1 -s3 -s3.port=9000 -s3.config=/etc/seaweedfs/s3.config.json -filer -dir=/data -ip.bind=0.0.0.0'
+    environment:
+      TZ: Asia/Bangkok
+    ports:
+      - '9000:9000'
+      - '9001:8888'
+    volumes:
+      - ./s3.config.json:/etc/seaweedfs/s3.config.json:ro
+      - minio_dev_data:/data
+    mem_limit: 128m
+    cpus: '0.25'
+
 volumes:
   postgres_dev_data:
   redis_dev_data:
   rabbitmq_dev_data:
+  minio_dev_data:
+

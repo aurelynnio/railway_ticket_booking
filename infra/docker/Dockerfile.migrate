@@ -19,12 +19,21 @@ FROM node:20-alpine AS runner
 WORKDIR /workspace
 
 COPY --from=dependencies /workspace ./
-COPY auth-service/prisma ./auth-service/prisma
-COPY auth-service/prisma.config.ts ./auth-service/prisma.config.ts
-COPY orders-service/prisma ./orders-service/prisma
-COPY payments-service/prisma ./payments-service/prisma
-COPY notification-service/prisma ./notification-service/prisma
-COPY tickets-service/prisma ./tickets-service/prisma
+COPY auth-service/drizzle ./auth-service/drizzle
+COPY auth-service/drizzle.config.ts ./auth-service/drizzle.config.ts
+COPY auth-service/src/drizzle/schema.ts ./auth-service/src/drizzle/schema.ts
+COPY orders-service/drizzle ./orders-service/drizzle
+COPY orders-service/drizzle.config.ts ./orders-service/drizzle.config.ts
+COPY orders-service/src/drizzle/schema.ts ./orders-service/src/drizzle/schema.ts
+COPY payments-service/drizzle ./payments-service/drizzle
+COPY payments-service/drizzle.config.ts ./payments-service/drizzle.config.ts
+COPY payments-service/src/drizzle/schema.ts ./payments-service/src/drizzle/schema.ts
+COPY notification-service/drizzle ./notification-service/drizzle
+COPY notification-service/drizzle.config.ts ./notification-service/drizzle.config.ts
+COPY notification-service/src/drizzle/schema.ts ./notification-service/src/drizzle/schema.ts
+COPY tickets-service/drizzle ./tickets-service/drizzle
+COPY tickets-service/drizzle.config.ts ./tickets-service/drizzle.config.ts
+COPY tickets-service/src/drizzle/schema.ts ./tickets-service/src/drizzle/schema.ts
 COPY infra/docker/run-migrations.sh /usr/local/bin/run-migrations
 
 RUN chmod 0555 /usr/local/bin/run-migrations

@@ -33,12 +33,12 @@ Repo nay khong chi la CRUD app — day la danh sach cac he thong/co che ky thuat
 | --- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | 1   | **API Gateway + Global Guard Chain**              | Bao mat tap trung: `Throttler → JwtAuth → Roles` chay toan cuc, moi endpoint mac dinh duoc bao ve, chi `@Public()` moi bypass                                                                                                         | `api-gateway/src/api-gateway.module.ts`                                                                  |
 | 2   | **Distributed Locking (Redlock + fencing token)** | Chong double-booking ghe khi 2 request cung chot 1 ghe; auto-extension (`redlock.using()`) de lock khong het han giua chung                                                                                                           | `tickets-service/src/redis/redis.service.ts`, `tickets-service/src/ticket/ticket.service.ts`             |
-| 3   | **Transactional Outbox**                          | Giai quyet dual-write problem: event `payment.paid` duoc ghi cung DB transaction voi trang thai Paid; cron worker publish moi 10s + exponential backoff                                                                               | `payments-service/src/payment/payment.service.ts`, `prisma/schema.prisma` (bang `PaymentOutbox`)         |
+| 3   | **Transactional Outbox**                          | Giai quyet dual-write problem: event `payment.paid` duoc ghi cung DB transaction voi trang thai Paid; cron worker publish moi 10s + exponential backoff                                                                               | `payments-service/src/payment/payment.service.ts`, `src/drizzle/schema.ts` (bang `payment_outbox`)       |
 | 4   | **Saga Choreography + Compensation**              | Distributed transaction: `payment.paid` → markPaid → confirm → issueTicket → email; that bai/het han thi compensation (cancelWorkflow, release seats) thay vi rollback 2PC                                                            | `orders-service/src/order/order.service.ts` (`handlePaymentPaidEvent`, `cancelWorkflow`)                 |
 | 5   | **Delayed Queue (TTL + Dead-Letter)**             | "Bo dem nguoc" 10 phut khong can cron server: message nam trong `orders_expiration_queue` co `x-message-ttl: 600000`, het TTL thi dead-letter sang queue xu ly expire                                                                 | `orders-service/src/order/order.module.ts`, `main.ts`                                                    |
-| 6   | **Idempotency Key**                               | Chong tao order trung khi client double-click/retry: unique constraint tren `idempotency_key`, request trung key → replay response                                                                                                    | `orders-service/src/order/order.service.ts` (`checkout`), migration `20260813000000_add_idempotency_key` |
+| 6   | **Idempotency Key**                               | Chong tao order trung khi client double-click/retry: unique constraint tren `idempotency_key`, request trung key → replay response                                                                                                    | `orders-service/src/order/order.service.ts` (`checkout`), `orders-service/src/drizzle/schema.ts`         |
 | 7   | **Redis Sentinel HA Cluster**                     | High-availability cache + lock: 1 Master + 2 Replica + 3 Sentinel (quorum 2/3 chong split-brain), auto-failover; app tach read replica (round-robin) / write master                                                                   | `infra/docker/docker-compose.yml`, `tickets-service/src/redis/`                                          |
-| 8   | **Database-per-Service (Polyglot Persistence)**   | Data isolation: PostgreSQL cho auth/orders/payments/notifications/tickets (moi DB rieng); Redis cho cache + lock. tickets-service da migrate tu MongoDB sang PostgreSQL voi `SELECT ... FOR UPDATE` row lock thay cho read-then-write | `infra/docker/init-databases.sql`, cac `prisma/schema.prisma`                                            |
+| 8   | **Database-per-Service (Polyglot Persistence)**   | Data isolation: PostgreSQL cho auth/orders/payments/notifications/tickets (moi DB rieng); Redis cho cache + lock. tickets-service da migrate tu MongoDB sang PostgreSQL voi `SELECT ... FOR UPDATE` row lock thay cho read-then-write | `infra/docker/init-databases.sql`, cac `src/drizzle/schema.ts`                                           |
 | 9   | **VNPay Payment IPN Integration**                 | Thanh toan server-to-server: IPN la nguon truth (verify checksum → check amount → idempotent status), Return URL chi hien thi; xu ly TxnRef 32-char va dong stale payment truoc khi issue TxnRef moi                                  | `api-gateway/src/payment/vnpay.service.ts`                                                               |
 | 10  | **Email Token Security (hashed token)**           | Reset/verification token chi luu hash trong DB, raw token chi di qua email, co expiry; forgot-password tra generic message chong email enumeration                                                                                    | `auth-service/src/auth/auth.service.ts`                                                                  |
 | 11  | **Nginx Reverse Proxy + Container Infra**         | Single entry port 80: route `/api/*` → gateway, `/*` → Next.js; gzip, security headers, rate limit 2 tang (api 20r/s, auth 5r/s); DB/MQ chi internal network; Docker multi-stage + non-root                                           | `infra/nginx/default.conf`, `infra/docker/docker-compose.yml`                                            |
@@ -87,19 +87,19 @@ Chuoi xu ly thanh toan la to hop 5 he thong (3 + 4 + 5 + 6 + 9), gom 3 giai doan
 
 Toan bo backend service dung PostgreSQL voi database rieng de dam bao data isolation (tickets-service da migrate tu MongoDB sang PostgreSQL):
 
-| App                    | Luu tru                           | Database                |
-| ---------------------- | --------------------------------- | ----------------------- |
-| `auth-service`         | Prisma + PostgreSQL               | `railway_auth`          |
-| `orders-service`       | Prisma + PostgreSQL               | `railway_orders`        |
-| `payments-service`     | Prisma + PostgreSQL               | `railway_payments`      |
-| `notification-service` | Prisma + PostgreSQL               | `railway_notifications` |
-| `tickets-service`      | Prisma + PostgreSQL + Redis cache | `railway_tickets`       |
+| App                    | Luu tru                                | Database                |
+| ---------------------- | -------------------------------------- | ----------------------- |
+| `auth-service`         | Drizzle ORM + PostgreSQL               | `railway_auth`          |
+| `orders-service`       | Drizzle ORM + PostgreSQL               | `railway_orders`        |
+| `payments-service`     | Drizzle ORM + PostgreSQL               | `railway_payments`      |
+| `notification-service` | Drizzle ORM + PostgreSQL               | `railway_notifications` |
+| `tickets-service`      | Drizzle ORM + PostgreSQL + Redis cache | `railway_tickets`       |
 
 Luu y quan trong:
 
 - File `infra/docker/init-databases.sql` se tu dong tao cac database rieng khi PostgreSQL container khoi dong lan dau. Service `db-migrate` trong full Compose se chay migration truoc khi cac service PostgreSQL khoi dong.
-- tickets-service dung 2 bang `tickets` + `ticket_items` (FK 1:N). Cac flow reserve/release chay trong `$transaction` voi `SELECT ... FOR UPDATE` tren row cua ticket de serialize mutation.
-- Sau khi cai dependency hoac sua schema, can chay `npx prisma generate` trong tung service.
+- tickets-service dung 2 bang `tickets` + `ticket_items` (FK 1:N). Cac flow reserve/release chay trong `db.transaction` voi `SELECT ... FOR UPDATE` tren row cua ticket de serialize mutation.
+- Sau khi sua schema Drizzle (`src/drizzle/schema.ts`), chay `npm run db:generate` trong service tuong ung de tao SQL migration.
 
 ## Yeu cau moi truong
 
@@ -219,19 +219,9 @@ Kiem tra `.env` thuc te co lech voi template khong:
 .\scripts\check-env-template.ps1
 ```
 
-Neu Prisma client chua duoc tao dung, chay them trong tung service dung Prisma:
+## Drizzle migrations
 
-```powershell
-cd auth-service; npx prisma generate
-cd ..\tickets-service; npx prisma generate
-cd ..\orders-service; npx prisma generate
-cd ..\payments-service; npx prisma generate
-cd ..\notification-service; npx prisma generate
-```
-
-## Prisma migrations
-
-Nam relational service da co baseline migration trong `prisma/migrations`. Kiem tra truoc khi deploy:
+Nam relational service da co baseline migration trong `drizzle/`. Kiem tra truoc khi deploy:
 
 ```powershell
 .\scripts\migrate-databases.ps1 -DryRun
@@ -331,9 +321,9 @@ Khoi dong tat ca service backend (kem auto-detect client neu co):
 
 - Repo da tach thanh sibling services, khong phai Nest monorepo chung.
 - Client da duoc tach thanh repo rieng [railway-ticket-client](https://github.com/aurelynnio/railway-ticket-client).
-- Moi relational service PostgreSQL co database rieng (`railway_auth`, `railway_users`, `railway_orders`, `railway_payments`, `railway_notifications`) va baseline Prisma migration. Full Compose chay `db-migrate` one-shot truoc khi start cac service nay.
+- Moi relational service PostgreSQL co database rieng (`railway_auth`, `railway_orders`, `railway_payments`, `railway_notifications`, `railway_tickets`) va baseline Drizzle migration. Full Compose chay `db-migrate` one-shot truoc khi start cac service nay.
 - `api-gateway` nen giu mong, business flow dai hoi nen nam o domain service.
-- `orders-service` luu order bang Prisma + PostgreSQL, gom order, seat labels va passengers. Service nay lang nghe 2 RMQ queue: `orders_queue` va `orders_expired_process_queue`.
+- `orders-service` luu order bang Drizzle ORM + PostgreSQL, gom order, seat labels va passengers. Service nay lang nghe 2 RMQ queue: `orders_queue` va `orders_expired_process_queue`.
 - `payments-service -> orders-service` da co event `payment.paid`, nhung phan lon flow van la command/query dong bo qua RabbitMQ.
 - `notification-service` chi nhan event tu cac service khac (auth, orders), khong co HTTP endpoint.
 - Cac RMQ queue nghiep vu la durable, xu ly voi manual acknowledgement va dead-letter vao `railway_dead_letter_queue` khi handler loi. Can theo doi/replay DLQ bang RabbitMQ Management trong van hanh.
@@ -417,10 +407,9 @@ Repo tich hop san 2 workflow GitHub Actions:
   - `tickets-service`
 - **Cac buoc kiem thu**:
   1. `npm ci` (kem npm cache theo tung service)
-  2. `npx prisma generate` (tu dong phat hien cac service co schema Prisma)
-  3. `npm run lint` (ESLint)
-  4. `npm run build` (TypeScript compilation / tsgo)
-  5. `npm test` (Jest unit test suites)
+  2. `npm run lint` (ESLint)
+  3. `npm run build` (TypeScript compilation / tsgo)
+  4. `npm test` (Jest unit test suites)
 - **Docker Compose Validation**: Kiem tra tinh hop le cua syntax Docker Compose va env template.
 
 ### 2. Continuous Delivery & Deployment (trong cung `.github/workflows/ci.yml`)
@@ -435,4 +424,4 @@ Repo tich hop san 2 workflow GitHub Actions:
 
 ### 3. Ops workflow (`.github/workflows/ops-resolve-migration.yml`)
 
-- Workflow thu cong, chi chay khi go dung `RESOLVE` de xac nhan: go trang thai migration Prisma bi loi (P3009) tren host deploy roi restart stack (dung khi `db-migrate` ket ma khong muon SSH tay).
+- Workflow thu cong, chi chay khi go dung `RESOLVE` de xac nhan: chay lai `db-migrate` (Drizzle migrations) tren host deploy roi restart stack (dung khi can cap nhat migration ma khong muon SSH tay).

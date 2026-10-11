@@ -10,10 +10,10 @@ run_migration() {
     exit 1
   fi
 
-  echo "Applying Prisma migrations for $service"
+  echo "Applying Drizzle migrations for $service"
   (
     cd "/workspace/$service"
-    DATABASE_URL="$database_url" npx prisma migrate deploy
+    DATABASE_URL="$database_url" npx drizzle-kit migrate
   )
 }
 
