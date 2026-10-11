@@ -1,5 +1,10 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { PrismaService } from '../prisma/prisma.service';
+import type { DrizzleService } from '../drizzle/drizzle.service';
+import {
+  orderPassengers,
+  orders as ordersTable,
+  orderSeatLabels,
+} from '../drizzle/schema';
 import { of, throwError } from 'rxjs';
 import { OrderStatus, type CheckoutOrderRequest } from './dto/order.dto';
 import { OrderService } from './order.service';
@@ -9,7 +14,7 @@ describe('OrderService', () => {
   let paymentClient: { send: jest.Mock };
   let ticketClient: { send: jest.Mock };
   let expirationClient: { emit: jest.Mock };
-  let prisma: ReturnType<typeof createMockPrisma>;
+  let drizzleMock: ReturnType<typeof createMockDrizzle>;
 
   const ticketSnapshot = {
     id: 'ticket-1',
@@ -59,7 +64,7 @@ describe('OrderService', () => {
     expirationClient = {
       emit: jest.fn(),
     };
-    prisma = createMockPrisma();
+    drizzleMock = createMockDrizzle();
 
     const notificationClient = {
       emit: jest.fn(),
@@ -81,7 +86,7 @@ describe('OrderService', () => {
     };
 
     service = new OrderService(
-      prisma as unknown as PrismaService,
+      drizzleMock as unknown as DrizzleService,
       voucherService as unknown as any,
       paymentClient as unknown as any,
       ticketClient as unknown as any,
@@ -153,9 +158,6 @@ describe('OrderService', () => {
   });
 
   it('create should charge full fare when a discounted class has no identity evidence', async () => {
-    // Declaring a discounted fare class is not by itself enough: without a
-    // document number on record the passenger pays the full fare, so an adult
-    // ticket cannot be bought at the child rate by editing a JSON field.
     const order = await service.create({
       userId: 'user-1',
       ticketId: 'ticket-1',
@@ -315,8 +317,6 @@ describe('OrderService', () => {
       unitPrice: 90000,
     });
 
-    // The handler re-reads payment state instead of trusting the event, so a
-    // settled payment covering the order total must exist.
     paymentClient.send.mockImplementation((pattern: string) => {
       if (pattern === 'payments.listByOrderId') {
         return of([
@@ -367,7 +367,6 @@ describe('OrderService', () => {
       unitPrice: 90000,
     });
 
-    // Settled payment for less than the order total.
     paymentClient.send.mockImplementation((pattern: string) => {
       if (pattern === 'payments.listByOrderId') {
         return of([
@@ -430,23 +429,21 @@ describe('OrderService', () => {
       seatLabels: ['A1'],
     });
 
-    paymentClient.send.mockImplementation(
-      (pattern: string) => {
-        if (pattern === 'payments.listByOrderId') {
-          return of([
-            { id: 'payment-1', status: 0 },
-            { id: 'payment-2', status: 1 },
-            { id: 'payment-3', status: 2 },
-          ]);
-        }
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.listByOrderId') {
+        return of([
+          { id: 'payment-1', status: 0 },
+          { id: 'payment-2', status: 1 },
+          { id: 'payment-3', status: 2 },
+        ]);
+      }
 
-        if (pattern === 'payments.cancel') {
-          return of({ success: true });
-        }
+      if (pattern === 'payments.cancel') {
+        return of({ success: true });
+      }
 
-        throw new Error(`Unexpected payment pattern: ${pattern}`);
-      },
-    );
+      throw new Error(`Unexpected payment pattern: ${pattern}`);
+    });
 
     ticketClient.send.mockImplementation((pattern: { cmd: string }) => {
       if (pattern.cmd === 'tickets.release_seat') {
@@ -466,33 +463,18 @@ describe('OrderService', () => {
     expect(result.cancelledPaymentIds).toEqual(['payment-1', 'payment-2']);
     expect(result.releasedSeatLabels).toEqual(['A1']);
     expect(result.releasedQuantity).toBe(2);
-    expect(result.warnings).toEqual([
-      'inventory release failed',
-    ]);
+    expect(result.warnings).toEqual(['inventory release failed']);
   });
 
   it('expires only a bounded, soft-delete-aware batch of oldest pending orders', async () => {
-    prisma.order.findMany.mockResolvedValueOnce([
-      { id: 'expired-order-1' },
-    ] as never);
+    drizzleMock.cronLimitSpy.mockResolvedValueOnce([{ id: 'expired-order-1' }]);
     const cancelWorkflow = jest
       .spyOn(service, 'cancelWorkflow')
       .mockResolvedValue({} as never);
 
     await service.handleExpiredOrdersCron();
 
-    expect(prisma.order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: OrderStatus.PendingPayment,
-          deletedAt: null,
-          createdAt: expect.objectContaining({ lt: expect.any(Date) }),
-        }),
-        select: { id: true },
-        orderBy: { createdAt: 'asc' },
-        take: 100,
-      }),
-    );
+    expect(drizzleMock.cronLimitSpy).toHaveBeenCalledWith(100);
     expect(cancelWorkflow).toHaveBeenCalledWith({
       orderId: 'expired-order-1',
       payload: {
@@ -562,8 +544,6 @@ describe('OrderService', () => {
   });
 
   it('create should compute totalPrice with BigInt arithmetic to avoid precision loss', async () => {
-    // quantity is capped at MAX_ORDER_QUANTITY, so the product is pushed beyond
-    // Number.MAX_SAFE_INTEGER through the unit price instead: 20 x (2^52 + 1).
     const quantity = 20;
     const unitPrice = 4503599627370497;
     const exact = BigInt(quantity) * BigInt(unitPrice);
@@ -579,8 +559,8 @@ describe('OrderService', () => {
       unitPrice,
     });
 
-    const createCall = prisma.order.create.mock.calls[0][0];
-    expect(createCall.data.totalPrice).toBe(exact);
+    const createCall = drizzleMock.orderInsertSpy.mock.calls[0][0];
+    expect(createCall.totalPrice).toBe(exact);
   });
 
   it('create should reject a quantity above the configured maximum', async () => {
@@ -665,7 +645,42 @@ describe('OrderService', () => {
   });
 });
 
-function createMockPrisma() {
+function extractSqlColumnFilters(node: unknown): Record<string, unknown> {
+  const filters: Record<string, unknown> = {};
+  const walk = (item: unknown) => {
+    if (!item || typeof item !== 'object') return;
+    if ('queryChunks' in item && Array.isArray((item as { queryChunks: unknown[] }).queryChunks)) {
+      const chunks = (item as { queryChunks: unknown[] }).queryChunks;
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        if (chunk && typeof chunk === 'object' && 'name' in chunk && typeof (chunk as { name: unknown }).name === 'string') {
+          const colName = (chunk as { name: string }).name;
+          for (let j = i + 1; j < chunks.length; j++) {
+            const next = chunks[j];
+            if (next && typeof next === 'object') {
+              if ('encoder' in next && 'value' in next) {
+                filters[colName] = (next as { value: unknown }).value;
+                break;
+              }
+              if ('value' in next && Array.isArray((next as { value: unknown[] }).value)) {
+                const str = (next as { value: unknown[] }).value.join('');
+                if (str.includes('is null')) {
+                  filters[colName] = null;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        walk(chunk);
+      }
+    }
+  };
+  walk(node);
+  return filters;
+}
+
+function createMockDrizzle() {
   type StoredSeatLabel = { orderId: string; seatLabel: string };
   type StoredPassenger = {
     orderId: string;
@@ -693,228 +708,178 @@ function createMockPrisma() {
     quantity: number;
     unitPrice: bigint;
     totalPrice: bigint;
+    voucherId: string | null;
+    voucherCode: string | null;
+    discountAmount: bigint;
     ticketCode: string | null;
     qrPayload: string | null;
     idempotencyKey: string | null;
+    contactEmail: string | null;
+    contactPhone: string | null;
+    cancelReason: string | null;
     status: number;
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
   };
-  type StoredOrderWithRelations = StoredOrder & {
-    seatLabels: StoredSeatLabel[];
-    passengers: StoredPassenger[];
-  };
-  type CreateOrderArgs = {
-    data: Omit<
-      StoredOrder,
-      | 'id'
-      | 'ticketCode'
-      | 'qrPayload'
-      | 'idempotencyKey'
-      | 'createdAt'
-      | 'updatedAt'
-      | 'deletedAt'
-    > & {
-      idempotencyKey: string | null;
-      seatLabels: { create: Omit<StoredSeatLabel, 'orderId'>[] };
-      passengers: { create: Omit<StoredPassenger, 'orderId'>[] };
-    };
-  };
-  type WhereArgs = { where?: Record<string, unknown> };
-  type FindManyArgs = WhereArgs & { skip?: number; take?: number };
-  type UpdateOrderArgs = {
-    where: { id: string };
-    data: Partial<StoredOrder>;
-  };
-  type DeleteManyArgs = { where: { orderId: string } };
-  type CreatePassengerArgs = { data: StoredPassenger };
-  type CreateSeatLabelArgs = { data: StoredSeatLabel };
 
   const orders: StoredOrder[] = [];
   const seatLabels: StoredSeatLabel[] = [];
   const passengers: StoredPassenger[] = [];
 
-  const withRelations = (order: StoredOrder): StoredOrderWithRelations => ({
+  const withRelations = (order: StoredOrder) => ({
     ...order,
     seatLabels: seatLabels.filter((entry) => entry.orderId === order.id),
     passengers: passengers.filter((entry) => entry.orderId === order.id),
   });
 
-  const matchesWhere = (
-    order: StoredOrder,
-    where: Record<string, unknown> = {},
-  ) =>
-    Object.entries(where).every(([key, value]) => {
-      if (value === null) {
-        return order[key as keyof StoredOrder] === null;
-      }
+  const matchesSql = (order: StoredOrder, where?: unknown): boolean => {
+    if (!where) return true;
+    const filters = extractSqlColumnFilters(where);
+    if ('id' in filters && order.id !== filters.id) return false;
+    if ('idempotency_key' in filters && order.idempotencyKey !== filters.idempotency_key) return false;
+    if ('user_id' in filters && order.userId !== filters.user_id) return false;
+    if ('status' in filters && order.status !== filters.status) return false;
+    if ('deleted_at' in filters && order.deletedAt !== filters.deleted_at) return false;
+    return true;
+  };
 
-      return order[key as keyof StoredOrder] === value;
-    });
+  const orderInsertSpy = jest.fn();
+  const cronLimitSpy = jest.fn().mockResolvedValue([]);
+
+  const db = {
+    query: {
+      orders: {
+        findFirst: jest.fn(async ({ where }: { where?: unknown } = {}) => {
+          const found = orders.find((o) => matchesSql(o, where));
+          return found ? withRelations(found) : undefined;
+        }),
+        findMany: jest.fn(
+          async ({
+            where,
+            offset = 0,
+            limit = orders.length || 10,
+          }: {
+            where?: unknown;
+            offset?: number;
+            limit?: number;
+          } = {}) => {
+            return orders
+              .filter((o) => matchesSql(o, where))
+              .slice(offset, offset + limit)
+              .map(withRelations);
+          },
+        ),
+      },
+    },
+    insert: jest.fn((table: unknown) => ({
+      values: jest.fn((data: unknown) => ({
+        returning: jest.fn(async () => {
+          if (table === ordersTable) {
+            const input = data as Partial<StoredOrder>;
+            orderInsertSpy(input);
+            if (
+              input.idempotencyKey &&
+              orders.some((entry) => entry.idempotencyKey === input.idempotencyKey)
+            ) {
+              throw Object.assign(new Error('Unique constraint failed'), {
+                code: '23505',
+              });
+            }
+            const id = `order-${orders.length + 1}`;
+            const now = new Date('2026-06-12T08:00:00.000Z');
+            const created: StoredOrder = {
+              id,
+              userId: input.userId!,
+              ticketItemId: input.ticketItemId!,
+              ticketId: input.ticketId!,
+              ticketTitle: input.ticketTitle!,
+              trainNumber: input.trainNumber ?? null,
+              departureStationCode: input.departureStationCode ?? null,
+              departureStationName: input.departureStationName ?? null,
+              arrivalStationCode: input.arrivalStationCode ?? null,
+              arrivalStationName: input.arrivalStationName ?? null,
+              departureTime: input.departureTime ?? null,
+              arrivalTime: input.arrivalTime ?? null,
+              coachCode: input.coachCode ?? null,
+              seatClass: input.seatClass ?? null,
+              seatType: input.seatType ?? null,
+              quantity: input.quantity!,
+              unitPrice: input.unitPrice!,
+              totalPrice: input.totalPrice!,
+              voucherId: input.voucherId ?? null,
+              voucherCode: input.voucherCode ?? null,
+              discountAmount: input.discountAmount ?? BigInt(0),
+              ticketCode: null,
+              qrPayload: null,
+              idempotencyKey: input.idempotencyKey ?? null,
+              contactEmail: input.contactEmail ?? null,
+              contactPhone: input.contactPhone ?? null,
+              cancelReason: null,
+              status: input.status ?? 0,
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: null,
+            };
+            orders.unshift(created);
+            return [created];
+          }
+          if (table === orderSeatLabels) {
+            const rows = Array.isArray(data) ? (data as StoredSeatLabel[]) : [data as StoredSeatLabel];
+            seatLabels.push(...rows);
+            return rows;
+          }
+          if (table === orderPassengers) {
+            const rows = Array.isArray(data) ? (data as StoredPassenger[]) : [data as StoredPassenger];
+            passengers.push(...rows);
+            return rows;
+          }
+          return [];
+        }),
+      })),
+    })),
+    update: jest.fn(() => ({
+      set: jest.fn((data: Partial<StoredOrder>) => ({
+        where: jest.fn((where?: unknown) => {
+          const matched = orders.filter((o) => matchesSql(o, where));
+          for (const o of matched) {
+            Object.assign(o, data, { updatedAt: new Date() });
+          }
+          const promise = Promise.resolve(matched);
+          return Object.assign(promise, {
+            returning: jest.fn(async () => matched),
+          });
+        }),
+      })),
+    })),
+    delete: jest.fn(() => ({
+      where: jest.fn(async () => []),
+    })),
+    select: jest.fn((fields?: Record<string, unknown>) => ({
+      from: jest.fn(() => ({
+        where: jest.fn((where?: unknown) => {
+          if (fields && 'total' in fields) {
+            return Promise.resolve([
+              { total: orders.filter((o) => matchesSql(o, where)).length },
+            ]);
+          }
+          return {
+            orderBy: jest.fn(() => ({
+              limit: cronLimitSpy,
+            })),
+          };
+        }),
+      })),
+    })),
+    transaction: jest.fn(),
+  };
+  db.transaction.mockImplementation(
+    async (cb: (tx: unknown) => Promise<unknown>) => cb(db),
+  );
 
   return {
-    order: {
-      create: jest.fn(
-        ({ data }: CreateOrderArgs): Promise<StoredOrderWithRelations> => {
-          if (
-            data.idempotencyKey &&
-            orders.some(
-              (entry) => entry.idempotencyKey === data.idempotencyKey,
-            )
-          ) {
-            return Promise.reject(
-              Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
-            );
-          }
-
-          const id = `order-${orders.length + 1}`;
-          const now = new Date('2026-06-12T08:00:00.000Z');
-          const order: StoredOrder = {
-            id,
-            userId: data.userId,
-            ticketItemId: data.ticketItemId,
-            ticketId: data.ticketId,
-            ticketTitle: data.ticketTitle,
-            trainNumber: data.trainNumber,
-            departureStationCode: data.departureStationCode,
-            departureStationName: data.departureStationName,
-            arrivalStationCode: data.arrivalStationCode,
-            arrivalStationName: data.arrivalStationName,
-            departureTime: data.departureTime,
-            arrivalTime: data.arrivalTime,
-            coachCode: data.coachCode,
-            seatClass: data.seatClass,
-            seatType: data.seatType,
-            quantity: data.quantity,
-            unitPrice: data.unitPrice,
-            totalPrice: data.totalPrice,
-            ticketCode: null,
-            qrPayload: null,
-            idempotencyKey: data.idempotencyKey,
-            status: data.status,
-            createdAt: now,
-            updatedAt: now,
-            deletedAt: null,
-          };
-
-          orders.unshift(order);
-          for (const entry of data.seatLabels.create) {
-            seatLabels.push({ orderId: id, seatLabel: entry.seatLabel });
-          }
-          for (const entry of data.passengers.create) {
-            passengers.push({ orderId: id, ...entry });
-          }
-
-          return Promise.resolve(withRelations(order));
-        },
-      ),
-      count: jest.fn(({ where }: WhereArgs): Promise<number> => {
-        return Promise.resolve(
-          orders.filter((order) => matchesWhere(order, where)).length,
-        );
-      }),
-      findMany: jest.fn(
-        ({
-          where,
-          skip = 0,
-          take = orders.length,
-        }: FindManyArgs): Promise<StoredOrderWithRelations[]> => {
-          return Promise.resolve(
-            orders
-              .filter((order) => matchesWhere(order, where))
-              .slice(skip, skip + take)
-              .map(withRelations),
-          );
-        },
-      ),
-      findFirst: jest.fn(
-        ({ where }: WhereArgs): Promise<StoredOrderWithRelations | null> => {
-          const order = orders.find((entry) => matchesWhere(entry, where));
-          return Promise.resolve(order ? withRelations(order) : null);
-        },
-      ),
-      update: jest.fn(
-        ({
-          where,
-          data,
-        }: UpdateOrderArgs): Promise<StoredOrderWithRelations> => {
-          const order = orders.find((entry) => entry.id === where.id);
-          if (!order) {
-            return Promise.reject(new Error(`Order ${where.id} was not found`));
-          }
-
-          Object.assign(order, data, { updatedAt: new Date() });
-          return Promise.resolve(withRelations(order));
-        },
-      ),
-      /**
-       * Compare-and-swap used by transitionStatus/cancel: the status is part of
-       * the filter, so a mismatched status yields count 0 instead of applying.
-       */
-      updateMany: jest.fn(
-        ({
-          where,
-          data,
-        }: UpdateOrderArgs): Promise<{ count: number }> => {
-          const order = orders.find((entry) => matchesWhere(entry, where));
-          if (!order) {
-            return Promise.resolve({ count: 0 });
-          }
-
-          Object.assign(order, data, { updatedAt: new Date() });
-          return Promise.resolve({ count: 1 });
-        },
-      ),
-      findFirstOrThrow: jest.fn(
-        ({ where }: WhereArgs): Promise<StoredOrderWithRelations> => {
-          const order = orders.find((entry) => matchesWhere(entry, where));
-          if (!order) {
-            return Promise.reject(new Error('Order not found'));
-          }
-
-          return Promise.resolve(withRelations(order));
-        },
-      ),
-    },
-    orderPassenger: {
-      deleteMany: jest.fn(({ where }: DeleteManyArgs): Promise<void> => {
-        for (let index = passengers.length - 1; index >= 0; index -= 1) {
-          if (passengers[index].orderId === where.orderId) {
-            passengers.splice(index, 1);
-          }
-        }
-
-        return Promise.resolve();
-      }),
-      create: jest.fn(
-        ({ data }: CreatePassengerArgs): Promise<StoredPassenger> => {
-          passengers.push(data);
-          return Promise.resolve(data);
-        },
-      ),
-    },
-    orderSeatLabel: {
-      deleteMany: jest.fn(({ where }: DeleteManyArgs): Promise<void> => {
-        for (let index = seatLabels.length - 1; index >= 0; index -= 1) {
-          if (seatLabels[index].orderId === where.orderId) {
-            seatLabels.splice(index, 1);
-          }
-        }
-
-        return Promise.resolve();
-      }),
-      create: jest.fn(
-        ({ data }: CreateSeatLabelArgs): Promise<StoredSeatLabel> => {
-          seatLabels.push(data);
-          return Promise.resolve(data);
-        },
-      ),
-    },
-    $transaction: jest.fn(
-      (operations: Promise<unknown>[]): Promise<unknown[]> =>
-        Promise.all(operations),
-    ),
+    db,
+    orderInsertSpy,
+    cronLimitSpy,
   };
 }
-

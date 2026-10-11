@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { PrismaModule } from '../prisma/prisma.module';
+import { DrizzleModule } from '../drizzle/drizzle.module';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import * as QUEUES from '../common/constants/queue.constants';
@@ -14,7 +14,7 @@ import { VoucherService } from './voucher.service';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
-    PrismaModule,
+    DrizzleModule,
     ClientsModule.register([
       {
         name: 'payment_service',

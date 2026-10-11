@@ -5,8 +5,15 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { and, asc, count, desc, eq, isNull, lt, type SQL } from 'drizzle-orm';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import {
+  orderPassengers,
+  orders,
+  orderSeatLabels,
+  type OrderPassengerRow,
+  type OrderSeatLabel,
+} from '../drizzle/schema';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { Cron } from '@nestjs/schedule';
@@ -57,10 +64,10 @@ import {
 
 import { VoucherService } from './voucher.service';
 
-const orderInclude = {
+const orderWithRelations = {
   seatLabels: true,
   passengers: true,
-} satisfies Prisma.OrderInclude;
+} as const;
 
 const EXPIRED_ORDERS_CRON_BATCH_SIZE = 100;
 
@@ -79,7 +86,7 @@ export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     private readonly voucherService: VoucherService,
     @Inject('payment_service') private readonly paymentClient: ClientProxy,
     @Inject('ticket_service') private readonly ticketClient: ClientProxy,
@@ -112,13 +119,13 @@ export class OrderService {
     // same user returns the already-created order without reserving seats again.
     const idempotencyKey = payload.idempotencyKey?.trim();
     if (idempotencyKey) {
-      const existing = await this.prisma.order.findFirst({
-        where: {
-          idempotencyKey,
-          userId: payload.userId.trim(),
-          deletedAt: null,
-        },
-        include: orderInclude,
+      const existing = await this.drizzle.db.query.orders.findFirst({
+        where: and(
+          eq(orders.idempotencyKey, idempotencyKey),
+          eq(orders.userId, payload.userId.trim()),
+          isNull(orders.deletedAt),
+        ),
+        with: orderWithRelations,
       });
       if (existing) {
         return this.buildReplayCheckoutResponse(existing);
@@ -458,47 +465,73 @@ export class OrderService {
       contactPhone?: string | null;
     },
     idempotencyKey: string | null,
-  ) {
+  ): Promise<OrderWithRelations> {
     try {
-      const order = await this.prisma.order.create({
-        data: {
-          userId: data.userId,
-          ticketItemId: data.ticketItemId,
-          ticketId: data.ticketId,
-          ticketTitle: data.ticketTitle,
-          trainNumber: data.trainNumber,
-          departureStationCode: data.departureStationCode,
-          departureStationName: data.departureStationName,
-          arrivalStationCode: data.arrivalStationCode,
-          arrivalStationName: data.arrivalStationName,
-          departureTime: data.departureTime,
-          arrivalTime: data.arrivalTime,
-          coachCode: data.coachCode,
-          seatClass: data.seatClass,
-          seatType: data.seatType,
-          quantity: data.quantity,
-          unitPrice: data.unitPrice,
-          totalPrice: data.totalPrice,
-          voucherId: data.voucherId ?? null,
-          voucherCode: data.voucherCode ?? null,
-          discountAmount: data.discountAmount ?? BigInt(0),
-          status: data.status,
-          idempotencyKey: data.idempotencyKey,
-          contactEmail: data.contactEmail ?? null,
-          contactPhone: data.contactPhone ?? null,
-          seatLabels: {
-            create: data.seatLabels.map((seatLabel) => ({ seatLabel })),
-          },
-          passengers: {
-            create: data.passengers.map((passenger) => ({
-              fullName: passenger.fullName,
-              passengerType: passenger.passengerType,
-              identityNumber: passenger.identityNumber,
-              phoneNumber: passenger.phoneNumber,
-            })),
-          },
-        },
-        include: orderInclude,
+      const order = await this.drizzle.db.transaction(async (tx) => {
+        const [createdOrder] = await tx
+          .insert(orders)
+          .values({
+            userId: data.userId,
+            ticketItemId: data.ticketItemId,
+            ticketId: data.ticketId,
+            ticketTitle: data.ticketTitle,
+            trainNumber: data.trainNumber,
+            departureStationCode: data.departureStationCode,
+            departureStationName: data.departureStationName,
+            arrivalStationCode: data.arrivalStationCode,
+            arrivalStationName: data.arrivalStationName,
+            departureTime: data.departureTime,
+            arrivalTime: data.arrivalTime,
+            coachCode: data.coachCode,
+            seatClass: data.seatClass,
+            seatType: data.seatType,
+            quantity: data.quantity,
+            unitPrice: data.unitPrice,
+            totalPrice: data.totalPrice,
+            voucherId: data.voucherId ?? null,
+            voucherCode: data.voucherCode ?? null,
+            discountAmount: data.discountAmount ?? BigInt(0),
+            status: data.status,
+            idempotencyKey: data.idempotencyKey,
+            contactEmail: data.contactEmail ?? null,
+            contactPhone: data.contactPhone ?? null,
+          })
+          .returning();
+
+        let createdSeatLabels: OrderSeatLabel[] = [];
+        if (data.seatLabels.length > 0) {
+          createdSeatLabels = await tx
+            .insert(orderSeatLabels)
+            .values(
+              data.seatLabels.map((seatLabel) => ({
+                orderId: createdOrder.id,
+                seatLabel,
+              })),
+            )
+            .returning();
+        }
+
+        let createdPassengers: OrderPassengerRow[] = [];
+        if (data.passengers.length > 0) {
+          createdPassengers = await tx
+            .insert(orderPassengers)
+            .values(
+              data.passengers.map((passenger) => ({
+                orderId: createdOrder.id,
+                fullName: passenger.fullName,
+                passengerType: passenger.passengerType,
+                identityNumber: passenger.identityNumber,
+                phoneNumber: passenger.phoneNumber,
+              })),
+            )
+            .returning();
+        }
+
+        return {
+          ...createdOrder,
+          seatLabels: createdSeatLabels,
+          passengers: createdPassengers,
+        };
       });
 
       // Claim the voucher BEFORE returning the order. The claim is atomic, so a
@@ -525,20 +558,14 @@ export class OrderService {
     } catch (error) {
       // Concurrent duplicate with the same idempotencyKey: another request
       // already created this order, so return the existing one.
-      if (
-        idempotencyKey &&
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: string }).code === 'P2002'
-      ) {
-        const existing = await this.prisma.order.findFirst({
-          where: {
-            idempotencyKey,
-            userId: data.userId,
-            deletedAt: null,
-          },
-          include: orderInclude,
+      if (idempotencyKey && this.isUniqueViolation(error)) {
+        const existing = await this.drizzle.db.query.orders.findFirst({
+          where: and(
+            eq(orders.idempotencyKey, idempotencyKey),
+            eq(orders.userId, data.userId),
+            isNull(orders.deletedAt),
+          ),
+          with: orderWithRelations,
         });
         if (existing) {
           return existing;
@@ -546,6 +573,21 @@ export class OrderService {
       }
       throw error;
     }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null) {
+      return false;
+    }
+    const code = (error as { code?: unknown }).code;
+    if (code === '23505') {
+      return true;
+    }
+    const cause = (error as { cause?: unknown }).cause;
+    if (typeof cause === 'object' && cause !== null) {
+      return (cause as { code?: unknown }).code === '23505';
+    }
+    return false;
   }
 
   /*
@@ -556,39 +598,43 @@ export class OrderService {
     const page = normalizePageValue(query.page, 1);
     const limit = normalizePageValue(query.limit, 10);
     const status = normalizeOptionalStatus(query.status);
-    const where: Prisma.OrderWhereInput = {
-      deletedAt: null,
-    };
+    const conditions: SQL[] = [isNull(orders.deletedAt)];
 
     if (query.userId?.trim()) {
-      where.userId = query.userId.trim();
+      conditions.push(eq(orders.userId, query.userId.trim()));
     }
     if (query.ticketId?.trim()) {
-      where.ticketId = query.ticketId.trim();
+      conditions.push(eq(orders.ticketId, query.ticketId.trim()));
     }
     if (query.ticketItemId?.trim()) {
-      where.ticketItemId = query.ticketItemId.trim();
+      conditions.push(eq(orders.ticketItemId, query.ticketItemId.trim()));
     }
     if (query.ticketCode?.trim()) {
-      where.ticketCode = query.ticketCode.trim();
+      conditions.push(eq(orders.ticketCode, query.ticketCode.trim()));
     }
     if (status !== undefined) {
-      where.status = status;
+      conditions.push(eq(orders.status, status));
     }
 
-    const [total, orders] = await this.prisma.$transaction([
-      this.prisma.order.count({ where }),
-      this.prisma.order.findMany({
-        where,
-        include: orderInclude,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ]);
+    const whereClause = and(...conditions);
+
+    const [total, rows] = await this.drizzle.db.transaction(async (tx) => {
+      const [{ total: countValue }] = await tx
+        .select({ total: count() })
+        .from(orders)
+        .where(whereClause);
+      const found = await tx.query.orders.findMany({
+        where: whereClause,
+        with: orderWithRelations,
+        orderBy: [desc(orders.createdAt)],
+        offset: (page - 1) * limit,
+        limit,
+      });
+      return [Number(countValue), found] as const;
+    });
 
     return {
-      data: orders.map(toOrderResponse),
+      data: rows.map(toOrderResponse),
       pagination: {
         page,
         limit,
@@ -647,28 +693,30 @@ export class OrderService {
       userId: order.userId,
     });
 
-    await this.prisma.$transaction([
-      this.prisma.orderPassenger.deleteMany({ where: { orderId: order.id } }),
-      ...passengers.map((passenger) =>
-        this.prisma.orderPassenger.create({
-          data: {
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .delete(orderPassengers)
+        .where(eq(orderPassengers.orderId, order.id));
+      if (passengers.length > 0) {
+        await tx.insert(orderPassengers).values(
+          passengers.map((passenger) => ({
             orderId: order.id,
             fullName: passenger.fullName,
             passengerType: passenger.passengerType,
             identityNumber: passenger.identityNumber,
             phoneNumber: passenger.phoneNumber,
-          },
-        }),
-      ),
-      this.prisma.order.update({
-        where: { id: order.id },
-        data: {
+          })),
+        );
+      }
+      await tx
+        .update(orders)
+        .set({
           totalPrice: pricing.finalTotalPrice,
           discountAmount: pricing.discountAmount,
           updatedAt: new Date(),
-        },
-      }),
-    ]);
+        })
+        .where(eq(orders.id, order.id));
+    });
 
     // The total changed, so any payment created for the old amount must not be
     // reused: an under-amount payment would otherwise be a valid-looking way to
@@ -699,21 +747,23 @@ export class OrderService {
       );
     }
 
-    await this.prisma.$transaction([
-      this.prisma.orderSeatLabel.deleteMany({ where: { orderId: order.id } }),
-      ...seatLabels.map((seatLabel) =>
-        this.prisma.orderSeatLabel.create({
-          data: {
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .delete(orderSeatLabels)
+        .where(eq(orderSeatLabels.orderId, order.id));
+      if (seatLabels.length > 0) {
+        await tx.insert(orderSeatLabels).values(
+          seatLabels.map((seatLabel) => ({
             orderId: order.id,
             seatLabel,
-          },
-        }),
-      ),
-      this.prisma.order.update({
-        where: { id: order.id },
-        data: { updatedAt: new Date() },
-      }),
-    ]);
+          })),
+        );
+      }
+      await tx
+        .update(orders)
+        .set({ updatedAt: new Date() })
+        .where(eq(orders.id, order.id));
+    });
 
     return this.findOne(order.id);
   }
@@ -839,16 +889,17 @@ export class OrderService {
     const qrPayload =
       order.qrPayload ?? buildQrPayload({ ...orderResponse, ticketCode });
 
-    const updated = await this.prisma.order.update({
-      where: { id: order.id },
-      data: {
+    await this.drizzle.db
+      .update(orders)
+      .set({
         status: OrderStatus.TicketIssued,
         ticketCode,
         qrPayload,
-      },
-      include: orderInclude,
-    });
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, order.id));
 
+    const updated = await this.getOrderOrThrow(order.id);
     return toOrderResponse(updated);
   }
 
@@ -871,29 +922,30 @@ export class OrderService {
     // Compare-and-swap on the status we just read: two concurrent cancels would
     // otherwise both pass the guard above and both run the seat-release
     // compensation, handing the same seats back to inventory twice.
-    const cancelled = await this.prisma.order.updateMany({
-      where: {
-        id: order.id,
-        status: order.status,
-        deletedAt: null,
-      },
-      data: {
+    const cancelled = await this.drizzle.db
+      .update(orders)
+      .set({
         status: OrderStatus.Cancelled,
         cancelReason: toNullableString(payload.reason),
-      },
-    });
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(orders.id, order.id),
+          eq(orders.status, order.status),
+          isNull(orders.deletedAt),
+        ),
+      )
+      .returning({ id: orders.id });
 
-    if (cancelled.count === 0) {
+    if (cancelled.length === 0) {
       throw new HttpException(
         `Order ${order.id} was modified concurrently; please retry`,
         HttpStatus.CONFLICT,
       );
     }
 
-    const updated = await this.prisma.order.findFirstOrThrow({
-      where: { id: order.id },
-      include: orderInclude,
-    });
+    const updated = await this.getOrderOrThrow(order.id);
 
     // Cancelling frees the voucher redemption so a limited code is not consumed
     // by an order that never completed.
@@ -1020,12 +1072,14 @@ export class OrderService {
 
   async remove(orderId: string) {
     const order = await this.getOrderOrThrow(orderId);
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: {
-        deletedAt: new Date(),
-      },
-    });
+    const now = new Date();
+    await this.drizzle.db
+      .update(orders)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(orders.id, order.id));
 
     return {
       message: `Order ${orderId} has been deleted`,
@@ -1036,12 +1090,9 @@ export class OrderService {
     assertRequired(orderId, 'orderId');
     const normalizedOrderId = orderId.trim();
 
-    const order = await this.prisma.order.findFirst({
-      where: {
-        id: normalizedOrderId,
-        deletedAt: null,
-      },
-      include: orderInclude,
+    const order = await this.drizzle.db.query.orders.findFirst({
+      where: and(eq(orders.id, normalizedOrderId), isNull(orders.deletedAt)),
+      with: orderWithRelations,
     });
 
     if (!order) {
@@ -1078,26 +1129,26 @@ export class OrderService {
      * (which used to let refund/cancel run their compensation twice and release
      * the same seats to inventory more than once).
      */
-    const result = await this.prisma.order.updateMany({
-      where: {
-        id: order.id,
-        status: order.status,
-        deletedAt: null,
-      },
-      data: { status: nextStatus },
-    });
+    const updatedRows = await this.drizzle.db
+      .update(orders)
+      .set({ status: nextStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(orders.id, order.id),
+          eq(orders.status, order.status),
+          isNull(orders.deletedAt),
+        ),
+      )
+      .returning({ id: orders.id });
 
-    if (result.count === 0) {
+    if (updatedRows.length === 0) {
       throw new HttpException(
         `Order ${order.id} was modified concurrently; please retry`,
         HttpStatus.CONFLICT,
       );
     }
 
-    const updated = await this.prisma.order.findFirstOrThrow({
-      where: { id: order.id },
-      include: orderInclude,
-    });
+    const updated = await this.getOrderOrThrow(order.id);
 
     return toOrderResponse(updated);
   }
@@ -1574,7 +1625,7 @@ export class OrderService {
   async handleOrderExpireCheck(data: { orderId: string }) {
     try {
       const order = await this.getOrderOrThrow(data.orderId);
-      // Number() keeps the Prisma `number` column comparable with the numeric
+      // Number() keeps the Drizzle `number` column comparable with the numeric
       // enum without tripping no-unsafe-enum-comparison.
       if (order.status === Number(OrderStatus.PendingPayment)) {
         this.logger.log(
@@ -1595,24 +1646,25 @@ export class OrderService {
   @Cron('0 * * * * *')
   async handleExpiredOrdersCron() {
     this.logger.log('Running expired orders cron check...');
-    const ttlMs = parseInt(process.env.ORDER_EXPIRATION_TTL_MS || QUEUES.ORDER_EXPIRATION_TTL_MS_DEFAULT, 10);
+    const ttlMs = parseInt(
+      process.env.ORDER_EXPIRATION_TTL_MS ||
+        QUEUES.ORDER_EXPIRATION_TTL_MS_DEFAULT,
+      10,
+    );
     const expirationThreshold = new Date(Date.now() - ttlMs);
 
-    const expiredOrders = await this.prisma.order.findMany({
-      where: {
-        status: OrderStatus.PendingPayment,
-        deletedAt: null,
-        createdAt: {
-          lt: expirationThreshold,
-        },
-      },
-      // The worker only needs identifiers before loading each order as part of
-      // the cancellation workflow. Selecting the narrow index-covered shape
-      // avoids materializing ticket and QR data for an entire expired backlog.
-      select: { id: true },
-      orderBy: { createdAt: 'asc' },
-      take: EXPIRED_ORDERS_CRON_BATCH_SIZE,
-    });
+    const expiredOrders = await this.drizzle.db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.status, OrderStatus.PendingPayment),
+          isNull(orders.deletedAt),
+          lt(orders.createdAt, expirationThreshold),
+        ),
+      )
+      .orderBy(asc(orders.createdAt))
+      .limit(EXPIRED_ORDERS_CRON_BATCH_SIZE);
 
     if (expiredOrders.length > 0) {
       this.logger.log(
@@ -1636,5 +1688,3 @@ export class OrderService {
     }
   }
 }
-
-

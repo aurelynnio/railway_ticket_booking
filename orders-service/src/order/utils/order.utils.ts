@@ -1,9 +1,9 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type {
   Order,
-  OrderPassenger as PrismaOrderPassenger,
+  OrderPassengerRow as DrizzleOrderPassenger,
   OrderSeatLabel,
-} from '@prisma/client';
+} from '../../drizzle/schema';
 import type {
   OrderPassenger,
   OrderPassengerPayload,
@@ -18,7 +18,7 @@ type TicketPayload = Pick<
 
 export type OrderWithRelations = Order & {
   seatLabels: OrderSeatLabel[];
-  passengers: PrismaOrderPassenger[];
+  passengers: DrizzleOrderPassenger[];
 };
 
 export function assertRequired(
@@ -202,7 +202,7 @@ export function toOrderResponse(order: OrderWithRelations): OrderResponse {
     cancelReason: order.cancelReason,
     status: order.status,
     seatLabels: order.seatLabels.map((entry: OrderSeatLabel) => entry.seatLabel),
-    passengers: order.passengers.map((passenger: PrismaOrderPassenger) => ({
+    passengers: order.passengers.map((passenger: DrizzleOrderPassenger) => ({
       fullName: passenger.fullName,
       passengerType: passenger.passengerType,
       identityNumber: passenger.identityNumber,

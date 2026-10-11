@@ -4,9 +4,28 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import type { Voucher } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import {
+  vouchers,
+  voucherUsages,
+  type NewVoucher,
+  type Voucher,
+} from '../drizzle/schema';
 import {
   CreateVoucherRequest,
   ListVouchersQuery,
@@ -20,7 +39,7 @@ import {
 export class VoucherService {
   private readonly logger = new Logger(VoucherService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly drizzle: DrizzleService) {}
 
   async validateVoucher(
     payload: ValidateVoucherRequest,
@@ -40,11 +59,8 @@ export class VoucherService {
       return invalid('Vui lòng cung cấp mã khuyến mãi.');
     }
 
-    const voucher = await this.prisma.voucher.findFirst({
-      where: {
-        code,
-        deletedAt: null,
-      },
+    const voucher = await this.drizzle.db.query.vouchers.findFirst({
+      where: and(eq(vouchers.code, code), isNull(vouchers.deletedAt)),
     });
 
     if (!voucher) {
@@ -75,10 +91,16 @@ export class VoucherService {
     // asking. The authoritative check happens atomically in reserveUsage();
     // this early check only produces a friendly message.
     if (voucher.perUserLimit !== null && payload.userId) {
-      const userUsages = await this.prisma.voucherUsage.count({
-        where: { voucherId: voucher.id, userId: payload.userId },
-      });
-      if (userUsages >= voucher.perUserLimit) {
+      const [{ total: userUsages }] = await this.drizzle.db
+        .select({ total: count() })
+        .from(voucherUsages)
+        .where(
+          and(
+            eq(voucherUsages.voucherId, voucher.id),
+            eq(voucherUsages.userId, payload.userId),
+          ),
+        );
+      if (Number(userUsages) >= voucher.perUserLimit) {
         return invalid('Bạn đã sử dụng mã khuyến mãi này rồi.');
       }
     }
@@ -143,33 +165,47 @@ export class VoucherService {
   }): Promise<boolean> {
     const { voucherId, userId, orderId, discountAmount } = params;
 
-    return this.prisma.$transaction(async (tx) => {
-      const voucher = await tx.voucher.findUnique({ where: { id: voucherId } });
+    return this.drizzle.db.transaction(async (tx) => {
+      const voucher = await tx.query.vouchers.findFirst({
+        where: eq(vouchers.id, voucherId),
+      });
       if (!voucher || voucher.deletedAt || !voucher.isActive) {
         return false;
       }
 
-      const claimed = await tx.voucher.updateMany({
-        where: {
-          id: voucherId,
-          deletedAt: null,
-          isActive: true,
-          ...(voucher.usageLimit !== null
-            ? { usedCount: { lt: voucher.usageLimit } }
-            : {}),
-        },
-        data: { usedCount: { increment: 1 } },
-      });
+      const conditions: SQL[] = [
+        eq(vouchers.id, voucherId),
+        isNull(vouchers.deletedAt),
+        eq(vouchers.isActive, true),
+      ];
+      if (voucher.usageLimit !== null) {
+        conditions.push(lt(vouchers.usedCount, voucher.usageLimit));
+      }
 
-      if (claimed.count === 0) {
+      const claimed = await tx
+        .update(vouchers)
+        .set({
+          usedCount: sql`${vouchers.usedCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(...conditions))
+        .returning({ id: vouchers.id });
+
+      if (claimed.length === 0) {
         return false;
       }
 
       if (voucher.perUserLimit !== null) {
-        const userUsages = await tx.voucherUsage.count({
-          where: { voucherId, userId },
-        });
-        if (userUsages >= voucher.perUserLimit) {
+        const [{ total: userUsages }] = await tx
+          .select({ total: count() })
+          .from(voucherUsages)
+          .where(
+            and(
+              eq(voucherUsages.voucherId, voucherId),
+              eq(voucherUsages.userId, userId),
+            ),
+          );
+        if (Number(userUsages) >= voucher.perUserLimit) {
           // Roll back the counter increment claimed above.
           throw new ConflictException(
             'Bạn đã sử dụng mã khuyến mãi này rồi.',
@@ -177,8 +213,11 @@ export class VoucherService {
         }
       }
 
-      await tx.voucherUsage.create({
-        data: { voucherId, userId, orderId, discountAmount },
+      await tx.insert(voucherUsages).values({
+        voucherId,
+        userId,
+        orderId,
+        discountAmount,
       });
 
       return true;
@@ -197,19 +236,28 @@ export class VoucherService {
     const { voucherId, orderId } = params;
 
     try {
-      await this.prisma.$transaction(async (tx) => {
-        const deleted = await tx.voucherUsage.deleteMany({
-          where: { voucherId, orderId },
-        });
+      await this.drizzle.db.transaction(async (tx) => {
+        const deleted = await tx
+          .delete(voucherUsages)
+          .where(
+            and(
+              eq(voucherUsages.voucherId, voucherId),
+              eq(voucherUsages.orderId, orderId),
+            ),
+          )
+          .returning({ id: voucherUsages.id });
 
-        if (deleted.count === 0) {
+        if (deleted.length === 0) {
           return;
         }
 
-        await tx.voucher.updateMany({
-          where: { id: voucherId, usedCount: { gt: 0 } },
-          data: { usedCount: { decrement: 1 } },
-        });
+        await tx
+          .update(vouchers)
+          .set({
+            usedCount: sql`${vouchers.usedCount} - 1`,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(vouchers.id, voucherId), gt(vouchers.usedCount, 0)));
       });
     } catch (error) {
       this.logger.warn(
@@ -222,17 +270,17 @@ export class VoucherService {
 
   async listAvailable(): Promise<VoucherResponse[]> {
     const now = new Date();
-    const vouchers = await this.prisma.voucher.findMany({
-      where: {
-        isActive: true,
-        deletedAt: null,
-        validFrom: { lte: now },
-        validTo: { gte: now },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
+    const rows = await this.drizzle.db.query.vouchers.findMany({
+      where: and(
+        eq(vouchers.isActive, true),
+        isNull(vouchers.deletedAt),
+        lte(vouchers.validFrom, now),
+        gte(vouchers.validTo, now),
+      ),
+      orderBy: [desc(vouchers.createdAt)],
+      limit: 20,
     });
-    return vouchers.map((v) => this.mapToResponse(v));
+    return rows.map((v) => this.mapToResponse(v));
   }
 
   async adminList(query: ListVouchersQuery) {
@@ -240,29 +288,36 @@ export class VoucherService {
     const limit = Math.min(query.limit ?? 20, 100);
     const skip = (page - 1) * limit;
 
-    const where: Prisma.VoucherWhereInput = { deletedAt: null };
+    const conditions: SQL[] = [isNull(vouchers.deletedAt)];
     if (typeof query.isActive === 'boolean') {
-      where.isActive = query.isActive;
+      conditions.push(eq(vouchers.isActive, query.isActive));
     }
     if (query.search) {
-      where.OR = [
-        { code: { contains: query.search, mode: 'insensitive' } },
-        { title: { contains: query.search, mode: 'insensitive' } },
-      ];
+      conditions.push(
+        or(
+          ilike(vouchers.code, `%${query.search}%`),
+          ilike(vouchers.title, `%${query.search}%`),
+        )!,
+      );
     }
+    const whereClause = and(...conditions);
 
-    const [total, vouchers] = await Promise.all([
-      this.prisma.voucher.count({ where }),
-      this.prisma.voucher.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+    const [[{ total: totalCount }], rows] = await Promise.all([
+      this.drizzle.db
+        .select({ total: count() })
+        .from(vouchers)
+        .where(whereClause),
+      this.drizzle.db.query.vouchers.findMany({
+        where: whereClause,
+        orderBy: [desc(vouchers.createdAt)],
+        offset: skip,
+        limit,
       }),
     ]);
+    const total = Number(totalCount);
 
     return {
-      data: vouchers.map((v) => this.mapToResponse(v)),
+      data: rows.map((v) => this.mapToResponse(v)),
       pagination: {
         page,
         limit,
@@ -274,15 +329,16 @@ export class VoucherService {
 
   async adminCreate(payload: CreateVoucherRequest): Promise<VoucherResponse> {
     const code = payload.code.trim().toUpperCase();
-    const existing = await this.prisma.voucher.findFirst({
-      where: { code, deletedAt: null },
+    const existing = await this.drizzle.db.query.vouchers.findFirst({
+      where: and(eq(vouchers.code, code), isNull(vouchers.deletedAt)),
     });
     if (existing) {
       throw new ConflictException(`Mã voucher '${code}' đã tồn tại.`);
     }
 
-    const voucher = await this.prisma.voucher.create({
-      data: {
+    const [voucher] = await this.drizzle.db
+      .insert(vouchers)
+      .values({
         code,
         title: payload.title.trim(),
         description: payload.description?.trim() ?? null,
@@ -301,8 +357,8 @@ export class VoucherService {
           : new Date(),
         validTo: new Date(payload.validTo),
         isActive: payload.isActive ?? true,
-      },
-    });
+      })
+      .returning();
 
     return this.mapToResponse(voucher);
   }
@@ -311,14 +367,16 @@ export class VoucherService {
     id: string,
     payload: UpdateVoucherRequest,
   ): Promise<VoucherResponse> {
-    const existing = await this.prisma.voucher.findUnique({
-      where: { id },
+    const existing = await this.drizzle.db.query.vouchers.findFirst({
+      where: eq(vouchers.id, id),
     });
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Voucher không tồn tại.');
     }
 
-    const updateData: Prisma.VoucherUpdateInput = {};
+    const updateData: Partial<NewVoucher> = {
+      updatedAt: new Date(),
+    };
     if (payload.title !== undefined) updateData.title = payload.title.trim();
     if (payload.description !== undefined)
       updateData.description = payload.description?.trim() ?? null;
@@ -344,26 +402,28 @@ export class VoucherService {
       updateData.validTo = new Date(payload.validTo);
     if (payload.isActive !== undefined) updateData.isActive = payload.isActive;
 
-    const updated = await this.prisma.voucher.update({
-      where: { id },
-      data: updateData,
-    });
+    const [updated] = await this.drizzle.db
+      .update(vouchers)
+      .set(updateData)
+      .where(eq(vouchers.id, id))
+      .returning();
 
     return this.mapToResponse(updated);
   }
 
   async adminDelete(id: string) {
-    const existing = await this.prisma.voucher.findUnique({
-      where: { id },
+    const existing = await this.drizzle.db.query.vouchers.findFirst({
+      where: eq(vouchers.id, id),
     });
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Voucher không tồn tại.');
     }
 
-    await this.prisma.voucher.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false },
-    });
+    const now = new Date();
+    await this.drizzle.db
+      .update(vouchers)
+      .set({ deletedAt: now, isActive: false, updatedAt: now })
+      .where(eq(vouchers.id, id));
 
     return { success: true, message: 'Voucher đã được xóa.' };
   }
@@ -391,4 +451,3 @@ export class VoucherService {
     };
   }
 }
-
