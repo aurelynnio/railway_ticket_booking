@@ -1,7 +1,28 @@
 import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { Prisma, PrismaClient, TicketItem } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import {
+  DrizzleService,
+  type DrizzleDatabase,
+} from '../drizzle/drizzle.service';
+import {
+  tickets as ticketsTable,
+  ticketItems as ticketItemsTable,
+  type TicketItem,
+} from '../drizzle/schema';
 import type {
   ChangePriceRequest,
   ChangeSaleWindowRequest,
@@ -45,6 +66,7 @@ import {
   getActiveItems,
   getAvailableStock,
   mergeTicketItem,
+  normalizeImages,
   normalizeQuantity,
   normalizeTicketItemStock,
   parseOptionalDate,
@@ -78,7 +100,9 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
+type DrizzleClientLike =
+  | DrizzleDatabase
+  | Parameters<Parameters<DrizzleDatabase['transaction']>[0]>[0];
 
 /**
  * Core business logic and database access layer for tickets.
@@ -94,7 +118,7 @@ type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
  */
 @Injectable()
 export class TicketBaseService {
-  constructor(protected readonly prisma: PrismaService) {}
+  constructor(protected readonly drizzle: DrizzleService) {}
 
   health() {
     return {
@@ -114,8 +138,9 @@ export class TicketBaseService {
         buildTicketItemCreateInput(ticketId, item, now),
       ) ?? [];
 
-    const createdTicket = await this.prisma.ticket.create({
-      data: {
+    const [createdTicket] = await this.drizzle.db
+      .insert(ticketsTable)
+      .values({
         id: ticketId,
         title: payload.title?.trim() || null,
         trainNumber: payload.trainNumber?.trim() || null,
@@ -124,18 +149,17 @@ export class TicketBaseService {
         arrivalStationCode: payload.arrivalStationCode?.trim() || null,
         arrivalStationName: payload.arrivalStationName?.trim() || null,
         journeyNote: payload.journeyNote?.trim() || null,
-        dateStart: parseOptionalDate(payload.dateStart, 'dateStart'),
-        dateEnd: parseOptionalDate(payload.dateEnd, 'dateEnd'),
+        images: normalizeImages(payload.images),
+        dateStart: parseOptionalDate(payload.dateStart, 'dateStart') ?? null,
+        dateEnd: parseOptionalDate(payload.dateEnd, 'dateEnd') ?? null,
         status: payload.status ?? TicketStatus.Draft,
         createdAt: now,
         updatedAt: now,
-      },
-    });
+      })
+      .returning();
 
     if (ticketItems.length > 0) {
-      await this.prisma.ticketItem.createMany({
-        data: ticketItems,
-      });
+      await this.drizzle.db.insert(ticketItemsTable).values(ticketItems);
     }
 
     return toTicketResponse({
@@ -145,17 +169,19 @@ export class TicketBaseService {
   }
 
   async findAll(query: FindTicketsQuery): Promise<PaginatedTicketResponse> {
-    const where: Prisma.TicketWhereInput = {
-      deletedAt: null,
-    };
+    const conditions: SQL[] = [isNull(ticketsTable.deletedAt)];
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
 
     if (query.departureStationCode) {
-      where.departureStationCode = query.departureStationCode.trim();
+      conditions.push(
+        eq(ticketsTable.departureStationCode, query.departureStationCode.trim()),
+      );
     }
     if (query.arrivalStationCode) {
-      where.arrivalStationCode = query.arrivalStationCode.trim();
+      conditions.push(
+        eq(ticketsTable.arrivalStationCode, query.arrivalStationCode.trim()),
+      );
     }
     if (query.status !== undefined && query.status !== '') {
       const status = Number(query.status);
@@ -165,7 +191,7 @@ export class TicketBaseService {
           HttpStatus.BAD_REQUEST,
         );
       }
-      where.status = status;
+      conditions.push(eq(ticketsTable.status, status));
     }
     if (query.dateStart) {
       // parseOptionalDate only yields null for empty input, which the guard
@@ -173,20 +199,23 @@ export class TicketBaseService {
       const start = parseOptionalDate(query.dateStart, 'dateStart') as Date;
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 1);
-      where.dateStart = {
-        gte: start,
-        lt: end,
-      };
+      conditions.push(gte(ticketsTable.dateStart, start));
+      conditions.push(lt(ticketsTable.dateStart, end));
     }
 
-    const [total, tickets] = await Promise.all([
-      this.prisma.ticket.count({ where }),
-      this.prisma.ticket.findMany({
-        where,
-        orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
-        include: { ticketItems: true },
-        skip: (page - 1) * limit,
-        take: limit,
+    const whereClause = and(...conditions);
+
+    const [[{ total }], tickets] = await Promise.all([
+      this.drizzle.db
+        .select({ total: count() })
+        .from(ticketsTable)
+        .where(whereClause),
+      this.drizzle.db.query.tickets.findMany({
+        where: whereClause,
+        orderBy: [asc(ticketsTable.dateStart), desc(ticketsTable.createdAt)],
+        with: { ticketItems: true },
+        offset: (page - 1) * limit,
+        limit,
       }),
     ]);
 
@@ -210,12 +239,12 @@ export class TicketBaseService {
     ticketId: string,
     payload: UpdateTicketRequest,
   ): Promise<TicketResponse> {
-    await this.getTicketOrThrow(ticketId);
+    const existing = await this.getTicketOrThrow(ticketId);
     ensureJourneyDates(payload.dateStart, payload.dateEnd);
 
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
+    const [updated] = await this.drizzle.db
+      .update(ticketsTable)
+      .set({
         title: toNullableString(payload.title),
         trainNumber: toNullableString(payload.trainNumber),
         departureStationCode: toNullableString(payload.departureStationCode),
@@ -223,27 +252,33 @@ export class TicketBaseService {
         arrivalStationCode: toNullableString(payload.arrivalStationCode),
         arrivalStationName: toNullableString(payload.arrivalStationName),
         journeyNote: toNullableString(payload.journeyNote),
+        ...(payload.images !== undefined
+          ? { images: normalizeImages(payload.images) }
+          : {}),
         dateStart: parseOptionalDate(payload.dateStart, 'dateStart'),
         dateEnd: parseOptionalDate(payload.dateEnd, 'dateEnd'),
         status: payload.status,
         updatedAt: new Date(),
-      },
-      include: { ticketItems: true },
-    });
+      })
+      .where(eq(ticketsTable.id, ticketId))
+      .returning();
 
-    return toTicketResponse(updated);
+    return toTicketResponse({
+      ...updated,
+      ticketItems: existing.ticketItems,
+    });
   }
 
   async remove(ticketId: string) {
     await this.getTicketOrThrow(ticketId);
 
-    await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
+    await this.drizzle.db
+      .update(ticketsTable)
+      .set({
         deletedAt: new Date(),
         updatedAt: new Date(),
-      },
-    });
+      })
+      .where(eq(ticketsTable.id, ticketId));
 
     return {
       message: `Ticket ${ticketId} has been deleted`,
@@ -315,7 +350,7 @@ export class TicketBaseService {
     const now = new Date();
     const item = buildTicketItemCreateInput(ticket.id, payload, now);
 
-    await this.prisma.ticketItem.create({ data: item });
+    await this.drizzle.db.insert(ticketItemsTable).values(item);
 
     const updated = await this.getTicketOrThrow(ticketId);
     return toTicketResponse(updated);
@@ -340,6 +375,10 @@ export class TicketBaseService {
           coachCode: pickNullableString(payload.coachCode, item.coachCode),
           seatClass: pickNullableString(payload.seatClass, item.seatClass),
           seatType: pickNullableString(payload.seatType, item.seatType),
+          images:
+            payload.images !== undefined
+              ? normalizeImages(payload.images)
+              : item.images,
           seatLabels: payload.seatLabels
             ? uniqueLabels(payload.seatLabels)
             : item.seatLabels,
@@ -433,31 +472,37 @@ export class TicketBaseService {
   }
 
   async publish(ticketId: string): Promise<TicketResponse> {
-    await this.getTicketOrThrow(ticketId);
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
+    const existing = await this.getTicketOrThrow(ticketId);
+    const [updated] = await this.drizzle.db
+      .update(ticketsTable)
+      .set({
         status: TicketStatus.Published,
         updatedAt: new Date(),
-      },
-      include: { ticketItems: true },
-    });
+      })
+      .where(eq(ticketsTable.id, ticketId))
+      .returning();
 
-    return toTicketResponse(updated);
+    return toTicketResponse({
+      ...updated,
+      ticketItems: existing.ticketItems,
+    });
   }
 
   async unpublish(ticketId: string): Promise<TicketResponse> {
-    await this.getTicketOrThrow(ticketId);
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
+    const existing = await this.getTicketOrThrow(ticketId);
+    const [updated] = await this.drizzle.db
+      .update(ticketsTable)
+      .set({
         status: TicketStatus.Draft,
         updatedAt: new Date(),
-      },
-      include: { ticketItems: true },
-    });
+      })
+      .where(eq(ticketsTable.id, ticketId))
+      .returning();
 
-    return toTicketResponse(updated);
+    return toTicketResponse({
+      ...updated,
+      ticketItems: existing.ticketItems,
+    });
   }
 
   async prepareStock(
@@ -790,18 +835,18 @@ export class TicketBaseService {
 
   protected async getTicketOrThrow(
     ticketId: string,
-    client: PrismaClientLike = this.prisma,
+    client: DrizzleClientLike = this.drizzle.db,
   ): Promise<TicketWithItems> {
     if (!ticketId.trim()) {
       throw new HttpException('ticketId is required', HttpStatus.BAD_REQUEST);
     }
 
-    const ticket = await client.ticket.findFirst({
-      where: {
-        id: ticketId,
-        deletedAt: null,
-      },
-      include: { ticketItems: true },
+    const ticket = await client.query.tickets.findFirst({
+      where: and(
+        eq(ticketsTable.id, ticketId),
+        isNull(ticketsTable.deletedAt),
+      ),
+      with: { ticketItems: true },
     });
 
     if (!ticket) {
@@ -823,7 +868,7 @@ export class TicketBaseService {
    */
   protected async withTicketRowLock<T>(
     ticketId: string,
-    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    fn: (tx: DrizzleClientLike) => Promise<T>,
   ): Promise<T> {
     if (!isValidUuid(ticketId)) {
       throw new HttpException(
@@ -832,8 +877,10 @@ export class TicketBaseService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${ticketId}::uuid FOR UPDATE`;
+    return this.drizzle.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT id FROM tickets WHERE id = ${ticketId}::uuid FOR UPDATE`,
+      );
       return fn(tx);
     });
   }
@@ -842,13 +889,13 @@ export class TicketBaseService {
    * Persists a computed TicketItem back to its own row with a single UPDATE.
    */
   protected async updateTicketItemRow(
-    client: PrismaClientLike,
+    client: DrizzleClientLike,
     item: TicketItem,
   ): Promise<void> {
-    await client.ticketItem.update({
-      where: { id: item.id },
-      data: toTicketItemUpdateData(item),
-    });
+    await client
+      .update(ticketItemsTable)
+      .set(toTicketItemUpdateData(item))
+      .where(eq(ticketItemsTable.id, item.id));
   }
 }
 
@@ -862,10 +909,10 @@ export class TicketService extends TicketBaseService {
   private readonly pendingFetches = new Map<string, Promise<unknown>>();
 
   constructor(
-    prisma: PrismaService,
+    drizzle: DrizzleService,
     private readonly redisCaching: RedisCacheService,
   ) {
-    super(prisma);
+    super(drizzle);
   }
 
   async create(payload: CreateTicketRequest): Promise<TicketResponse> {
@@ -885,10 +932,10 @@ export class TicketService extends TicketBaseService {
   async searchTrips(
     query: SearchTripsQuery,
   ): Promise<PaginatedSearchTripResponse> {
-    const where: Prisma.TicketWhereInput = {
-      deletedAt: null,
-      status: TicketStatus.Published,
-    };
+    const conditions: SQL[] = [
+      isNull(ticketsTable.deletedAt),
+      eq(ticketsTable.status, TicketStatus.Published),
+    ];
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
 
@@ -896,60 +943,52 @@ export class TicketService extends TicketBaseService {
       const start = startOfUtcDay(query.date);
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 1);
-      where.dateStart = {
-        gte: start,
-        lt: end,
-      };
+      conditions.push(gte(ticketsTable.dateStart, start));
+      conditions.push(lt(ticketsTable.dateStart, end));
     }
 
-    const andClauses: Prisma.TicketWhereInput[] = [];
-
     if (query.q?.trim()) {
-      const q = query.q.trim();
-      andClauses.push({
-        OR: [
-          { trainNumber: { contains: q, mode: 'insensitive' } },
-          { title: { contains: q, mode: 'insensitive' } },
-          { departureStationName: { contains: q, mode: 'insensitive' } },
-          { departureStationCode: { contains: q, mode: 'insensitive' } },
-          { arrivalStationName: { contains: q, mode: 'insensitive' } },
-          { arrivalStationCode: { contains: q, mode: 'insensitive' } },
-          { journeyNote: { contains: q, mode: 'insensitive' } },
-        ],
-      });
+      const pattern = `%${query.q.trim()}%`;
+      conditions.push(
+        or(
+          ilike(ticketsTable.trainNumber, pattern),
+          ilike(ticketsTable.title, pattern),
+          ilike(ticketsTable.departureStationName, pattern),
+          ilike(ticketsTable.departureStationCode, pattern),
+          ilike(ticketsTable.arrivalStationName, pattern),
+          ilike(ticketsTable.arrivalStationCode, pattern),
+          ilike(ticketsTable.journeyNote, pattern),
+        )!,
+      );
     }
 
     if (query.from?.trim()) {
       const from = query.from.trim();
-      andClauses.push({
-        OR: [
-          { departureStationCode: { equals: from, mode: 'insensitive' } },
-          { departureStationName: { contains: from, mode: 'insensitive' } },
-        ],
-      });
+      conditions.push(
+        or(
+          ilike(ticketsTable.departureStationCode, from),
+          ilike(ticketsTable.departureStationName, `%${from}%`),
+        )!,
+      );
     }
 
     if (query.to?.trim()) {
       const to = query.to.trim();
-      andClauses.push({
-        OR: [
-          { arrivalStationCode: { equals: to, mode: 'insensitive' } },
-          { arrivalStationName: { contains: to, mode: 'insensitive' } },
-        ],
-      });
-    }
-
-    if (andClauses.length > 0) {
-      where.AND = andClauses;
+      conditions.push(
+        or(
+          ilike(ticketsTable.arrivalStationCode, to),
+          ilike(ticketsTable.arrivalStationName, `%${to}%`),
+        )!,
+      );
     }
 
     // Fetch the full matching set, then filter + sort + paginate in memory so
     // ordering (price / departure / recommended) and totals are honest across
     // pages (server-side sort/filter, Direction B locked decision).
-    const tickets = await this.prisma.ticket.findMany({
-      where,
-      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
-      include: { ticketItems: true },
+    const tickets = await this.drizzle.db.query.tickets.findMany({
+      where: and(...conditions),
+      orderBy: [asc(ticketsTable.dateStart), desc(ticketsTable.createdAt)],
+      with: { ticketItems: true },
     });
 
     const trips = tickets.map((ticket) => this.toSearchTrip(ticket));
@@ -1006,25 +1045,28 @@ export class TicketService extends TicketBaseService {
     }
 
     try {
-      const tickets = await this.prisma.ticket.findMany({
-        where: {
-          deletedAt: null,
-          status: TicketStatus.Published,
-          OR: [
-            { departureStationCode: { contains: trimmed, mode: 'insensitive' } },
-            { departureStationName: { contains: trimmed, mode: 'insensitive' } },
-            { arrivalStationCode: { contains: trimmed, mode: 'insensitive' } },
-            { arrivalStationName: { contains: trimmed, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          departureStationCode: true,
-          departureStationName: true,
-          arrivalStationCode: true,
-          arrivalStationName: true,
-        },
-        take: 100,
-      });
+      const pattern = `%${trimmed}%`;
+      const tickets = await this.drizzle.db
+        .select({
+          departureStationCode: ticketsTable.departureStationCode,
+          departureStationName: ticketsTable.departureStationName,
+          arrivalStationCode: ticketsTable.arrivalStationCode,
+          arrivalStationName: ticketsTable.arrivalStationName,
+        })
+        .from(ticketsTable)
+        .where(
+          and(
+            isNull(ticketsTable.deletedAt),
+            eq(ticketsTable.status, TicketStatus.Published),
+            or(
+              ilike(ticketsTable.departureStationCode, pattern),
+              ilike(ticketsTable.departureStationName, pattern),
+              ilike(ticketsTable.arrivalStationCode, pattern),
+              ilike(ticketsTable.arrivalStationName, pattern),
+            ),
+          ),
+        )
+        .limit(100);
 
       const stationsMap = new Map<string, string>();
       for (const ticket of tickets) {
@@ -1060,28 +1102,31 @@ export class TicketService extends TicketBaseService {
     limit = 10,
   ): Promise<SearchTripResponse[]> {
     const trimmed = (name || '').trim();
-    const where: Prisma.TicketWhereInput = {
-      deletedAt: null,
-      status: TicketStatus.Published,
-    };
+    const conditions: SQL[] = [
+      isNull(ticketsTable.deletedAt),
+      eq(ticketsTable.status, TicketStatus.Published),
+    ];
 
     if (trimmed) {
-      where.OR = [
-        { trainNumber: { contains: trimmed, mode: 'insensitive' } },
-        { title: { contains: trimmed, mode: 'insensitive' } },
-        { departureStationName: { contains: trimmed, mode: 'insensitive' } },
-        { departureStationCode: { contains: trimmed, mode: 'insensitive' } },
-        { arrivalStationName: { contains: trimmed, mode: 'insensitive' } },
-        { arrivalStationCode: { contains: trimmed, mode: 'insensitive' } },
-        { journeyNote: { contains: trimmed, mode: 'insensitive' } },
-      ];
+      const pattern = `%${trimmed}%`;
+      conditions.push(
+        or(
+          ilike(ticketsTable.trainNumber, pattern),
+          ilike(ticketsTable.title, pattern),
+          ilike(ticketsTable.departureStationName, pattern),
+          ilike(ticketsTable.departureStationCode, pattern),
+          ilike(ticketsTable.arrivalStationName, pattern),
+          ilike(ticketsTable.arrivalStationCode, pattern),
+          ilike(ticketsTable.journeyNote, pattern),
+        )!,
+      );
     }
 
-    const tickets = await this.prisma.ticket.findMany({
-      where,
-      take: Math.min(Math.max(1, limit), 50),
-      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
-      include: { ticketItems: true },
+    const tickets = await this.drizzle.db.query.tickets.findMany({
+      where: and(...conditions),
+      limit: Math.min(Math.max(1, limit), 50),
+      orderBy: [asc(ticketsTable.dateStart), desc(ticketsTable.createdAt)],
+      with: { ticketItems: true },
     });
 
     return tickets.map((ticket) => this.toSearchTrip(ticket));
@@ -1102,6 +1147,7 @@ export class TicketService extends TicketBaseService {
       ticketId: ticket.id,
       title: ticket.title,
       trainNumber: ticket.trainNumber,
+      images: ticket.images ?? [],
       from: {
         code: ticket.departureStationCode,
         name: ticket.departureStationName,

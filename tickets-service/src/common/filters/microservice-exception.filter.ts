@@ -21,7 +21,7 @@ function isErrorRecord(value: unknown): value is Record<string, unknown> {
  * to proper HTTP status codes (401/403/404/409/...).
  *
  * Anything that is NOT an HttpException deliberately keeps its message OUT of
- * the response: those are driver errors (Prisma, ioredis) whose text contains
+ * the response: those are driver errors (Drizzle/pg, ioredis) whose text contains
  * table/column names, query fragments and source paths, and the gateway would
  * otherwise relay it verbatim to the HTTP caller. The detail is logged locally.
  *

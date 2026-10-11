@@ -1,4 +1,4 @@
-import { TicketItem } from '@prisma/client';
+import type { TicketItem } from '../../drizzle/schema';
 import { isSaleOpen, toPriceString } from './ticket.utils';
 
 export function uniqueValues(values: Array<string | null>) {

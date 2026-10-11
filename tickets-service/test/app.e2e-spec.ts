@@ -2,14 +2,12 @@ jest.mock('../src/ticket/ticket.service', () => ({
   TicketService: class TicketService {},
 }));
 
-jest.mock('@prisma/client', () => ({
-  // PrismaService calls $connect() on init and $disconnect() on destroy, so the
-  // stub must expose both. A bare empty class made the destroy hook throw
-  // ("this.$disconnect is not a function"), which aborted teardown before
-  // RedisModule could quit its clients — leaving the process hanging.
-  PrismaClient: class PrismaClient {
-    async $connect(): Promise<void> {}
-    async $disconnect(): Promise<void> {}
+jest.mock('../src/drizzle/drizzle.service', () => ({
+  // DrizzleService queries PostgreSQL on init and closes its pool on destroy, so
+  // the stub must expose both lifecycle hooks as no-ops during module compile/close.
+  DrizzleService: class DrizzleService {
+    async onModuleInit(): Promise<void> {}
+    async onModuleDestroy(): Promise<void> {}
   },
 }));
 

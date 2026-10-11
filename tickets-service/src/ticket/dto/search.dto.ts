@@ -62,6 +62,7 @@ export interface SearchTripResponse {
   ticketId: string;
   title: string | null;
   trainNumber: string | null;
+  images: string[];
   from: {
     code: string | null;
     name: string | null;

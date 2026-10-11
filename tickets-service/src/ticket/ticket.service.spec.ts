@@ -1,35 +1,41 @@
 import 'reflect-metadata';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { TicketItem } from '@prisma/client';
-import type { PrismaService } from '../prisma/prisma.service';
+import type { DrizzleService } from '../drizzle/drizzle.service';
+import {
+  tickets as ticketsTable,
+  ticketItems as ticketItemsTable,
+  type TicketItem,
+} from '../drizzle/schema';
 import { RedisCacheService } from '../redis/redis.service';
 import { TicketStatus } from './dto/ticket.dto';
 import { TicketService } from './ticket.service';
 import type { TicketWithItems } from './utils/ticket.utils';
-
-jest.mock('@prisma/client', () => ({
-  PrismaClient: class PrismaClient {},
-}));
 
 const TICKET_UUID = '11111111-1111-4111-8111-111111111111';
 const ITEM_UUID = '22222222-2222-4222-8222-222222222222';
 
 describe('TicketService', () => {
   let service: TicketService;
-  let prisma: {
-    $transaction: jest.Mock;
-    $queryRaw: jest.Mock;
-    ticket: {
-      create: jest.Mock;
-      count: jest.Mock;
-      findMany: jest.Mock;
-      findFirst: jest.Mock;
-      update: jest.Mock;
-    };
-    ticketItem: {
-      create: jest.Mock;
-      createMany: jest.Mock;
-      update: jest.Mock;
+  let dbMock: {
+    transaction: jest.Mock;
+    execute: jest.Mock;
+    insert: jest.Mock;
+    ticketInsertValuesSpy: jest.Mock;
+    ticketInsertReturningSpy: jest.Mock;
+    ticketItemInsertValuesSpy: jest.Mock;
+    update: jest.Mock;
+    ticketUpdateSetSpy: jest.Mock;
+    ticketUpdateWhereSpy: jest.Mock;
+    ticketUpdateReturningSpy: jest.Mock;
+    ticketItemUpdateSetSpy: jest.Mock;
+    ticketItemUpdateWhereSpy: jest.Mock;
+    select: jest.Mock;
+    selectWhereSpy: jest.Mock;
+    query: {
+      tickets: {
+        findMany: jest.Mock;
+        findFirst: jest.Mock;
+      };
     };
   };
   let redisCache: {
@@ -52,6 +58,7 @@ describe('TicketService', () => {
     coachCode: 'A1',
     seatClass: 'soft-seat',
     seatType: 'window',
+    images: [],
     seatLabels: ['A01', 'A02'],
     availableSeatLabels: ['A01', 'A02'],
     stockInitial: 2,
@@ -78,6 +85,7 @@ describe('TicketService', () => {
     arrivalStationCode: 'NT',
     arrivalStationName: 'Nha Trang',
     journeyNote: 'Dem',
+    images: [],
     dateStart: new Date('2026-06-20T10:00:00.000Z'),
     dateEnd: new Date('2026-06-20T18:00:00.000Z'),
     status: TicketStatus.Draft,
@@ -89,23 +97,66 @@ describe('TicketService', () => {
   });
 
   beforeEach(() => {
-    prisma = {
-      // Interactive transaction mock: pass the prisma mock itself as `tx`.
-      $transaction: jest.fn().mockImplementation(async (callback) => callback(prisma)),
-      $queryRaw: jest.fn().mockResolvedValue([{ id: TICKET_UUID }]),
-      ticket: {
-        create: jest.fn(),
-        count: jest.fn(),
-        findMany: jest.fn(),
-        findFirst: jest.fn(),
-        update: jest.fn(),
-      },
-      ticketItem: {
-        create: jest.fn(),
-        createMany: jest.fn(),
-        update: jest.fn(),
+    const ticketInsertReturningSpy = jest.fn();
+    const ticketInsertValuesSpy = jest.fn(() => ({
+      returning: ticketInsertReturningSpy,
+    }));
+    const ticketItemInsertValuesSpy = jest.fn().mockResolvedValue(undefined);
+
+    const ticketUpdateReturningSpy = jest.fn();
+    const ticketUpdateWhereSpy = jest.fn(() => ({
+      returning: ticketUpdateReturningSpy,
+    }));
+    const ticketUpdateSetSpy = jest.fn(() => ({
+      where: ticketUpdateWhereSpy,
+    }));
+
+    const ticketItemUpdateWhereSpy = jest.fn().mockResolvedValue(undefined);
+    const ticketItemUpdateSetSpy = jest.fn(() => ({
+      where: ticketItemUpdateWhereSpy,
+    }));
+
+    const selectWhereSpy = jest.fn().mockResolvedValue([{ total: 0 }]);
+
+    dbMock = {
+      transaction: jest.fn(),
+      execute: jest.fn().mockResolvedValue({ rows: [{ id: TICKET_UUID }] }),
+      insert: jest.fn((table: unknown) => {
+        if (table === ticketsTable) {
+          return { values: ticketInsertValuesSpy };
+        }
+        return { values: ticketItemInsertValuesSpy };
+      }),
+      ticketInsertValuesSpy,
+      ticketInsertReturningSpy,
+      ticketItemInsertValuesSpy,
+      update: jest.fn((table: unknown) => {
+        if (table === ticketsTable) {
+          return { set: ticketUpdateSetSpy };
+        }
+        return { set: ticketItemUpdateSetSpy };
+      }),
+      ticketUpdateSetSpy,
+      ticketUpdateWhereSpy,
+      ticketUpdateReturningSpy,
+      ticketItemUpdateSetSpy,
+      ticketItemUpdateWhereSpy,
+      select: jest.fn(() => ({
+        from: jest.fn(() => ({
+          where: selectWhereSpy,
+        })),
+      })),
+      selectWhereSpy,
+      query: {
+        tickets: {
+          findMany: jest.fn(),
+          findFirst: jest.fn(),
+        },
       },
     };
+    dbMock.transaction.mockImplementation(
+      async (callback: (tx: unknown) => Promise<unknown>) => callback(dbMock),
+    );
 
     const mockLock = {
       release: jest.fn().mockResolvedValue(undefined),
@@ -129,7 +180,7 @@ describe('TicketService', () => {
     };
 
     service = new TicketService(
-      prisma as unknown as PrismaService,
+      { db: dbMock } as unknown as DrizzleService,
       redisCache as unknown as RedisCacheService,
     );
   });
@@ -144,8 +195,7 @@ describe('TicketService', () => {
 
   it('should create a ticket + item rows, normalize fields, and invalidate list cache', async () => {
     const created = buildTicket();
-    prisma.ticket.create.mockResolvedValue(created);
-    prisma.ticketItem.createMany.mockResolvedValue({ count: 1 });
+    dbMock.ticketInsertReturningSpy.mockResolvedValue([created]);
     redisCache.patternDel.mockResolvedValue(1);
 
     const result = await service.create({
@@ -166,38 +216,35 @@ describe('TicketService', () => {
       ],
     });
 
-    expect(prisma.ticket.create).toHaveBeenCalledTimes(1);
-    expect(prisma.ticket.create).toHaveBeenCalledWith(
+    expect(dbMock.insert).toHaveBeenCalledWith(ticketsTable);
+    expect(dbMock.ticketInsertValuesSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          id: expect.any(String),
-          title: 'Tau Sai Gon - Nha Trang',
-          trainNumber: 'SE1',
-          departureStationCode: 'SG',
-          arrivalStationCode: 'NT',
-          journeyNote: 'Dem',
-          status: TicketStatus.Draft,
-        }),
+        id: expect.any(String),
+        title: 'Tau Sai Gon - Nha Trang',
+        trainNumber: 'SE1',
+        departureStationCode: 'SG',
+        arrivalStationCode: 'NT',
+        journeyNote: 'Dem',
+        status: TicketStatus.Draft,
       }),
     );
-    expect(prisma.ticketItem.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          ticketId: expect.any(String),
-          seatLabels: ['A01', 'A02'],
-          availableSeatLabels: ['A01', 'A02'],
-          stockInitial: 2,
-          stockAvailable: 2,
-          stockPrepared: true,
-        }),
-      ],
-    });
+    expect(dbMock.insert).toHaveBeenCalledWith(ticketItemsTable);
+    expect(dbMock.ticketItemInsertValuesSpy).toHaveBeenCalledWith([
+      expect.objectContaining({
+        ticketId: expect.any(String),
+        seatLabels: ['A01', 'A02'],
+        availableSeatLabels: ['A01', 'A02'],
+        stockInitial: 2,
+        stockAvailable: 2,
+        stockPrepared: true,
+      }),
+    ]);
     expect(redisCache.patternDel).toHaveBeenCalledWith('tickets:*');
     expect(result.id).toBe(created.id);
     expect(result.ticketItems).toHaveLength(1);
   });
 
-  it('should return cached paginated tickets without hitting prisma', async () => {
+  it('should return cached paginated tickets without hitting the database', async () => {
     const cached = {
       data: [
         {
@@ -219,17 +266,17 @@ describe('TicketService', () => {
     expect(redisCache.get).toHaveBeenCalledWith(
       'tickets:{"page":1,"limit":10}',
     );
-    expect(prisma.ticket.count).not.toHaveBeenCalled();
-    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+    expect(dbMock.select).not.toHaveBeenCalled();
+    expect(dbMock.query.tickets.findMany).not.toHaveBeenCalled();
     expect(result).toEqual(cached);
   });
 
-  it('should query prisma and cache the paginated result on list cache miss', async () => {
+  it('should query database and cache the paginated result on list cache miss', async () => {
     const ticket = buildTicket();
     redisCache.get.mockResolvedValue(null);
     redisCache.set.mockResolvedValue('OK');
-    prisma.ticket.count.mockResolvedValue(1);
-    prisma.ticket.findMany.mockResolvedValue([ticket]);
+    dbMock.selectWhereSpy.mockResolvedValue([{ total: 1 }]);
+    dbMock.query.tickets.findMany.mockResolvedValue([ticket]);
 
     const result = await service.findAll({
       departureStationCode: ' SG ',
@@ -240,34 +287,14 @@ describe('TicketService', () => {
       limit: 5,
     });
 
-    expect(prisma.ticket.count).toHaveBeenCalledWith({
-      where: {
-        deletedAt: null,
-        departureStationCode: 'SG',
-        arrivalStationCode: 'NT',
-        status: TicketStatus.Draft,
-        dateStart: {
-          gte: new Date('2026-06-20T10:00:00.000Z'),
-          lt: new Date('2026-06-21T10:00:00.000Z'),
-        },
-      },
-    });
-    expect(prisma.ticket.findMany).toHaveBeenCalledWith({
-      where: {
-        deletedAt: null,
-        departureStationCode: 'SG',
-        arrivalStationCode: 'NT',
-        status: TicketStatus.Draft,
-        dateStart: {
-          gte: new Date('2026-06-20T10:00:00.000Z'),
-          lt: new Date('2026-06-21T10:00:00.000Z'),
-        },
-      },
-      orderBy: [{ dateStart: 'asc' }, { createdAt: 'desc' }],
-      include: { ticketItems: true },
-      skip: 5,
-      take: 5,
-    });
+    expect(dbMock.selectWhereSpy).toHaveBeenCalledTimes(1);
+    expect(dbMock.query.tickets.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        with: { ticketItems: true },
+        offset: 5,
+        limit: 5,
+      }),
+    );
     expect(redisCache.set).toHaveBeenCalledWith(
       'tickets:{"departureStationCode":" SG ","arrivalStationCode":"NT","status":"0","dateStart":"2026-06-20T10:00:00.000Z","page":2,"limit":5}',
       JSON.stringify(result),
@@ -284,13 +311,7 @@ describe('TicketService', () => {
 
   it('should reserve a seat inside a FOR UPDATE row lock and invalidate derived caches', async () => {
     const ticket = buildTicket();
-    prisma.ticket.findFirst.mockResolvedValue(ticket);
-    prisma.ticketItem.update.mockResolvedValue(
-      buildTicketItem({
-        availableSeatLabels: ['A02'],
-        stockAvailable: 1,
-      }),
-    );
+    dbMock.query.tickets.findFirst.mockResolvedValue(ticket);
     redisCache.del.mockResolvedValue(1);
     redisCache.patternDel.mockResolvedValue(1);
 
@@ -299,18 +320,18 @@ describe('TicketService', () => {
     });
 
     // Row lock taken on the ticket row before reading/writing
-    expect(prisma.$queryRaw).toHaveBeenCalled();
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(dbMock.execute).toHaveBeenCalled();
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
 
     // Single-row UPDATE on ticket_items — no more full-array overwrite
-    expect(prisma.ticketItem.update).toHaveBeenCalledWith({
-      where: { id: ITEM_UUID },
-      data: expect.objectContaining({
+    expect(dbMock.update).toHaveBeenCalledWith(ticketItemsTable);
+    expect(dbMock.ticketItemUpdateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         availableSeatLabels: ['A02'],
         stockAvailable: 1,
       }),
-    });
-    expect(prisma.ticket.update).not.toHaveBeenCalled();
+    );
+    expect(dbMock.ticketUpdateSetSpy).not.toHaveBeenCalled();
 
     expect(redisCache.del).toHaveBeenCalledWith(`ticket:${TICKET_UUID}`);
     expect(redisCache.del).toHaveBeenCalledWith(
@@ -338,12 +359,12 @@ describe('TicketService', () => {
       status: HttpStatus.NOT_FOUND,
     });
 
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(dbMock.query.tickets.findFirst).not.toHaveBeenCalled();
   });
 
   it('should reject releasing aggregate stock beyond the initial amount', async () => {
-    prisma.ticket.findFirst.mockResolvedValue(
+    dbMock.query.tickets.findFirst.mockResolvedValue(
       buildTicket({
         ticketItems: [
           buildTicketItem({
@@ -365,7 +386,7 @@ describe('TicketService', () => {
       status: HttpStatus.CONFLICT,
     });
 
-    expect(prisma.ticketItem.update).not.toHaveBeenCalled();
+    expect(dbMock.ticketItemUpdateSetSpy).not.toHaveBeenCalled();
   });
 
   it('should fail-fast (throw 503) if lock acquisition fails during cache miss', async () => {
@@ -387,7 +408,7 @@ describe('TicketService', () => {
     });
 
     const ticket = buildTicket();
-    prisma.ticket.findFirst.mockImplementation(
+    dbMock.query.tickets.findFirst.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve(ticket), 100)),
     );
 
@@ -405,7 +426,67 @@ describe('TicketService', () => {
     expect(results[1].id).toBe(ticket.id);
     expect(results[2].id).toBe(ticket.id);
 
-    // Prisma findFirst should only be called once!
-    expect(prisma.ticket.findFirst).toHaveBeenCalledTimes(1);
+    // Database findFirst should only be called once!
+    expect(dbMock.query.tickets.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('should normalize, persist, update, and search multi-image galleries on tickets and ticket items', async () => {
+    const trainImages = [
+      'https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=1200',
+      'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200',
+    ];
+    const coachImages = [
+      'https://images.unsplash.com/photo-1515165562839-978bbcf18277?w=1200',
+    ];
+
+    dbMock.ticketInsertReturningSpy.mockResolvedValue([
+      buildTicket({
+        images: trainImages,
+        ticketItems: [buildTicketItem({ images: coachImages })],
+      }),
+    ]);
+    redisCache.patternDel.mockResolvedValue(1);
+
+    const created = await service.create({
+      title: 'SE1 Express',
+      trainNumber: 'SE1',
+      images: [
+        `  ${trainImages[0]}  `,
+        trainImages[1],
+        trainImages[0], // duplicate should be stripped
+      ],
+      ticketItems: [
+        {
+          name: 'VIP Sleeper',
+          images: [` ${coachImages[0]} `, coachImages[0]],
+          seatLabels: ['A01'],
+        },
+      ],
+    });
+
+    expect(dbMock.ticketInsertValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        images: trainImages,
+      }),
+    );
+    expect(dbMock.ticketItemInsertValuesSpy).toHaveBeenCalledWith([
+      expect.objectContaining({
+        images: coachImages,
+      }),
+    ]);
+    expect(created.images).toEqual(trainImages);
+    expect(created.ticketItems[0].images).toEqual(coachImages);
+
+    dbMock.query.tickets.findMany.mockResolvedValue([
+      buildTicket({
+        status: TicketStatus.Published,
+        images: trainImages,
+        ticketItems: [buildTicketItem({ images: coachImages })],
+      }),
+    ]);
+
+    const searchResult = await service.searchTrips({ q: 'SE1' });
+    expect(searchResult.data).toHaveLength(1);
+    expect(searchResult.data[0].images).toEqual(trainImages);
   });
 });

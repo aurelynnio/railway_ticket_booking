@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaModule } from '../prisma/prisma.module';
+import { DrizzleModule } from '../drizzle/drizzle.module';
 import { TicketController } from './ticket.controller';
 import { TicketService } from './ticket.service';
 import { RedisModule } from '../redis/redis.module';
@@ -11,7 +11,7 @@ import { RedisModule } from '../redis/redis.module';
       isGlobal: true,
     }),
     RedisModule,
-    PrismaModule,
+    DrizzleModule,
   ],
   controllers: [TicketController],
   providers: [TicketService],

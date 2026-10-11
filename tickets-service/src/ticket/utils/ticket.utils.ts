@@ -1,20 +1,17 @@
 import { randomUUID } from 'crypto';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { Prisma, TicketItem } from '@prisma/client';
+import type {
+  NewTicketItem,
+  TicketItem,
+  TicketWithItems,
+} from '../../drizzle/schema';
 import type {
   CreateTicketItemRequest,
   TicketItemResponse,
   TicketResponse,
 } from '../dto/ticket.dto';
 
-/**
- * Ticket together with its related ticket_items rows.
- * PostgreSQL stores ticket items in a separate table, so every read that
- * previously relied on the Mongo embedded array now needs `include`.
- */
-export type TicketWithItems = Prisma.TicketGetPayload<{
-  include: { ticketItems: true };
-}>;
+export type { TicketWithItems };
 
 export function getActiveItems(ticket: TicketWithItems): TicketItem[] {
   return ticket.ticketItems.filter((item: TicketItem) => !item.deletedAt);
@@ -65,6 +62,7 @@ export function buildTicketItemCreateInput(
     coachCode: toNullableString(payload.coachCode) ?? null,
     seatClass: toNullableString(payload.seatClass) ?? null,
     seatType: toNullableString(payload.seatType) ?? null,
+    images: normalizeImages(payload.images),
     seatLabels,
     availableSeatLabels,
     stockInitial,
@@ -88,13 +86,14 @@ export function buildTicketItemCreateInput(
  */
 export function toTicketItemUpdateData(
   item: TicketItem,
-): Prisma.TicketItemUpdateInput {
+): Partial<NewTicketItem> {
   return {
     name: item.name,
     description: item.description,
     coachCode: item.coachCode,
     seatClass: item.seatClass,
     seatType: item.seatType,
+    images: item.images,
     seatLabels: item.seatLabels,
     availableSeatLabels: item.availableSeatLabels,
     stockInitial: item.stockInitial,
@@ -152,6 +151,7 @@ export function toTicketResponse(ticket: TicketWithItems): TicketResponse {
     arrivalStationCode: ticket.arrivalStationCode,
     arrivalStationName: ticket.arrivalStationName,
     journeyNote: ticket.journeyNote,
+    images: ticket.images ?? [],
     dateStart: toIsoString(ticket.dateStart),
     dateEnd: toIsoString(ticket.dateEnd),
     status: ticket.status,
@@ -173,6 +173,7 @@ export function toTicketItemResponse(item: TicketItem): TicketItemResponse {
     coachCode: item.coachCode,
     seatClass: item.seatClass,
     seatType: item.seatType,
+    images: item.images ?? [],
     seatLabels: item.seatLabels,
     availableSeatLabels: item.availableSeatLabels,
     occupiedSeatLabels: item.seatLabels.filter(
@@ -342,6 +343,13 @@ export function normalizeQuantity(quantity?: number) {
 
 export function uniqueLabels(labels: string[]) {
   return [...new Set(labels.map((label) => label.trim()).filter(Boolean))];
+}
+
+export function normalizeImages(images?: string[] | null): string[] {
+  if (!Array.isArray(images)) {
+    return [];
+  }
+  return uniqueLabels(images);
 }
 
 export function sortSeatLabels(labels: string[], seatOrder: string[]) {

@@ -28,6 +28,10 @@ export const MAX_SEAT_LABELS = 500;
 export const MAX_STOCK = 1_000_000;
 /** Upper bound for a single order's seat count. */
 export const MAX_RESERVE_QUANTITY = 50;
+/** Upper bound for train/coach descriptive image URLs per entity. */
+export const MAX_TICKET_IMAGES = 20;
+/** Upper bound for a single image URL/path string. */
+export const MAX_IMAGE_URL_LENGTH = 2048;
 
 export class FindTicketsQuery {
   @IsOptional()
@@ -80,6 +84,14 @@ export class CreateTicketItemRequest {
   @IsOptional()
   @IsString()
   seatType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsArray()
@@ -154,6 +166,14 @@ export class UpdateTicketItemRequest {
   @IsOptional()
   @IsString()
   seatType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsArray()
@@ -242,6 +262,14 @@ export class CreateTicketRequest {
   journeyNote?: string;
 
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
+
+  @IsOptional()
   @IsDateString()
   dateStart?: string;
 
@@ -288,6 +316,14 @@ export class UpdateTicketRequest {
   @IsOptional()
   @IsString()
   journeyNote?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsDateString()
@@ -441,6 +477,7 @@ export interface TicketItemResponse {
   coachCode: string | null;
   seatClass: string | null;
   seatType: string | null;
+  images: string[];
   seatLabels: string[];
   availableSeatLabels: string[];
   occupiedSeatLabels: string[];
@@ -466,6 +503,7 @@ export interface TicketResponse {
   arrivalStationCode: string | null;
   arrivalStationName: string | null;
   journeyNote: string | null;
+  images: string[];
   dateStart: string | null;
   dateEnd: string | null;
   status: number;
