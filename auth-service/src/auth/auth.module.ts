@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaModule } from '../prisma/prisma.module';
+import { DrizzleModule } from '../drizzle/drizzle.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -11,7 +11,7 @@ import { describeWeakJwtSecret } from '../common/utils/secret-strength.utils';
 
 @Module({
   imports: [
-    PrismaModule,
+    DrizzleModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

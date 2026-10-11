@@ -21,33 +21,45 @@ import { EMPTY } from 'rxjs';
 import { comparePassword, hashPassword } from './utils/auth.utils';
 import { AuthService } from './auth.service';
 import { TokenService } from './utils/generate-token.utils';
-import { PrismaService } from '../prisma/prisma.service';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import {
+  authAccounts,
+  emailVerificationTokens,
+  passwordResetTokens,
+  refreshTokens,
+} from '../drizzle/schema';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prisma: {
-    authAccount: {
-      findUnique: jest.Mock;
-      create: jest.Mock;
-      findFirst: jest.Mock;
-      update: jest.Mock;
+  let dbMock: {
+    query: {
+      authAccounts: {
+        findFirst: jest.Mock;
+        findMany: jest.Mock;
+      };
+      passwordResetTokens: {
+        findFirst: jest.Mock;
+      };
+      emailVerificationTokens: {
+        findFirst: jest.Mock;
+      };
+      refreshTokens: {
+        findFirst: jest.Mock;
+      };
     };
-    passwordResetToken: {
-      upsert: jest.Mock;
-      findUnique: jest.Mock;
-      delete: jest.Mock;
-    };
-    emailVerificationToken: {
-      upsert: jest.Mock;
-      findUnique: jest.Mock;
-      delete: jest.Mock;
-    };
-    refreshToken: {
-      create: jest.Mock;
-      findUnique: jest.Mock;
-      upsert: jest.Mock;
-    };
-    $transaction: jest.Mock;
+    insert: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+    select: jest.Mock;
+    transaction: jest.Mock;
+    // Helper spies for assertions
+    insertValuesSpy: jest.Mock;
+    insertReturningSpy: jest.Mock;
+    onConflictDoUpdateSpy: jest.Mock;
+    updateSetSpy: jest.Mock;
+    updateWhereSpy: jest.Mock;
+    updateReturningSpy: jest.Mock;
+    deleteWhereSpy: jest.Mock;
   };
   let tokenService: {
     generateAccessToken: jest.Mock;
@@ -58,29 +70,60 @@ describe('AuthService', () => {
   };
 
   beforeEach(() => {
-    prisma = {
-      authAccount: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        findFirst: jest.fn(),
-        update: jest.fn(),
+    const insertReturningSpy = jest.fn().mockResolvedValue([]);
+    const onConflictDoUpdateSpy = jest.fn().mockResolvedValue([]);
+    const insertValuesSpy = jest.fn().mockImplementation(() => ({
+      returning: insertReturningSpy,
+      onConflictDoUpdate: onConflictDoUpdateSpy,
+    }));
+
+    const updateReturningSpy = jest.fn().mockResolvedValue([{ tokenVersion: 1 }]);
+    const updateWhereSpy = jest.fn().mockImplementation(() => {
+      const promise = Promise.resolve([]);
+      return Object.assign(promise, {
+        returning: updateReturningSpy,
+      });
+    });
+    const updateSetSpy = jest.fn().mockImplementation(() => ({
+      where: updateWhereSpy,
+    }));
+
+    const deleteWhereSpy = jest.fn().mockResolvedValue([]);
+
+    dbMock = {
+      query: {
+        authAccounts: {
+          findFirst: jest.fn(),
+          findMany: jest.fn(),
+        },
+        passwordResetTokens: {
+          findFirst: jest.fn(),
+        },
+        emailVerificationTokens: {
+          findFirst: jest.fn(),
+        },
+        refreshTokens: {
+          findFirst: jest.fn(),
+        },
       },
-      passwordResetToken: {
-        upsert: jest.fn(),
-        findUnique: jest.fn(),
-        delete: jest.fn(),
-      },
-      emailVerificationToken: {
-        upsert: jest.fn(),
-        findUnique: jest.fn(),
-        delete: jest.fn(),
-      },
-      refreshToken: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        upsert: jest.fn(),
-      },
-      $transaction: jest.fn(),
+      insert: jest.fn().mockImplementation(() => ({
+        values: insertValuesSpy,
+      })),
+      update: jest.fn().mockImplementation(() => ({
+        set: updateSetSpy,
+      })),
+      delete: jest.fn().mockImplementation(() => ({
+        where: deleteWhereSpy,
+      })),
+      select: jest.fn(),
+      transaction: jest.fn().mockImplementation(async (cb) => cb(dbMock)),
+      insertValuesSpy,
+      insertReturningSpy,
+      onConflictDoUpdateSpy,
+      updateSetSpy,
+      updateWhereSpy,
+      updateReturningSpy,
+      deleteWhereSpy,
     };
 
     tokenService = {
@@ -96,7 +139,7 @@ describe('AuthService', () => {
     };
 
     service = new AuthService(
-      prisma as unknown as PrismaService,
+      { db: dbMock } as unknown as DrizzleService,
       tokenService as unknown as TokenService,
       notificationClient as unknown as any,
     );
@@ -108,16 +151,18 @@ describe('AuthService', () => {
 
   it('register should hash the password before persisting the account', async () => {
     (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
-    prisma.authAccount.findUnique.mockResolvedValue(null);
     tokenService.generateEmailVerificationToken.mockResolvedValue('verify-token');
-    prisma.authAccount.create.mockResolvedValue({
-      id: 'user-1',
-      username: 'alice',
-      email: 'alice@example.com',
-      role: 0,
-      createdAt: new Date('2026-06-12T08:00:00.000Z'),
-      updatedAt: new Date('2026-06-12T08:00:00.000Z'),
-    });
+    dbMock.insertReturningSpy.mockResolvedValueOnce([
+      {
+        id: 'user-1',
+        username: 'alice',
+        email: 'alice@example.com',
+        avatar: null,
+        role: 0,
+        createdAt: new Date('2026-06-12T08:00:00.000Z'),
+        updatedAt: new Date('2026-06-12T08:00:00.000Z'),
+      },
+    ]);
 
     const result = await service.register({
       email: 'alice@example.com',
@@ -126,27 +171,19 @@ describe('AuthService', () => {
     });
 
     expect(hashPassword).toHaveBeenCalledWith('secret123');
-    expect(prisma.authAccount.create).toHaveBeenCalledWith({
-      data: {
-        email: 'alice@example.com',
-        password: 'hashed-password',
-        username: 'alice',
-        emailVerified: false,
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    expect(dbMock.insert).toHaveBeenCalledWith(authAccounts);
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith({
+      email: 'alice@example.com',
+      password: 'hashed-password',
+      username: 'alice',
+      avatar: null,
+      emailVerified: false,
     });
     expect(result.email).toBe('alice@example.com');
   });
 
   it('register should reject duplicate emails', async () => {
-    prisma.authAccount.create.mockRejectedValue({ code: 'P2002' });
+    dbMock.insertReturningSpy.mockRejectedValueOnce({ code: '23505' });
 
     await expect(
       service.register({
@@ -158,7 +195,7 @@ describe('AuthService', () => {
   });
 
   it('login should validate credentials and mint access and refresh tokens', async () => {
-    prisma.authAccount.findFirst.mockResolvedValue({
+    dbMock.query.authAccounts.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'alice@example.com',
       password: 'hashed-password',
@@ -194,7 +231,7 @@ describe('AuthService', () => {
       userId: 'user-1',
       email: 'alice@example.com',
     });
-    prisma.authAccount.findFirst.mockResolvedValue({
+    dbMock.query.authAccounts.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'alice@example.com',
       role: 1,
@@ -222,7 +259,7 @@ describe('AuthService', () => {
       userId: 'user-1',
       email: 'alice@example.com',
     });
-    prisma.authAccount.findFirst.mockResolvedValue({
+    dbMock.query.authAccounts.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'alice@example.com',
       role: 1,
@@ -230,32 +267,31 @@ describe('AuthService', () => {
     });
     tokenService.generateAccessToken.mockResolvedValue('new-access-token');
     tokenService.generateRefreshToken.mockResolvedValue('new-refresh-token');
-    prisma.refreshToken.upsert.mockResolvedValue({ id: 'token-1' });
+    dbMock.onConflictDoUpdateSpy.mockResolvedValue([{ id: 'token-1' }]);
 
     await service.refreshToken({ refreshToken: 'refresh-token' });
 
+    const expectedHash = createHash('sha256')
+      .update('refresh-token')
+      .digest('hex');
+
     // Rotation: the exchanged token must be marked revoked, otherwise a stolen
     // refresh token stays usable for its whole 7-day lifetime.
-    expect(prisma.refreshToken.upsert).toHaveBeenCalledWith(
+    expect(dbMock.insert).toHaveBeenCalledWith(refreshTokens);
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          tokenHash: createHash('sha256')
-            .update('refresh-token')
-            .digest('hex'),
-        },
-        update: expect.objectContaining({ revokedAt: expect.any(Date) }),
+        tokenHash: expectedHash,
+        revokedAt: expect.any(Date),
+      }),
+    );
+    expect(dbMock.onConflictDoUpdateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ revokedAt: expect.any(Date) }),
       }),
     );
   });
 
   it('refreshToken should keep the client signed in when two refreshes land in the same second', async () => {
-    // JWT iat/exp have second granularity, so a rotation inside the same second
-    // mints a token BYTE-IDENTICAL to the presented one. Rotation revokes that
-    // exact hash and then re-persists it. With a raw `create` that re-insert hit
-    // the unique tokenHash constraint (P2002, only logged), leaving the row
-    // revoked — so the client, still holding that same token, was signed out on
-    // its next refresh. The constraint is emulated here so the regression cannot
-    // pass silently.
     const rows = new Map<
       string,
       { tokenHash: string; revokedAt: Date | null; expiresAt: Date }
@@ -268,7 +304,7 @@ describe('AuthService', () => {
       userId: 'user-1',
       email: 'alice@example.com',
     });
-    prisma.authAccount.findFirst.mockResolvedValue({
+    dbMock.query.authAccounts.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'alice@example.com',
       role: 1,
@@ -279,43 +315,34 @@ describe('AuthService', () => {
     );
     tokenService.generateRefreshToken.mockResolvedValue('same-second-token');
 
-    prisma.refreshToken.create.mockImplementation(
-      async ({ data }: { data: { tokenHash: string; expiresAt: Date } }) => {
-        if (rows.has(data.tokenHash)) {
-          throw Object.assign(
-            new Error('Unique constraint failed on the fields: (`token_hash`)'),
-            { code: 'P2002' },
-          );
-        }
-        rows.set(data.tokenHash, { ...data, revokedAt: null });
-        return data;
-      },
+    dbMock.insertValuesSpy.mockImplementation(
+      (values: {
+        tokenHash: string;
+        revokedAt?: Date | null;
+        expiresAt: Date;
+      }) => ({
+        onConflictDoUpdate: jest.fn().mockImplementation(
+          async ({
+            set,
+          }: {
+            set: { revokedAt: Date | null; expiresAt?: Date };
+          }) => {
+            const existing = rows.get(values.tokenHash);
+            if (existing) {
+              return Object.assign(existing, set);
+            }
+            const created = {
+              ...values,
+              revokedAt: values.revokedAt ?? null,
+            };
+            rows.set(values.tokenHash, created);
+            return created;
+          },
+        ),
+      }),
     );
-    prisma.refreshToken.upsert.mockImplementation(
-      async ({
-        where,
-        update,
-        create,
-      }: {
-        where: { tokenHash: string };
-        update: { revokedAt: Date | null; expiresAt?: Date };
-        create: { tokenHash: string; revokedAt?: Date; expiresAt: Date };
-      }) => {
-        const existing = rows.get(where.tokenHash);
-        if (existing) {
-          return Object.assign(existing, update);
-        }
-        const created = {
-          ...create,
-          revokedAt: create.revokedAt ?? null,
-        };
-        rows.set(create.tokenHash, created);
-        return created;
-      },
-    );
-    prisma.refreshToken.findUnique.mockImplementation(
-      async ({ where }: { where: { tokenHash: string } }) =>
-        rows.get(where.tokenHash) ?? null,
+    dbMock.query.refreshTokens.findFirst.mockImplementation(async () =>
+      rows.get(tokenHash) ?? null,
     );
 
     await service.refreshToken({ refreshToken: 'same-second-token' });
@@ -328,9 +355,6 @@ describe('AuthService', () => {
       refreshToken: 'same-second-token',
     });
     expect(rows.get(tokenHash)?.revokedAt).toBeNull();
-    // Persistence must go through upsert: a raw insert collides with the hash
-    // that rotation just revoked.
-    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
   });
 
   it('logout should revoke the presented refresh token and return success', async () => {
@@ -338,25 +362,31 @@ describe('AuthService', () => {
       userId: 'user-1',
       email: 'alice@example.com',
     });
-    prisma.refreshToken.upsert.mockResolvedValue({ id: 'token-1' });
+    dbMock.onConflictDoUpdateSpy.mockResolvedValue([{ id: 'token-1' }]);
 
     const result = await service.logout({ refreshToken: 'refresh-token' });
+
+    const expectedHash = createHash('sha256')
+      .update('refresh-token')
+      .digest('hex');
 
     expect(tokenService.verifyToken).toHaveBeenCalledWith(
       'refresh-token',
       'refresh',
     );
-    expect(prisma.refreshToken.upsert).toHaveBeenCalledWith({
-      where: {
-        tokenHash: createHash('sha256').update('refresh-token').digest('hex'),
-      },
-      update: expect.objectContaining({ revokedAt: expect.any(Date) }),
-      create: expect.objectContaining({
-        tokenHash: createHash('sha256').update('refresh-token').digest('hex'),
+    expect(dbMock.insert).toHaveBeenCalledWith(refreshTokens);
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tokenHash: expectedHash,
         revokedAt: expect.any(Date),
         expiresAt: expect.any(Date),
       }),
-    });
+    );
+    expect(dbMock.onConflictDoUpdateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ revokedAt: expect.any(Date) }),
+      }),
+    );
     expect(result).toEqual({
       success: true,
       message: 'Logout successful',
@@ -370,7 +400,7 @@ describe('AuthService', () => {
 
     const result = await service.logout({ refreshToken: 'bad-token' });
 
-    expect(prisma.refreshToken.upsert).not.toHaveBeenCalled();
+    expect(dbMock.onConflictDoUpdateSpy).not.toHaveBeenCalled();
     expect(result).toEqual({
       success: true,
       message: 'Logout successful',
@@ -378,7 +408,7 @@ describe('AuthService', () => {
   });
 
   it('forgotPassword should persist only the token hash and return a neutral response', async () => {
-    prisma.authAccount.findFirst.mockResolvedValue({
+    dbMock.query.authAccounts.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'alice@example.com',
       deletedAt: null,
@@ -391,18 +421,22 @@ describe('AuthService', () => {
 
     const tokenHash = createHash('sha256').update('reset-token').digest('hex');
 
-    expect(prisma.passwordResetToken.upsert).toHaveBeenCalledWith({
-      where: { userId: 'user-1' },
-      update: expect.objectContaining({
-        tokenHash,
-        expiresAt: expect.any(Date),
-      }),
-      create: expect.objectContaining({
+    expect(dbMock.insert).toHaveBeenCalledWith(passwordResetTokens);
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         userId: 'user-1',
         tokenHash,
         expiresAt: expect.any(Date),
       }),
-    });
+    );
+    expect(dbMock.onConflictDoUpdateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          tokenHash,
+          expiresAt: expect.any(Date),
+        }),
+      }),
+    );
     expect(result).toEqual({
       success: true,
       message: 'If the email exists, a reset link has been sent.',
@@ -414,7 +448,7 @@ describe('AuthService', () => {
       userId: 'user-1',
       email: 'alice@example.com',
     });
-    prisma.passwordResetToken.findUnique.mockResolvedValue({
+    dbMock.query.passwordResetTokens.findFirst.mockResolvedValue({
       userId: 'user-1',
       tokenHash: createHash('sha256').update('reset-token').digest('hex'),
       expiresAt: new Date(Date.now() + 60_000),
@@ -427,9 +461,6 @@ describe('AuthService', () => {
     });
     (comparePassword as jest.Mock).mockResolvedValue(false);
     (hashPassword as jest.Mock).mockResolvedValue('new-hash');
-    prisma.authAccount.update.mockResolvedValue({ id: 'user-1' });
-    prisma.passwordResetToken.delete.mockResolvedValue({ userId: 'user-1' });
-    prisma.$transaction.mockResolvedValue([]);
 
     const result = await service.resetPassword({
       token: 'reset-token',
@@ -444,16 +475,14 @@ describe('AuthService', () => {
     expect(hashPassword).toHaveBeenCalledWith('new-secret');
     // A password reset must also bump tokenVersion so every session that
     // existed before the reset stops working.
-    expect(prisma.authAccount.update).toHaveBeenCalledWith({
-      where: { id: 'user-1' },
-      data: {
+    expect(dbMock.update).toHaveBeenCalledWith(authAccounts);
+    expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         password: 'new-hash',
-        tokenVersion: { increment: 1 },
-      },
-    });
-    expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({
-      where: { userId: 'user-1' },
-    });
+        tokenVersion: expect.anything(),
+      }),
+    );
+    expect(dbMock.delete).toHaveBeenCalledWith(passwordResetTokens);
     expect(result).toEqual({
       success: true,
       message: 'Password reset successful',
@@ -465,7 +494,7 @@ describe('AuthService', () => {
       userId: 'user-1',
       email: 'alice@example.com',
     });
-    prisma.authAccount.findFirst.mockResolvedValue({
+    dbMock.query.authAccounts.findFirst.mockResolvedValue({
       id: 'user-1',
       email: 'someone-else@example.com',
       role: 0,
@@ -488,33 +517,40 @@ describe('AuthService', () => {
 
   describe('changePassword', () => {
     it('should change password successfully when current password matches', async () => {
-      prisma.authAccount.findFirst.mockResolvedValue({
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
         id: 'user-1',
+        email: 'alice@example.com',
+        role: 0,
         password: 'old-hashed-password',
       });
       (comparePassword as jest.Mock).mockResolvedValue(true);
       (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
-      prisma.authAccount.update.mockResolvedValue({ id: 'user-1' });
+      dbMock.updateReturningSpy.mockResolvedValue([{ tokenVersion: 2 }]);
 
       const result = await service.changePassword('user-1', {
         oldPassword: 'old-password',
         newPassword: 'new-password',
       });
 
-      expect(comparePassword).toHaveBeenCalledWith('old-password', 'old-hashed-password');
+      expect(comparePassword).toHaveBeenCalledWith(
+        'old-password',
+        'old-hashed-password',
+      );
       expect(hashPassword).toHaveBeenCalledWith('new-password');
-      expect(prisma.authAccount.update).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        data: { password: 'new-hashed-password' },
-      });
+      expect(dbMock.update).toHaveBeenCalledWith(authAccounts);
+      expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ password: 'new-hashed-password' }),
+      );
       expect(result).toEqual({
         success: true,
         message: 'Password changed successfully',
+        accessToken: undefined,
+        refreshToken: undefined,
       });
     });
 
     it('should throw UnauthorizedException when oldPassword does not match', async () => {
-      prisma.authAccount.findFirst.mockResolvedValue({
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
         id: 'user-1',
         password: 'old-hashed-password',
       });
@@ -529,12 +565,14 @@ describe('AuthService', () => {
     });
 
     it('should allow setting password without oldPassword if user has no current password (Google user)', async () => {
-      prisma.authAccount.findFirst.mockResolvedValue({
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
         id: 'user-1',
+        email: 'alice@example.com',
+        role: 0,
         password: null,
       });
       (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
-      prisma.authAccount.update.mockResolvedValue({ id: 'user-1' });
+      dbMock.updateReturningSpy.mockResolvedValue([{ tokenVersion: 1 }]);
 
       const result = await service.changePassword('user-1', {
         newPassword: 'new-password',
@@ -542,10 +580,10 @@ describe('AuthService', () => {
 
       expect(comparePassword).not.toHaveBeenCalled();
       expect(hashPassword).toHaveBeenCalledWith('new-password');
-      expect(prisma.authAccount.update).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        data: { password: 'new-hashed-password' },
-      });
+      expect(dbMock.update).toHaveBeenCalledWith(authAccounts);
+      expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ password: 'new-hashed-password' }),
+      );
       expect(result.success).toBe(true);
     });
   });
@@ -556,7 +594,7 @@ describe('AuthService', () => {
         userId: 'user-1',
         email: 'alice@example.com',
       });
-      prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      dbMock.query.emailVerificationTokens.findFirst.mockResolvedValue({
         userId: 'user-1',
         tokenHash: 'hashed-token',
         expiresAt: new Date(Date.now() + 60_000),
@@ -566,19 +604,14 @@ describe('AuthService', () => {
           deletedAt: null,
         },
       });
-      prisma.authAccount.update.mockResolvedValue({ id: 'user-1' });
-      prisma.emailVerificationToken.delete.mockResolvedValue({ userId: 'user-1' });
-      prisma.$transaction.mockResolvedValue([]);
 
       const result = await service.verifyEmail({ token: 'verify-token' });
 
-      expect(prisma.authAccount.update).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        data: { emailVerified: true },
-      });
-      expect(prisma.emailVerificationToken.delete).toHaveBeenCalledWith({
-        where: { userId: 'user-1' },
-      });
+      expect(dbMock.update).toHaveBeenCalledWith(authAccounts);
+      expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ emailVerified: true }),
+      );
+      expect(dbMock.delete).toHaveBeenCalledWith(emailVerificationTokens);
       expect(result.success).toBe(true);
     });
 
@@ -587,7 +620,7 @@ describe('AuthService', () => {
         userId: 'user-1',
         email: 'alice@example.com',
       });
-      prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      dbMock.query.emailVerificationTokens.findFirst.mockResolvedValue({
         userId: 'user-1',
         tokenHash: 'hashed-token',
         expiresAt: new Date(Date.now() - 60_000), // expired
@@ -598,35 +631,38 @@ describe('AuthService', () => {
         },
       });
 
-      await expect(service.verifyEmail({ token: 'verify-token' })).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        service.verifyEmail({ token: 'verify-token' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('resendVerification', () => {
     it('should generate new token and resend email if email is not verified', async () => {
-      prisma.authAccount.findFirst.mockResolvedValue({
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
         id: 'user-1',
         email: 'alice@example.com',
         emailVerified: false,
       });
       tokenService.generateEmailVerificationToken.mockResolvedValue('new-token');
-      prisma.emailVerificationToken.upsert.mockResolvedValue({ userId: 'user-1' });
+      dbMock.onConflictDoUpdateSpy.mockResolvedValue([{ userId: 'user-1' }]);
 
-      const result = await service.resendVerification({ email: 'alice@example.com' });
+      const result = await service.resendVerification({
+        email: 'alice@example.com',
+      });
 
       expect(tokenService.generateEmailVerificationToken).toHaveBeenCalledWith({
         userId: 'user-1',
         email: 'alice@example.com',
       });
-      expect(prisma.emailVerificationToken.upsert).toHaveBeenCalled();
+      expect(dbMock.insert).toHaveBeenCalledWith(emailVerificationTokens);
+      expect(dbMock.onConflictDoUpdateSpy).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result).not.toHaveProperty('token');
     });
 
     it('should return an identical response for a verified email (no enumeration)', async () => {
-      prisma.authAccount.findFirst.mockResolvedValue({
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
         id: 'user-1',
         email: 'alice@example.com',
         emailVerified: true,
@@ -638,7 +674,7 @@ describe('AuthService', () => {
 
       // A verified address used to produce a 400 while an unknown address
       // produced a 200, which let anyone enumerate registered accounts.
-      prisma.authAccount.findFirst.mockResolvedValue(null);
+      dbMock.query.authAccounts.findFirst.mockResolvedValue(null);
       const unknown = await service.resendVerification({
         email: 'nobody@example.com',
       });
@@ -658,25 +694,122 @@ describe('AuthService', () => {
 
   describe('revokeAllSessions', () => {
     it('should increment tokenVersion of the user to invalidate all active tokens', async () => {
-      prisma.authAccount.findFirst.mockResolvedValue({
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
         id: 'user-1',
         tokenVersion: 1,
       });
-      prisma.authAccount.update.mockResolvedValue({ id: 'user-1' });
+      dbMock.updateReturningSpy.mockResolvedValue([{ tokenVersion: 2 }]);
 
       const result = await service.revokeAllSessions('user-1');
 
-      expect(prisma.authAccount.update).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        data: {
-          tokenVersion: { increment: 1 },
-        },
-        select: { tokenVersion: true },
-      });
+      expect(dbMock.update).toHaveBeenCalledWith(authAccounts);
+      expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenVersion: expect.anything(),
+        }),
+      );
       expect(result).toEqual({
         success: true,
         message: 'All sessions revoked successfully',
       });
+    });
+  });
+
+  describe('user avatar support', () => {
+    it('should persist trimmed avatar on register and expose it on profile/update', async () => {
+      const now = new Date('2026-06-12T08:00:00.000Z');
+      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      tokenService.generateEmailVerificationToken.mockResolvedValue(
+        'verify-token',
+      );
+      dbMock.insertReturningSpy.mockResolvedValueOnce([
+        {
+          id: 'user-1',
+          username: 'alice',
+          email: 'alice@example.com',
+          avatar: 'https://images.example.com/avatars/alice.png',
+          role: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+
+      const registered = await service.register({
+        email: 'alice@example.com',
+        password: 'secret123',
+        username: 'alice',
+        avatar: '  https://images.example.com/avatars/alice.png  ',
+      });
+
+      expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          avatar: 'https://images.example.com/avatars/alice.png',
+        }),
+      );
+      expect(registered.avatar).toBe(
+        'https://images.example.com/avatars/alice.png',
+      );
+
+      dbMock.query.authAccounts.findFirst.mockResolvedValue({
+        id: 'user-1',
+        username: 'alice',
+        email: 'alice@example.com',
+        avatar: 'https://images.example.com/avatars/alice.png',
+        role: 0,
+        emailVerified: true,
+        googleId: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      dbMock.updateReturningSpy.mockResolvedValueOnce([
+        {
+          id: 'user-1',
+          username: 'alice',
+          email: 'alice@example.com',
+          avatar: 'https://images.example.com/avatars/alice-v2.png',
+          role: 0,
+          emailVerified: true,
+          googleId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+
+      const updated = await service.updateUser('user-1', {
+        avatar: ' https://images.example.com/avatars/alice-v2.png ',
+      });
+
+      expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          avatar: 'https://images.example.com/avatars/alice-v2.png',
+        }),
+      );
+      expect(updated.avatar).toBe(
+        'https://images.example.com/avatars/alice-v2.png',
+      );
+
+      // Clearing avatar with empty string sets it to null in DB
+      dbMock.updateReturningSpy.mockResolvedValueOnce([
+        {
+          id: 'user-1',
+          username: 'alice',
+          email: 'alice@example.com',
+          avatar: null,
+          role: 0,
+          emailVerified: true,
+          googleId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+
+      const cleared = await service.updateUser('user-1', { avatar: '   ' });
+      expect(dbMock.updateSetSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          avatar: null,
+        }),
+      );
+      expect(cleared.avatar).toBeNull();
     });
   });
 });

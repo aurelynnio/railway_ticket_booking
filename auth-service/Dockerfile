@@ -4,7 +4,6 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN DATABASE_URL="postgresql://app:placeholder@localhost:5432/railway_auth" npx prisma generate
 RUN npm run build
 
 # Production stage
@@ -14,6 +13,5 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /usr/src/app/dist ./dist
-COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
 USER node
 CMD ["npm", "run", "start:prod"]

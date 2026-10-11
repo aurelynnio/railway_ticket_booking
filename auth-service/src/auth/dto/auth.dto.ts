@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -21,6 +22,11 @@ export class RegisterRequest {
   @IsString()
   @IsNotEmpty()
   username: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string;
 }
 
 export class LoginRequest {
@@ -118,6 +124,11 @@ export class UpdateUserPayload {
   email?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string | null;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -135,6 +146,11 @@ export class CreateUserPayload {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string | null;
 
   @IsOptional()
   @Type(() => Number)

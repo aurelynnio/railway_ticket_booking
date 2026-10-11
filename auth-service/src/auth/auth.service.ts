@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { createHash } from 'node:crypto';
+import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import type {
   LoginRequest,
   RegisterRequest,
@@ -24,7 +25,13 @@ import type {
   UpdateUserPayload,
   CreateUserPayload,
 } from './dto/auth.dto';
-import { PrismaService } from '../prisma/prisma.service';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import {
+  authAccounts,
+  emailVerificationTokens,
+  passwordResetTokens,
+  refreshTokens,
+} from '../drizzle/schema';
 import { comparePassword, hashPassword } from './utils/auth.utils';
 import { TokenService } from './utils/generate-token.utils';
 import type { AuthTokenPayload } from './utils/generate-token.utils';
@@ -38,7 +45,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     private readonly tokenService: TokenService,
     @Inject('notification_service')
     private readonly notificationClient: ClientProxy,
@@ -65,22 +72,25 @@ export class AuthService {
     let newUser;
 
     try {
-      newUser = await this.prisma.authAccount.create({
-        data: {
+      const [created] = await this.drizzle.db
+        .insert(authAccounts)
+        .values({
           email: payload.email,
           password: hashedPassword,
           username: payload.username,
+          avatar: payload.avatar?.trim() || null,
           emailVerified: false,
-        },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          role: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+        })
+        .returning({
+          id: authAccounts.id,
+          username: authAccounts.username,
+          email: authAccounts.email,
+          avatar: authAccounts.avatar,
+          role: authAccounts.role,
+          createdAt: authAccounts.createdAt,
+          updatedAt: authAccounts.updatedAt,
+        });
+      newUser = created;
     } catch (error) {
       if (this.isUniqueViolation(error)) {
         throw new ConflictException('Email or username already in use');
@@ -278,22 +288,28 @@ export class AuthService {
       throw new BadRequestException('Failed to generate reset token');
     }
 
+    const tokenHash = this.hashToken(resetToken);
+    const expiresAt = this.buildPasswordResetExpiry();
+
     /*
      * Store only a hash of the reset token and rotate its expiry on upsert
      * so the database never keeps the raw recovery secret.
      */
-    await this.prisma.passwordResetToken.upsert({
-      where: { userId: user.id },
-      update: {
-        tokenHash: this.hashToken(resetToken),
-        expiresAt: this.buildPasswordResetExpiry(),
-      },
-      create: {
+    await this.drizzle.db
+      .insert(passwordResetTokens)
+      .values({
         userId: user.id,
-        tokenHash: this.hashToken(resetToken),
-        expiresAt: this.buildPasswordResetExpiry(),
-      },
-    });
+        tokenHash,
+        expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: passwordResetTokens.userId,
+        set: {
+          tokenHash,
+          expiresAt,
+          updatedAt: new Date(),
+        },
+      });
 
     this.emitNotification('notification.password_reset', {
       userId: user.id,
@@ -322,12 +338,13 @@ export class AuthService {
       'password_reset',
     );
     const tokenHash = this.hashToken(payload.token);
-    const resetToken = await this.prisma.passwordResetToken.findUnique({
-      where: { tokenHash },
-      include: {
-        authAccount: true,
-      },
-    });
+    const resetToken =
+      await this.drizzle.db.query.passwordResetTokens.findFirst({
+        where: eq(passwordResetTokens.tokenHash, tokenHash),
+        with: {
+          authAccount: true,
+        },
+      });
 
     if (
       !resetToken ||
@@ -366,18 +383,19 @@ export class AuthService {
      * the victim reset their password — which defeats the usual reason for
      * resetting it.
      */
-    await this.prisma.$transaction([
-      this.prisma.authAccount.update({
-        where: { id: resetToken.authAccount.id },
-        data: {
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .update(authAccounts)
+        .set({
           password: hashedPassword,
-          tokenVersion: { increment: 1 },
-        },
-      }),
-      this.prisma.passwordResetToken.delete({
-        where: { userId: resetToken.authAccount.id },
-      }),
-    ]);
+          tokenVersion: sql`${authAccounts.tokenVersion} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(authAccounts.id, resetToken.authAccount.id));
+      await tx
+        .delete(passwordResetTokens)
+        .where(eq(passwordResetTokens.userId, resetToken.authAccount.id));
+    });
 
     return {
       success: true,
@@ -386,19 +404,19 @@ export class AuthService {
   }
 
   private findActiveUserByEmail(email: string) {
-    return this.prisma.authAccount.findFirst({
-      where: {
-        email,
-        deletedAt: null,
-      },
+    return this.drizzle.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.email, email),
+        isNull(authAccounts.deletedAt),
+      ),
     });
   }
   private findActiveUserById(id: string) {
-    return this.prisma.authAccount.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
+    return this.drizzle.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.id, id),
+        isNull(authAccounts.deletedAt),
+      ),
     });
   }
 
@@ -416,12 +434,12 @@ export class AuthService {
    * revocation table is best-effort state layered on top of the stateless
    * tokenVersion mechanism.
    *
-   * Upsert rather than create: JWT `iat`/`exp` have second granularity, so two
+   * Upsert rather than insert: JWT `iat`/`exp` have second granularity, so two
    * refreshes inside the same second mint a BYTE-IDENTICAL token. Rotation then
-   * revokes the exact hash it is about to re-insert, and with `create` that
-   * second insert hit the unique `tokenHash` constraint (P2002, only logged) —
+   * revokes the exact hash it is about to re-insert, and with plain insert that
+   * second insert hit the unique `tokenHash` constraint (23505, only logged) —
    * leaving the row revoked, so the client, still holding that same token, was
-   * signed out on its next refresh. Re-inserting via upsert (and clearing
+   * signed out on its next refresh. Re-inserting via onConflictDoUpdate (and clearing
    * `revokedAt`) keeps the row usable. Rotation is still correct for the normal
    * case: when the new token DIFFERS, it lands on its own row and the presented
    * token stays revoked.
@@ -433,13 +451,16 @@ export class AuthService {
     }
 
     const tokenHash = this.hashToken(refreshToken);
+    const expiresAt = this.buildRefreshTokenExpiry();
 
     try {
-      await this.prisma.refreshToken.upsert({
-        where: { tokenHash },
-        update: { revokedAt: null, expiresAt: this.buildRefreshTokenExpiry() },
-        create: { tokenHash, expiresAt: this.buildRefreshTokenExpiry() },
-      });
+      await this.drizzle.db
+        .insert(refreshTokens)
+        .values({ tokenHash, expiresAt })
+        .onConflictDoUpdate({
+          target: refreshTokens.tokenHash,
+          set: { revokedAt: null, expiresAt, updatedAt: new Date() },
+        });
     } catch (error) {
       this.logger.error(
         `Failed to persist refresh token: ${getErrorMessage(error)}`,
@@ -449,8 +470,8 @@ export class AuthService {
 
   private async ensureRefreshTokenNotRevoked(refreshToken: string) {
     try {
-      const stored = await this.prisma.refreshToken.findUnique({
-        where: { tokenHash: this.hashToken(refreshToken) },
+      const stored = await this.drizzle.db.query.refreshTokens.findFirst({
+        where: eq(refreshTokens.tokenHash, this.hashToken(refreshToken)),
       });
       if (stored?.revokedAt) {
         throw new UnauthorizedException('Invalid or expired token');
@@ -479,17 +500,20 @@ export class AuthService {
    */
   private async revokeRefreshToken(refreshToken: string): Promise<void> {
     const tokenHash = this.hashToken(refreshToken);
+    const revokedAt = new Date();
 
     try {
-      await this.prisma.refreshToken.upsert({
-        where: { tokenHash },
-        update: { revokedAt: new Date() },
-        create: {
+      await this.drizzle.db
+        .insert(refreshTokens)
+        .values({
           tokenHash,
-          revokedAt: new Date(),
+          revokedAt,
           expiresAt: this.buildRefreshTokenExpiry(),
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: refreshTokens.tokenHash,
+          set: { revokedAt, updatedAt: new Date() },
+        });
     } catch (error) {
       this.logger.error(
         `Failed to revoke refresh token: ${getErrorMessage(error)}`,
@@ -503,11 +527,14 @@ export class AuthService {
    * must not leave an attacker's existing session alive.
    */
   private async invalidateAllSessions(userId: string): Promise<number> {
-    const updated = await this.prisma.authAccount.update({
-      where: { id: userId },
-      data: { tokenVersion: { increment: 1 } },
-      select: { tokenVersion: true },
-    });
+    const [updated] = await this.drizzle.db
+      .update(authAccounts)
+      .set({
+        tokenVersion: sql`${authAccounts.tokenVersion} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(authAccounts.id, userId))
+      .returning({ tokenVersion: authAccounts.tokenVersion });
 
     return updated.tokenVersion;
   }
@@ -541,10 +568,10 @@ export class AuthService {
       throw new BadRequestException('Failed to hash new password');
     }
 
-    await this.prisma.authAccount.update({
-      where: { id: userId },
-      data: { password: newPasswordHash },
-    });
+    await this.drizzle.db
+      .update(authAccounts)
+      .set({ password: newPasswordHash, updatedAt: new Date() })
+      .where(eq(authAccounts.id, userId));
 
     /*
      * Terminate every other session, then hand the caller a fresh pair of
@@ -573,10 +600,11 @@ export class AuthService {
       'email_verification',
     );
     const tokenHash = this.hashToken(payload.token);
-    const verifyToken = await this.prisma.emailVerificationToken.findUnique({
-      where: { tokenHash },
-      include: { authAccount: true },
-    });
+    const verifyToken =
+      await this.drizzle.db.query.emailVerificationTokens.findFirst({
+        where: eq(emailVerificationTokens.tokenHash, tokenHash),
+        with: { authAccount: true },
+      });
 
     if (
       !verifyToken ||
@@ -593,15 +621,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.authAccount.update({
-        where: { id: verifyToken.authAccount.id },
-        data: { emailVerified: true },
-      }),
-      this.prisma.emailVerificationToken.delete({
-        where: { userId: verifyToken.authAccount.id },
-      }),
-    ]);
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .update(authAccounts)
+        .set({ emailVerified: true, updatedAt: new Date() })
+        .where(eq(authAccounts.id, verifyToken.authAccount.id));
+      await tx
+        .delete(emailVerificationTokens)
+        .where(eq(emailVerificationTokens.userId, verifyToken.authAccount.id));
+    });
 
     return {
       success: true,
@@ -685,17 +713,19 @@ export class AuthService {
     const limit = this.normalizePositiveInteger(query.limit, 10);
     const skip = (page - 1) * limit;
 
-    const [total, users] = await this.prisma.$transaction([
-      this.prisma.authAccount.count({
-        where: { deletedAt: null },
-      }),
-      this.prisma.authAccount.findMany({
-        where: { deletedAt: null },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-    ]);
+    const [total, users] = await this.drizzle.db.transaction(async (tx) => {
+      const [{ total: countValue }] = await tx
+        .select({ total: count() })
+        .from(authAccounts)
+        .where(isNull(authAccounts.deletedAt));
+      const rows = await tx.query.authAccounts.findMany({
+        where: isNull(authAccounts.deletedAt),
+        orderBy: [desc(authAccounts.createdAt)],
+        offset: skip,
+        limit,
+      });
+      return [Number(countValue), rows] as const;
+    });
 
     return {
       data: users.map((user) => this.toPublicUser(user)),
@@ -750,15 +780,17 @@ export class AuthService {
     const hashedPassword = await hashPassword(payload.password);
 
     try {
-      const user = await this.prisma.authAccount.create({
-        data: {
+      const [user] = await this.drizzle.db
+        .insert(authAccounts)
+        .values({
           username: payload.username,
           email: payload.email,
           password: hashedPassword,
+          avatar: payload.avatar?.trim() || null,
           role: payload.role ?? 0,
           emailVerified: false,
-        },
-      });
+        })
+        .returning();
       return this.toPublicUser(user);
     } catch (error) {
       if (this.isUniqueViolation(error)) {
@@ -779,16 +811,21 @@ export class AuthService {
     }
 
     try {
-      const updated = await this.prisma.authAccount.update({
-        where: { id: userId },
-        data: {
+      const [updated] = await this.drizzle.db
+        .update(authAccounts)
+        .set({
           ...(payload.username !== undefined
             ? { username: payload.username }
             : {}),
           ...(payload.email !== undefined ? { email: payload.email } : {}),
+          ...(payload.avatar !== undefined
+            ? { avatar: payload.avatar?.trim() || null }
+            : {}),
           ...(payload.role !== undefined ? { role: payload.role } : {}),
-        },
-      });
+          updatedAt: new Date(),
+        })
+        .where(eq(authAccounts.id, userId))
+        .returning();
       return this.toPublicUser(updated);
     } catch (error) {
       if (this.isUniqueViolation(error)) {
@@ -808,10 +845,10 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    await this.prisma.authAccount.update({
-      where: { id: userId },
-      data: { deletedAt: new Date() },
-    });
+    await this.drizzle.db
+      .update(authAccounts)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(authAccounts.id, userId));
 
     return { message: `User with ID ${userId} has been deleted` };
   }
@@ -820,6 +857,7 @@ export class AuthService {
     id: string;
     username: string;
     email: string;
+    avatar?: string | null;
     role: number;
     emailVerified: boolean;
     googleId: string | null;
@@ -830,6 +868,7 @@ export class AuthService {
       id: user.id,
       username: user.username,
       email: user.email,
+      avatar: user.avatar ?? null,
       role: user.role,
       emailVerified: user.emailVerified,
       googleId: user.googleId,
@@ -839,12 +878,18 @@ export class AuthService {
   }
 
   private isUniqueViolation(error: unknown): boolean {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      (error as { code: string }).code === 'P2002'
-    );
+    if (typeof error !== 'object' || error === null) {
+      return false;
+    }
+    const code = (error as { code?: unknown }).code;
+    if (code === '23505') {
+      return true;
+    }
+    const cause = (error as { cause?: unknown }).cause;
+    if (typeof cause === 'object' && cause !== null) {
+      return (cause as { code?: unknown }).code === '23505';
+    }
+    return false;
   }
 
   private normalizePositiveInteger(
@@ -871,18 +916,21 @@ export class AuthService {
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    await this.prisma.emailVerificationToken.upsert({
-      where: { userId },
-      update: {
-        tokenHash,
-        expiresAt,
-      },
-      create: {
+    await this.drizzle.db
+      .insert(emailVerificationTokens)
+      .values({
         userId,
         tokenHash,
         expiresAt,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: emailVerificationTokens.userId,
+        set: {
+          tokenHash,
+          expiresAt,
+          updatedAt: new Date(),
+        },
+      });
 
     return token;
   }
