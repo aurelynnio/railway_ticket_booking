@@ -1,4 +1,5 @@
-import { PrismaService } from '../prisma/prisma.service';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import { notifications } from '../drizzle/schema';
 import { NotificationService } from './notification.service';
 
 describe('NotificationService', () => {
@@ -6,52 +7,33 @@ describe('NotificationService', () => {
   const originalSmtpUser = process.env.SMTP_USER;
   const originalSmtpPass = process.env.SMTP_PASS;
   let service: NotificationService;
-  let prisma: {
-    notification: {
-      create: jest.Mock<
-        Promise<unknown>,
-        [
-          {
-            data: {
-              userId: string | null;
-              recipientEmail: string;
-              type: string;
-              subject: string;
-              body: string;
-              status: string;
-            };
-          },
-        ]
-      >;
-    };
-  };
+  let insertValuesSpy: jest.Mock<
+    Promise<unknown>,
+    [
+      {
+        userId: string | null;
+        recipientEmail: string;
+        type: string;
+        subject: string;
+        body: string;
+        status: string;
+      },
+    ]
+  >;
+  let insertSpy: jest.Mock;
 
   beforeEach(() => {
     delete process.env.SMTP_HOST;
     delete process.env.SMTP_USER;
     delete process.env.SMTP_PASS;
-    prisma = {
-      notification: {
-        create: jest
-          .fn<
-            Promise<unknown>,
-            [
-              {
-                data: {
-                  userId: string | null;
-                  recipientEmail: string;
-                  type: string;
-                  subject: string;
-                  body: string;
-                  status: string;
-                };
-              },
-            ]
-          >()
-          .mockResolvedValue({}),
+    insertValuesSpy = jest.fn().mockResolvedValue([]);
+    insertSpy = jest.fn(() => ({ values: insertValuesSpy }));
+    const drizzle = {
+      db: {
+        insert: insertSpy,
       },
     };
-    service = new NotificationService(prisma as unknown as PrismaService);
+    service = new NotificationService(drizzle as unknown as DrizzleService);
   });
 
   afterAll(() => {
@@ -67,12 +49,13 @@ describe('NotificationService', () => {
       fullName: 'Alice',
     });
 
-    const [createArgs] = prisma.notification.create.mock.calls[0];
+    expect(insertSpy).toHaveBeenCalledWith(notifications);
+    const [createArgs] = insertValuesSpy.mock.calls[0];
 
-    expect(createArgs.data.userId).toBe('4e6d33c3-889d-41f5-9503-2169fe7c133d');
-    expect(createArgs.data.recipientEmail).toBe('alice@example.com');
-    expect(createArgs.data.type).toBe('user_registered');
-    expect(createArgs.data.subject).toBe('Welcome to Railway Ticket Booking!');
-    expect(createArgs.data.status).toBe('skipped');
+    expect(createArgs.userId).toBe('4e6d33c3-889d-41f5-9503-2169fe7c133d');
+    expect(createArgs.recipientEmail).toBe('alice@example.com');
+    expect(createArgs.type).toBe('user_registered');
+    expect(createArgs.subject).toBe('Welcome to Railway Ticket Booking!');
+    expect(createArgs.status).toBe('skipped');
   });
 });

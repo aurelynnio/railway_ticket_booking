@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { and, count, desc, eq } from 'drizzle-orm';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import { notifications } from '../drizzle/schema';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
@@ -7,7 +9,7 @@ export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
   private transporter: nodemailer.Transporter | null = null;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(private readonly drizzle: DrizzleService) {
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;
@@ -76,15 +78,13 @@ export class NotificationService {
     }
 
     try {
-      await this.prisma.notification.create({
-        data: {
-          userId: data.userId || null,
-          recipientEmail: data.email,
-          type: data.type,
-          subject,
-          body: text,
-          status,
-        },
+      await this.drizzle.db.insert(notifications).values({
+        userId: data.userId || null,
+        recipientEmail: data.email,
+        type: data.type,
+        subject,
+        body: text,
+        status,
       });
     } catch (error) {
       this.logger.error(
@@ -192,19 +192,24 @@ export class NotificationService {
     const page = data.page ?? 1;
     const limit = Math.min(data.limit ?? 10, 50);
     const skip = (page - 1) * limit;
+    const whereClause = eq(notifications.userId, data.userId);
 
-    const [total, notifications] = await Promise.all([
-      this.prisma.notification.count({ where: { userId: data.userId } }),
-      this.prisma.notification.findMany({
-        where: { userId: data.userId },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+    const [[{ total: totalCount }], rows] = await Promise.all([
+      this.drizzle.db
+        .select({ total: count() })
+        .from(notifications)
+        .where(whereClause),
+      this.drizzle.db.query.notifications.findMany({
+        where: whereClause,
+        orderBy: [desc(notifications.createdAt)],
+        offset: skip,
+        limit,
       }),
     ]);
+    const total = Number(totalCount);
 
     return {
-      data: notifications,
+      data: rows,
       pagination: {
         page,
         limit,
@@ -218,20 +223,26 @@ export class NotificationService {
     const page = data.page ?? 1;
     const limit = Math.min(data.limit ?? 20, 100);
     const skip = (page - 1) * limit;
-    const where = data.type ? { type: data.type } : {};
+    const whereClause = data.type
+      ? eq(notifications.type, data.type)
+      : undefined;
 
-    const [total, notifications] = await Promise.all([
-      this.prisma.notification.count({ where }),
-      this.prisma.notification.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+    const [[{ total: totalCount }], rows] = await Promise.all([
+      this.drizzle.db
+        .select({ total: count() })
+        .from(notifications)
+        .where(whereClause),
+      this.drizzle.db.query.notifications.findMany({
+        where: whereClause,
+        orderBy: [desc(notifications.createdAt)],
+        offset: skip,
+        limit,
       }),
     ]);
+    const total = Number(totalCount);
 
     return {
-      data: notifications,
+      data: rows,
       pagination: {
         page,
         limit,
@@ -242,32 +253,53 @@ export class NotificationService {
   }
 
   async markAsRead(data: { notificationId: string; userId: string }) {
-    const notification = await this.prisma.notification.findUnique({
-      where: { id: data.notificationId },
+    const notification = await this.drizzle.db.query.notifications.findFirst({
+      where: eq(notifications.id, data.notificationId),
     });
-    if (!notification || (notification.userId && notification.userId !== data.userId)) {
-      return { success: false, message: 'Notification not found or access denied' };
+    if (
+      !notification ||
+      (notification.userId && notification.userId !== data.userId)
+    ) {
+      return {
+        success: false,
+        message: 'Notification not found or access denied',
+      };
     }
-    const updated = await this.prisma.notification.update({
-      where: { id: data.notificationId },
-      data: { isRead: true, readAt: new Date() },
-    });
+    const now = new Date();
+    const [updated] = await this.drizzle.db
+      .update(notifications)
+      .set({ isRead: true, readAt: now, updatedAt: now })
+      .where(eq(notifications.id, data.notificationId))
+      .returning();
     return { success: true, data: updated };
   }
 
   async markAllAsRead(data: { userId: string }) {
-    const result = await this.prisma.notification.updateMany({
-      where: { userId: data.userId, isRead: false },
-      data: { isRead: true, readAt: new Date() },
-    });
-    return { success: true, count: result.count };
+    const now = new Date();
+    const updatedRows = await this.drizzle.db
+      .update(notifications)
+      .set({ isRead: true, readAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(notifications.userId, data.userId),
+          eq(notifications.isRead, false),
+        ),
+      )
+      .returning({ id: notifications.id });
+    return { success: true, count: updatedRows.length };
   }
 
   async getUnreadCount(data: { userId: string }) {
-    const count = await this.prisma.notification.count({
-      where: { userId: data.userId, isRead: false },
-    });
-    return { unreadCount: count };
+    const [{ total }] = await this.drizzle.db
+      .select({ total: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, data.userId),
+          eq(notifications.isRead, false),
+        ),
+      );
+    return { unreadCount: Number(total) };
   }
 
   async broadcastMarketing(data: {
@@ -286,12 +318,17 @@ export class NotificationService {
     if (data.recipients && data.recipients.length > 0) {
       recipients = data.recipients;
     } else if (data.recipientEmails && data.recipientEmails.length > 0) {
-      recipients = data.recipientEmails.map((e) => ({ email: e, userId: undefined }));
+      recipients = data.recipientEmails.map((e) => ({
+        email: e,
+        userId: undefined,
+      }));
     } else {
-      const distinctRecipients = await this.prisma.notification.findMany({
-        distinct: ['recipientEmail'],
-        select: { recipientEmail: true, userId: true },
-      });
+      const distinctRecipients = await this.drizzle.db
+        .selectDistinctOn([notifications.recipientEmail], {
+          recipientEmail: notifications.recipientEmail,
+          userId: notifications.userId,
+        })
+        .from(notifications);
       recipients = distinctRecipients.map((r) => ({
         email: r.recipientEmail,
         userId: r.userId ?? undefined,
