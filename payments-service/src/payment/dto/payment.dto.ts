@@ -15,7 +15,7 @@ import {
 
 /**
  * Các cột id/orderId/userId/transactionId trong PostgreSQL đều là kiểu UUID.
- * Nếu không chặn ở tầng DTO, giá trị sai định dạng sẽ đi xuống Prisma/Postgres
+ * Nếu không chặn ở tầng DTO, giá trị sai định dạng sẽ đi xuống Drizzle/Postgres
  * và gây lỗi bind, bị bọc thành HTTP 500 thay vì 400.
  *
  * Riêng transactionId còn phải nhận dạng 32 ký tự không gạch nối vì VNPay giới

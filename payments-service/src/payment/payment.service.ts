@@ -1,8 +1,14 @@
 import { randomUUID } from 'crypto';
-import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ClientProxy } from '@nestjs/microservices';
-import { Prisma, type Payment } from '@prisma/client';
+import { and, asc, count, desc, eq, isNull, lte, type SQL } from 'drizzle-orm';
 import type {
   CreatePaymentRequest,
   ListPaymentsQuery,
@@ -15,11 +21,9 @@ import type {
   PaginationQuery,
 } from './dto/payment.dto';
 import { PaymentStatus } from './dto/payment.dto';
-import {
-  parseAmount,
-  toPaymentDto,
-} from './utils/payment.utils';
-import { PrismaService } from '../prisma/prisma.service';
+import { parseAmount, toPaymentDto } from './utils/payment.utils';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import { paymentOutbox, payments, type Payment } from '../drizzle/schema';
 
 @Injectable()
 export class PaymentService {
@@ -28,7 +32,7 @@ export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     @Inject('order_service') private readonly orderClient: ClientProxy,
   ) {}
 
@@ -51,16 +55,17 @@ export class PaymentService {
 
     const amount = parseAmount(payload.amount);
 
-    const created = await this.prisma.payment.create({
-      data: {
+    const [created] = await this.drizzle.db
+      .insert(payments)
+      .values({
         orderId,
         userId: payload.userId?.trim() || null,
         amount,
         paymentMethod,
         status: PaymentStatus.Pending,
         transactionId,
-      },
-    });
+      })
+      .returning();
 
     return toPaymentDto(created);
   }
@@ -78,17 +83,15 @@ export class PaymentService {
   }
 
   async listPaymentsByOrderId(orderId: string): Promise<PaymentDto[]> {
-    const payments = await this.prisma.payment.findMany({
-      where: {
-        orderId: orderId.trim(),
-        deletedAt: null,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+    const rows = await this.drizzle.db.query.payments.findMany({
+      where: and(
+        eq(payments.orderId, orderId.trim()),
+        isNull(payments.deletedAt),
+      ),
+      orderBy: [desc(payments.createdAt)],
     });
 
-    return payments.map(toPaymentDto);
+    return rows.map(toPaymentDto);
   }
 
   async listPaymentsByUserId(
@@ -99,7 +102,7 @@ export class PaymentService {
   }
 
   /*
-   * Build one Prisma filter object from optional query fields before running
+   * Build one Drizzle filter condition from optional query fields before running
    * the count and page query together to keep pagination metadata consistent.
    */
   async listPayments(
@@ -108,44 +111,46 @@ export class PaymentService {
   ): Promise<PaginatedPaymentsResponse> {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 10;
-    const where: Prisma.PaymentWhereInput = {
-      deletedAt: null,
-    };
+    const conditions: SQL[] = [isNull(payments.deletedAt)];
 
     if (query.userId?.trim()) {
-      where.userId = query.userId.trim();
+      conditions.push(eq(payments.userId, query.userId.trim()));
     }
 
     if (query.orderId?.trim()) {
-      where.orderId = query.orderId.trim();
+      conditions.push(eq(payments.orderId, query.orderId.trim()));
     }
 
     if (query.paymentMethod?.trim()) {
-      where.paymentMethod = query.paymentMethod.trim();
+      conditions.push(eq(payments.paymentMethod, query.paymentMethod.trim()));
     }
 
     if (query.transactionId?.trim()) {
-      where.transactionId = query.transactionId.trim();
+      conditions.push(eq(payments.transactionId, query.transactionId.trim()));
     }
 
     if (query.status !== undefined) {
-      where.status = Number(query.status);
+      conditions.push(eq(payments.status, Number(query.status)));
     }
 
-    const [total, payments] = await this.prisma.$transaction([
-      this.prisma.payment.count({ where }),
-      this.prisma.payment.findMany({
-        where,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ]);
+    const whereClause = and(...conditions);
+
+    const [total, rows] = await this.drizzle.db.transaction(async (tx) => {
+      const [{ total: countValue }] = await tx
+        .select({ total: count() })
+        .from(payments)
+        .where(whereClause);
+      const found = await tx.query.payments.findMany({
+        where: whereClause,
+        orderBy: [desc(payments.createdAt)],
+        offset: (page - 1) * limit,
+        limit,
+      });
+      return [Number(countValue), found] as const;
+    });
 
     return {
-      data: payments.map(toPaymentDto),
+      data: rows.map(toPaymentDto),
       pagination: {
         page,
         limit,
@@ -169,13 +174,15 @@ export class PaymentService {
     const payment = await this.getPaymentOrThrow(payload);
     this.assertNotAlreadyPaid(payment);
 
-    const updated = await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: {
+    const [updated] = await this.drizzle.db
+      .update(payments)
+      .set({
         status: PaymentStatus.Paid,
         paidAt,
-      },
-    });
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, payment.id))
+      .returning();
 
     return toPaymentDto(updated);
   }
@@ -192,20 +199,19 @@ export class PaymentService {
     // transaction that marks the payment as paid, so the event can never be
     // lost if the process crashes between commit and publish. A worker
     // (processOutbox) publishes due rows and marks them processed.
-    const paidPayment = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.payment.update({
-        where: { id: existing.id },
-        data: { status: PaymentStatus.Paid, paidAt },
-      });
+    const paidPayment = await this.drizzle.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(payments)
+        .set({ status: PaymentStatus.Paid, paidAt, updatedAt: new Date() })
+        .where(eq(payments.id, existing.id))
+        .returning();
 
-      await tx.paymentOutbox.create({
-        data: {
-          paymentId: updated.id,
-          orderId: updated.orderId,
-          userId: updated.userId,
-          transactionId: updated.transactionId,
-          paidAt: updated.paidAt ?? paidAt,
-        },
+      await tx.insert(paymentOutbox).values({
+        paymentId: updated.id,
+        orderId: updated.orderId,
+        userId: updated.userId,
+        transactionId: updated.transactionId,
+        paidAt: updated.paidAt ?? paidAt,
       });
 
       return updated;
@@ -225,7 +231,7 @@ export class PaymentService {
 
   /** A settled payment must never be settled a second time. */
   private assertNotAlreadyPaid(payment: Payment): void {
-    // Number() keeps the Prisma `number` column comparable with the numeric
+    // Number() keeps the Drizzle `number` column comparable with the numeric
     // enum without tripping no-unsafe-enum-comparison.
     if (payment.status === Number(PaymentStatus.Paid)) {
       throw new HttpException(
@@ -243,10 +249,13 @@ export class PaymentService {
   @Cron('*/10 * * * * *')
   async processOutbox(): Promise<void> {
     const now = new Date();
-    const due = await this.prisma.paymentOutbox.findMany({
-      where: { status: 0, nextAttemptAt: { lte: now } },
-      orderBy: { createdAt: 'asc' },
-      take: PaymentService.OUTBOX_BATCH_SIZE,
+    const due = await this.drizzle.db.query.paymentOutbox.findMany({
+      where: and(
+        eq(paymentOutbox.status, 0),
+        lte(paymentOutbox.nextAttemptAt, now),
+      ),
+      orderBy: [asc(paymentOutbox.createdAt)],
+      limit: PaymentService.OUTBOX_BATCH_SIZE,
     });
 
     for (const row of due) {
@@ -258,24 +267,24 @@ export class PaymentService {
           transactionId: row.transactionId,
           paidAt: row.paidAt.toISOString(),
         });
-        await this.prisma.paymentOutbox.update({
-          where: { id: row.id },
-          data: { status: 1, processedAt: new Date() },
-        });
+        await this.drizzle.db
+          .update(paymentOutbox)
+          .set({ status: 1, processedAt: new Date() })
+          .where(eq(paymentOutbox.id, row.id));
       } catch (error) {
         const attemptCount = row.attemptCount + 1;
         const reachedMax =
           attemptCount >= PaymentService.OUTBOX_MAX_ATTEMPTS;
-        await this.prisma.paymentOutbox.update({
-          where: { id: row.id },
-          data: {
+        await this.drizzle.db
+          .update(paymentOutbox)
+          .set({
             attemptCount,
             nextAttemptAt: new Date(
               Date.now() + this.calculateBackoff(attemptCount),
             ),
             ...(reachedMax ? { status: 2 } : {}),
-          },
-        });
+          })
+          .where(eq(paymentOutbox.id, row.id));
         this.logger.warn(
           `Failed to publish payment.paid for outbox ${row.id}: ${
             error instanceof Error ? error.message : String(error)
@@ -307,12 +316,15 @@ export class PaymentService {
 
   async softDeletePayment(lookup: PaymentLookupRequest): Promise<PaymentDto> {
     const payment = await this.getPaymentOrThrow(lookup);
-    const updated = await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        deletedAt: new Date(),
-      },
-    });
+    const now = new Date();
+    const [updated] = await this.drizzle.db
+      .update(payments)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(payments.id, payment.id))
+      .returning();
 
     return toPaymentDto(updated);
   }
@@ -326,10 +338,11 @@ export class PaymentService {
      * lookup and persistence path instead of duplicating update code.
      */
     const payment = await this.getPaymentOrThrow(lookup);
-    const updated = await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { status },
-    });
+    const [updated] = await this.drizzle.db
+      .update(payments)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(payments.id, payment.id))
+      .returning();
 
     return toPaymentDto(updated);
   }
@@ -337,8 +350,10 @@ export class PaymentService {
   private async getPaymentOrThrow(
     lookup: PaymentLookupRequest,
   ): Promise<Payment> {
-    const where = this.buildPaymentLookupWhere(lookup);
-    const payment = await this.prisma.payment.findFirst({ where });
+    const whereClause = this.buildPaymentLookupWhere(lookup);
+    const payment = await this.drizzle.db.query.payments.findFirst({
+      where: whereClause,
+    });
 
     if (!payment) {
       throw new HttpException('payment not found', HttpStatus.NOT_FOUND);
@@ -347,9 +362,7 @@ export class PaymentService {
     return payment;
   }
 
-  private buildPaymentLookupWhere(
-    lookup: PaymentLookupRequest,
-  ): Prisma.PaymentWhereInput {
+  private buildPaymentLookupWhere(lookup: PaymentLookupRequest): SQL {
     const id = lookup.id?.trim();
     const transactionId = lookup.transactionId?.trim();
 
@@ -360,11 +373,14 @@ export class PaymentService {
       );
     }
 
-    return {
-      deletedAt: null,
-      ...(id ? { id } : {}),
-      ...(transactionId ? { transactionId } : {}),
-    };
+    const conditions: SQL[] = [isNull(payments.deletedAt)];
+    if (id) {
+      conditions.push(eq(payments.id, id));
+    }
+    if (transactionId) {
+      conditions.push(eq(payments.transactionId, transactionId));
+    }
+    return and(...conditions)!;
   }
 
   private async emitPaymentPaidEvent(

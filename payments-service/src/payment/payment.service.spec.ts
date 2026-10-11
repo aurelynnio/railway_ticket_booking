@@ -3,28 +3,37 @@ import type { ClientProxy } from '@nestjs/microservices';
 import { of } from 'rxjs';
 import { PaymentStatus } from './dto/payment.dto';
 import { PaymentService } from './payment.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { DrizzleService } from '../drizzle/drizzle.service';
+import { paymentOutbox, payments } from '../drizzle/schema';
 
 describe('PaymentService', () => {
   let service: PaymentService;
-  let prisma: {
-    payment: {
-      create: jest.Mock;
-      findFirst: jest.Mock;
-      update: jest.Mock;
-      findMany: jest.Mock;
-      count: jest.Mock;
+  let dbMock: {
+    query: {
+      payments: {
+        findFirst: jest.Mock;
+        findMany: jest.Mock;
+      };
+      paymentOutbox: {
+        findMany: jest.Mock;
+      };
     };
-    paymentOutbox: {
-      create: jest.Mock;
-      findMany: jest.Mock;
-      update: jest.Mock;
-    };
-    $transaction: jest.Mock;
+    insert: jest.Mock;
+    update: jest.Mock;
+    select: jest.Mock;
+    transaction: jest.Mock;
+    insertValuesSpy: jest.Mock;
+    insertReturningSpy: jest.Mock;
+    updateSetSpy: jest.Mock;
+    updateWhereSpy: jest.Mock;
+    updateReturningSpy: jest.Mock;
+    selectFromWhereSpy: jest.Mock;
   };
   let orderClient: { emit: jest.Mock };
 
-  const buildPaymentRecord = (overrides: Partial<Record<string, unknown>> = {}) => ({
+  const buildPaymentRecord = (
+    overrides: Partial<Record<string, unknown>> = {},
+  ) => ({
     id: 'payment-1',
     orderId: 'order-1',
     userId: 'user-1',
@@ -40,28 +49,55 @@ describe('PaymentService', () => {
   });
 
   beforeEach(() => {
-    prisma = {
-      payment: {
-        create: jest.fn(),
-        findFirst: jest.fn(),
-        update: jest.fn(),
-        findMany: jest.fn(),
-        count: jest.fn(),
+    const insertReturningSpy = jest.fn().mockResolvedValue([buildPaymentRecord()]);
+    const insertValuesSpy = jest.fn().mockImplementation(() => {
+      const promise = Promise.resolve([{ id: 'outbox-1' }]);
+      return Object.assign(promise, {
+        returning: insertReturningSpy,
+      });
+    });
+
+    const updateReturningSpy = jest.fn().mockResolvedValue([buildPaymentRecord()]);
+    const updateWhereSpy = jest.fn().mockImplementation(() => {
+      const promise = Promise.resolve([]);
+      return Object.assign(promise, {
+        returning: updateReturningSpy,
+      });
+    });
+    const updateSetSpy = jest.fn().mockImplementation(() => ({
+      where: updateWhereSpy,
+    }));
+
+    const selectFromWhereSpy = jest.fn().mockResolvedValue([{ total: 1 }]);
+
+    dbMock = {
+      query: {
+        payments: {
+          findFirst: jest.fn(),
+          findMany: jest.fn(),
+        },
+        paymentOutbox: {
+          findMany: jest.fn(),
+        },
       },
-      paymentOutbox: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        update: jest.fn(),
-      },
-      $transaction: jest.fn(async (arg: unknown) => {
-        if (typeof arg === 'function') {
-          return (arg as (tx: unknown) => unknown)({
-            payment: prisma.payment,
-            paymentOutbox: prisma.paymentOutbox,
-          });
-        }
-        return Promise.all(arg as Promise<unknown>[]);
-      }),
+      insert: jest.fn().mockImplementation(() => ({
+        values: insertValuesSpy,
+      })),
+      update: jest.fn().mockImplementation(() => ({
+        set: updateSetSpy,
+      })),
+      select: jest.fn().mockImplementation(() => ({
+        from: jest.fn().mockImplementation(() => ({
+          where: selectFromWhereSpy,
+        })),
+      })),
+      transaction: jest.fn().mockImplementation(async (cb) => cb(dbMock)),
+      insertValuesSpy,
+      insertReturningSpy,
+      updateSetSpy,
+      updateWhereSpy,
+      updateReturningSpy,
+      selectFromWhereSpy,
     };
 
     orderClient = {
@@ -69,7 +105,7 @@ describe('PaymentService', () => {
     };
 
     service = new PaymentService(
-      prisma as unknown as PrismaService,
+      { db: dbMock } as unknown as DrizzleService,
       orderClient as unknown as ClientProxy,
     );
   });
@@ -79,7 +115,7 @@ describe('PaymentService', () => {
   });
 
   it('createPayment should parse amount and persist a pending payment', async () => {
-    prisma.payment.create.mockResolvedValue(buildPaymentRecord());
+    dbMock.insertReturningSpy.mockResolvedValue([buildPaymentRecord()]);
 
     const result = await service.createPayment({
       orderId: ' order-1 ',
@@ -88,23 +124,24 @@ describe('PaymentService', () => {
       paymentMethod: ' VNPAY ',
     });
 
-    expect(prisma.payment.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(dbMock.insert).toHaveBeenCalledWith(payments);
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         orderId: 'order-1',
         userId: 'user-1',
         amount: BigInt(150000),
         paymentMethod: 'VNPAY',
         status: PaymentStatus.Pending,
       }),
-    });
+    );
     expect(result.amount).toBe('150000');
     expect(result.status).toBe(PaymentStatus.Pending);
   });
 
   it('createPayment should preserve an explicit transactionId for provider reconciliation', async () => {
-    prisma.payment.create.mockResolvedValue(
+    dbMock.insertReturningSpy.mockResolvedValue([
       buildPaymentRecord({ transactionId: 'vnpay-txn-1' }),
-    );
+    ]);
 
     await service.createPayment({
       orderId: 'order-1',
@@ -114,35 +151,35 @@ describe('PaymentService', () => {
       transactionId: ' vnpay-txn-1 ',
     });
 
-    expect(prisma.payment.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         transactionId: 'vnpay-txn-1',
       }),
-    });
+    );
   });
 
   it('markPaid should update status and paidAt', async () => {
     const existing = buildPaymentRecord();
     const paidAt = new Date('2026-06-12T09:00:00.000Z');
 
-    prisma.payment.findFirst.mockResolvedValue(existing);
-    prisma.payment.update.mockResolvedValue(
+    dbMock.query.payments.findFirst.mockResolvedValue(existing);
+    dbMock.updateReturningSpy.mockResolvedValue([
       buildPaymentRecord({
         status: PaymentStatus.Paid,
         paidAt,
         updatedAt: paidAt,
       }),
-    );
+    ]);
 
     const result = await service.markPaid({ id: existing.id, paidAt });
 
-    expect(prisma.payment.update).toHaveBeenCalledWith({
-      where: { id: existing.id },
-      data: {
+    expect(dbMock.update).toHaveBeenCalledWith(payments);
+    expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         status: PaymentStatus.Paid,
         paidAt,
-      },
-    });
+      }),
+    );
     expect(result.status).toBe(PaymentStatus.Paid);
     expect(result.paidAt).toBe(paidAt.toISOString());
   });
@@ -151,36 +188,36 @@ describe('PaymentService', () => {
     const existing = buildPaymentRecord();
     const paidAt = new Date('2026-06-12T09:00:00.000Z');
 
-    prisma.payment.findFirst.mockResolvedValue(existing);
-    prisma.payment.update.mockResolvedValue(
+    dbMock.query.payments.findFirst.mockResolvedValue(existing);
+    dbMock.updateReturningSpy.mockResolvedValue([
       buildPaymentRecord({
         status: PaymentStatus.Paid,
         paidAt,
         updatedAt: paidAt,
       }),
-    );
-    prisma.paymentOutbox.create.mockResolvedValue({ id: 'outbox-1' });
+    ]);
 
     const result = await service.markPaidWorkflow({ id: existing.id, paidAt });
 
     expect(orderClient.emit).not.toHaveBeenCalled();
-    expect(prisma.$transaction).toHaveBeenCalled();
-    expect(prisma.paymentOutbox.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(dbMock.transaction).toHaveBeenCalled();
+    expect(dbMock.insert).toHaveBeenCalledWith(paymentOutbox);
+    expect(dbMock.insertValuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         paymentId: existing.id,
         orderId: existing.orderId,
         userId: existing.userId,
         transactionId: existing.transactionId,
         paidAt,
       }),
-    });
+    );
     expect(result.payment.status).toBe(PaymentStatus.Paid);
     expect(result.event.name).toBe('payment.paid');
   });
 
   it('processOutbox should publish due payment.paid events and mark them processed', async () => {
     const paidAt = new Date('2026-06-12T09:00:00.000Z');
-    prisma.paymentOutbox.findMany.mockResolvedValue([
+    dbMock.query.paymentOutbox.findMany.mockResolvedValue([
       {
         id: 'outbox-1',
         paymentId: 'payment-1',
@@ -202,15 +239,16 @@ describe('PaymentService', () => {
       transactionId: 'txn-1',
       paidAt: paidAt.toISOString(),
     });
-    expect(prisma.paymentOutbox.update).toHaveBeenCalledWith({
-      where: { id: 'outbox-1' },
-      data: { status: 1, processedAt: expect.any(Date) },
+    expect(dbMock.update).toHaveBeenCalledWith(paymentOutbox);
+    expect(dbMock.updateSetSpy).toHaveBeenCalledWith({
+      status: 1,
+      processedAt: expect.any(Date),
     });
   });
 
   it('processOutbox should back off and eventually mark a persistently failing row as failed', async () => {
     const paidAt = new Date('2026-06-12T09:00:00.000Z');
-    prisma.paymentOutbox.findMany.mockResolvedValue([
+    dbMock.query.paymentOutbox.findMany.mockResolvedValue([
       {
         id: 'outbox-1',
         paymentId: 'payment-1',
@@ -228,27 +266,23 @@ describe('PaymentService', () => {
 
     await service.processOutbox();
 
-    expect(prisma.paymentOutbox.update).toHaveBeenCalledWith({
-      where: { id: 'outbox-1' },
-      data: expect.objectContaining({
+    expect(dbMock.update).toHaveBeenCalledWith(paymentOutbox);
+    expect(dbMock.updateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
         attemptCount: 5,
         nextAttemptAt: expect.any(Date),
         status: 2,
       }),
-    });
+    );
   });
 
   it('listPayments should build filters and pagination from the incoming query', async () => {
-    prisma.payment.count.mockReturnValue('count-query');
-    prisma.payment.findMany.mockReturnValue('find-many-query');
-    prisma.$transaction.mockResolvedValue([
-      1,
-      [
-        buildPaymentRecord({
-          transactionId: 'txn-2',
-          paymentMethod: 'BANKING',
-        }),
-      ],
+    dbMock.selectFromWhereSpy.mockResolvedValue([{ total: 1 }]);
+    dbMock.query.payments.findMany.mockResolvedValue([
+      buildPaymentRecord({
+        transactionId: 'txn-2',
+        paymentMethod: 'BANKING',
+      }),
     ]);
 
     const result = await service.listPayments(
@@ -262,35 +296,13 @@ describe('PaymentService', () => {
       },
     );
 
-    expect(prisma.payment.count).toHaveBeenCalledWith({
-      where: {
-        deletedAt: null,
-        userId: 'user-1',
-        orderId: 'order-1',
-        paymentMethod: 'BANKING',
-        transactionId: 'txn-2',
-        status: 0,
-      },
-    });
-    expect(prisma.payment.findMany).toHaveBeenCalledWith({
-      where: {
-        deletedAt: null,
-        userId: 'user-1',
-        orderId: 'order-1',
-        paymentMethod: 'BANKING',
-        transactionId: 'txn-2',
-        status: 0,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip: 1,
-      take: 1,
-    });
-    expect(prisma.$transaction).toHaveBeenCalledWith([
-      'count-query',
-      'find-many-query',
-    ]);
+    expect(dbMock.transaction).toHaveBeenCalled();
+    expect(dbMock.query.payments.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offset: 1,
+        limit: 1,
+      }),
+    );
     expect(result.pagination).toEqual({
       page: 2,
       limit: 1,

@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { Payment } from '@prisma/client';
+import type { Payment } from '../../drizzle/schema';
 import type { PaymentDto } from '../dto/payment.dto';
 
 /** Longest accepted integer string for an amount (guards against huge payloads). */

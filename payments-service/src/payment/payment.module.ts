@@ -4,12 +4,12 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PaymentController } from './payment.controller';
 import { PaymentService } from './payment.service';
-import { PrismaModule } from '../prisma/prisma.module';
+import { DrizzleModule } from '../drizzle/drizzle.module';
 import { ORDERS_QUEUE, RAILWAY_DEAD_LETTER_QUEUE } from '../common/constants/queue.constants';
 
 @Module({
   imports: [
-    PrismaModule,
+    DrizzleModule,
     ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
