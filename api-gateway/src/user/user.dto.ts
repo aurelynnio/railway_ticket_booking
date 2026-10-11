@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -57,6 +58,11 @@ export class UpdateProfilePayload {
   @IsString()
   @IsNotEmpty()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string | null;
 }
 
 export class UpdateUserPayload {
@@ -73,6 +79,11 @@ export class UpdateUserPayload {
   @IsString()
   @IsNotEmpty()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string | null;
 
   @IsOptional()
   @Type(() => Number)
@@ -97,6 +108,11 @@ export class CreateUserPayload {
   @IsString()
   @IsNotEmpty()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string | null;
 
   @IsOptional()
   @Type(() => Number)

@@ -72,7 +72,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (status >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
       // 4xx messages are intentional business messages written by our own
       // services, so they pass through. 5xx messages are NOT: a microservice
-      // forwards raw Error/Prisma text (table and column names, query
+      // forwards raw Error/Drizzle text (table and column names, query
       // fragments, file paths), so in production the client gets a generic
       // message while the detail goes to the log.
       this.logger.error(

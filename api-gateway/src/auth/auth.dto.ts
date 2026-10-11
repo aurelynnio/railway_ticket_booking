@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   MinLength,
 } from 'class-validator';
 
@@ -24,6 +25,11 @@ export class RegisterRequest {
   @IsString()
   @IsNotEmpty()
   username: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatar?: string;
 }
 
 export class LoginRequest {

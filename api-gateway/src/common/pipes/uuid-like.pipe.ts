@@ -14,7 +14,7 @@ import {
  * Chấp nhận UUID chuẩn và cả dạng 32 ký tự không gạch nối của vnp_TxnRef, rồi chuẩn hoá
  * về UUID có gạch nối trước khi forward xuống service.
  *
- * Nếu không chặn ở gateway, service sẽ nhận chuỗi sai định dạng, Prisma bind lỗi và trả
+ * Nếu không chặn ở gateway, service sẽ nhận chuỗi sai định dạng, Drizzle/PostgreSQL bind lỗi và trả
  * HTTP 500 thay vì 400.
  *
  * @example

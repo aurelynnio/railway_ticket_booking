@@ -5,7 +5,7 @@ import { Matches } from 'class-validator';
 /**
  * Các cột id/orderId/userId/ticketId/ticketItemId/transactionId trong PostgreSQL
  * đều là kiểu UUID. Nếu không chặn ở tầng DTO, giá trị sai định dạng sẽ đi
- * xuống service/Prisma và gây lỗi bind, bị bọc thành HTTP 500 thay vì 400.
+ * xuống service/Drizzle và gây lỗi bind, bị bọc thành HTTP 500 thay vì 400.
  *
  * Riêng transactionId còn phải nhận dạng 32 ký tự không gạch nối vì VNPay giới
  * hạn vnp_TxnRef tối đa 32 ký tự.

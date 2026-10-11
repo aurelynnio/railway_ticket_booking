@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
@@ -9,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -18,6 +20,9 @@ export enum TicketStatus {
   Draft = 0,
   Published = 1,
 }
+
+export const MAX_TICKET_IMAGES = 20;
+export const MAX_IMAGE_URL_LENGTH = 2048;
 
 export class FindTicketsQuery {
   @IsOptional()
@@ -70,6 +75,14 @@ export class CreateTicketItemRequest {
   @IsOptional()
   @IsString()
   seatType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsArray()
@@ -138,6 +151,14 @@ export class UpdateTicketItemRequest {
   @IsOptional()
   @IsString()
   seatType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsArray()
@@ -220,6 +241,14 @@ export class CreateTicketRequest {
   journeyNote?: string;
 
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
+
+  @IsOptional()
   @IsDateString()
   dateStart?: string;
 
@@ -266,6 +295,14 @@ export class UpdateTicketRequest {
   @IsOptional()
   @IsString()
   journeyNote?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(MAX_TICKET_IMAGES)
+  @IsString({ each: true })
+  @MaxLength(MAX_IMAGE_URL_LENGTH, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsDateString()

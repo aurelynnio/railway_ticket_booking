@@ -10,6 +10,7 @@ import { OrderModule } from './order/order.module';
 import { SearchModule } from './search/search.module';
 import { NotificationModule } from './notification/notification.module';
 import { VoucherModule } from './voucher/voucher.module';
+import { UploadModule } from './upload/upload.module';
 import { JwtAuthGuard } from './common/guards/jwt.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -32,6 +33,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     SearchModule,
     NotificationModule,
     VoucherModule,
+    UploadModule,
   ],
   providers: [
     // Thứ tự guard: Throttler → JwtAuth → Roles
