@@ -489,4 +489,56 @@ describe('TicketService', () => {
     expect(searchResult.data).toHaveLength(1);
     expect(searchResult.data[0].images).toEqual(trainImages);
   });
+
+  it('reserve returns exact allocatedSeatLabels and release does not reopen arbitrary occupied seats', async () => {
+    // Ticket item has seats A01 and A02
+    // Customer 1 already holds A01
+    const seatedItem = buildTicketItem({
+      seatLabels: ['A01', 'A02', 'A03'],
+      availableSeatLabels: ['A02', 'A03'],
+      stockInitial: 3,
+      stockAvailable: 2,
+    });
+
+    dbMock.query.tickets.findFirst.mockResolvedValue(
+      buildTicket({
+        status: TicketStatus.Published,
+        ticketItems: [seatedItem],
+      }),
+    );
+    redisCache.patternDel.mockResolvedValue(1);
+
+    // Customer 2 reserves 1 seat by quantity
+    const reserveResult = await service.reserve(TICKET_UUID, {
+      ticketItemId: ITEM_UUID,
+      quantity: 1,
+    });
+
+    // It must return the exact allocated seat label (A02), not arbitrary
+    expect(reserveResult.allocatedSeatLabels).toEqual(['A02']);
+
+    // Now mock state after reservation where A02 was held
+    const reservedItem = buildTicketItem({
+      seatLabels: ['A01', 'A02', 'A03'],
+      availableSeatLabels: ['A03'],
+      stockInitial: 3,
+      stockAvailable: 1,
+    });
+    dbMock.query.tickets.findFirst.mockResolvedValue(
+      buildTicket({
+        status: TicketStatus.Published,
+        ticketItems: [reservedItem],
+      }),
+    );
+
+    // Now release that reservation providing the exact seatLabel
+    const releaseResult = await service.release(TICKET_UUID, {
+      ticketItemId: ITEM_UUID,
+      seatLabel: 'A02',
+    });
+
+    // Customer 1's A01 must STILL remain occupied and not be reopened!
+    expect(releaseResult.availableSeatLabels).not.toContain('A01');
+    expect(releaseResult.availableSeatLabels).toContain('A02');
+  });
 });

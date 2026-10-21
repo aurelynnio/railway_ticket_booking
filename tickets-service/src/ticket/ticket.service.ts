@@ -327,19 +327,24 @@ export class TicketBaseService {
         ensureItemCanBeSold(item);
 
         // Consumes seats from BOTH counters so the label pool cannot be resold.
+        const consumption = consumeAvailableStock(item, quantity);
         const nextItem = normalizeTicketItemStock(
           mergeTicketItem(item, {
-            ...consumeAvailableStock(item, quantity),
+            availableSeatLabels: consumption.availableSeatLabels,
+            stockAvailable: consumption.stockAvailable,
             updatedAt: new Date(),
           }),
         );
 
         await this.updateTicketItemRow(tx, nextItem);
-        return nextItem;
+        return { nextItem, allocatedSeatLabels: consumption.allocatedSeatLabels };
       },
     );
 
-    return toTicketItemResponse(updatedItem);
+    return {
+      ...toTicketItemResponse(updatedItem.nextItem),
+      allocatedSeatLabels: updatedItem.allocatedSeatLabels,
+    } as TicketItemResponse & { allocatedSeatLabels: string[] };
   }
 
   async addTicketItem(
@@ -447,6 +452,22 @@ export class TicketBaseService {
       });
     }
 
+    const seatLabelsToRelease = payload.seatLabels ?? [];
+    if (seatLabelsToRelease.length > 0) {
+      let lastResult: TicketItemResponse | undefined;
+      for (const seatLabel of seatLabelsToRelease) {
+        lastResult = await this.releaseSeatInternal(
+          ticketId,
+          payload.ticketItemId,
+          {
+            seatLabel,
+            passengerId: payload.passengerId,
+          },
+        );
+      }
+      return lastResult!;
+    }
+
     const quantity = normalizeQuantity(payload.quantity);
 
     const updatedItem = await this.withTicketRowLock(
@@ -458,7 +479,7 @@ export class TicketBaseService {
         // Same helper as the count-based path so the two counters stay in sync.
         const nextItem = normalizeTicketItemStock(
           mergeTicketItem(item, {
-            ...returnStockToPool(item, quantity),
+            ...returnStockToPool(item, quantity, seatLabelsToRelease),
             updatedAt: new Date(),
           }),
         );
@@ -1221,8 +1242,8 @@ export class TicketService extends TicketBaseService {
   async reserve(
     ticketId: string,
     payload: ReserveTicketRequest,
-  ): Promise<TicketItemResponse> {
-    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+  ): Promise<TicketItemResponse & { allocatedSeatLabels?: string[] }> {
+    const seatLabels = payload.seatLabels ?? (payload.seatLabel ? [payload.seatLabel] : []);
     const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
       super.reserve(ticketId, payload),
     );
@@ -1255,7 +1276,7 @@ export class TicketService extends TicketBaseService {
     ticketId: string,
     payload: ReleaseTicketRequest,
   ): Promise<TicketItemResponse> {
-    const seatLabels = payload.seatLabel ? [payload.seatLabel] : [];
+    const seatLabels = payload.seatLabels ?? (payload.seatLabel ? [payload.seatLabel] : []);
     const result = await this.executeWithReservationLock(ticketId, seatLabels, () =>
       super.release(ticketId, payload),
     );

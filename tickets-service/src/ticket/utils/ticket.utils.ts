@@ -244,7 +244,9 @@ export function getAvailableStock(item: TicketItem): number {
 export function consumeAvailableStock(
   item: TicketItem,
   quantity: number,
-): Pick<TicketItem, 'availableSeatLabels' | 'stockAvailable'> {
+): Pick<TicketItem, 'availableSeatLabels' | 'stockAvailable'> & {
+  allocatedSeatLabels: string[];
+} {
   const available = getAvailableStock(item);
   if (available < quantity) {
     throw new HttpException(
@@ -253,29 +255,38 @@ export function consumeAvailableStock(
     );
   }
 
-  // Drop the first `quantity` free labels so they can no longer be reserved
-  // individually. Items without a seat map simply keep an empty pool.
+  // Allocate the first `quantity` free labels
+  const allocatedSeatLabels =
+    item.availableSeatLabels.length >= quantity
+      ? item.availableSeatLabels.slice(0, quantity)
+      : [];
+
   const availableSeatLabels =
     item.availableSeatLabels.length >= quantity
       ? item.availableSeatLabels.slice(quantity)
       : [];
 
   return {
+    allocatedSeatLabels,
     availableSeatLabels,
     stockAvailable: available - quantity,
   };
 }
 
 /**
- * Returns `quantity` seats to an item's free inventory, re-opening the first
- * `quantity` currently-occupied seats in the item's seat order.
+ * Returns seats to an item's free inventory.
  *
- * Mirrors `consumeAvailableStock` so releasing cannot inflate `stockAvailable`
- * independently of the label pool.
+ * For items without seat assignments (item.seatLabels is empty), increments
+ * `stockAvailable` up to `stockInitial`.
+ *
+ * For items with seat assignments (item.seatLabels is populated), only restores
+ * the exact seat labels provided in `seatLabelsToRelease`. It NEVER reopens
+ * arbitrary occupied seats from `item.seatLabels`, which would unseat other customers.
  */
 export function returnStockToPool(
   item: TicketItem,
   quantity: number,
+  seatLabelsToRelease: string[] = [],
 ): Pick<TicketItem, 'availableSeatLabels' | 'stockAvailable'> {
   const stockInitial =
     item.stockInitial ??
@@ -292,21 +303,25 @@ export function returnStockToPool(
     );
   }
 
+  // Non-seated inventory: simply increment stockAvailable
+  if (item.seatLabels.length === 0) {
+    return {
+      availableSeatLabels: [],
+      stockAvailable: next,
+    };
+  }
+
+  // Seated inventory: only restore the exact seats allocated to this cancellation
   const nextAvailable = [...item.availableSeatLabels];
-  let remaining = quantity;
-  for (const label of item.seatLabels) {
-    if (remaining === 0) {
-      break;
-    }
-    if (!nextAvailable.includes(label)) {
+  for (const label of seatLabelsToRelease) {
+    if (item.seatLabels.includes(label) && !nextAvailable.includes(label)) {
       nextAvailable.push(label);
-      remaining -= 1;
     }
   }
 
   return {
     availableSeatLabels: sortSeatLabels(nextAvailable, item.seatLabels),
-    stockAvailable: next,
+    stockAvailable: Math.min(next, nextAvailable.length),
   };
 }
 

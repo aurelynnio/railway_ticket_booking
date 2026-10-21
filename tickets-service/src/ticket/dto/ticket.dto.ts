@@ -350,6 +350,11 @@ export class ReserveTicketRequest {
   seatLabel?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  seatLabels?: string[];
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -372,6 +377,11 @@ export class ReleaseTicketRequest {
   @IsString()
   @MaxLength(16)
   seatLabel?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  seatLabels?: string[];
 
   @IsOptional()
   @Type(() => Number)
