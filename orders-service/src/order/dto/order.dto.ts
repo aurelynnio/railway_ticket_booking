@@ -27,6 +27,8 @@ export enum OrderStatus {
   Cancelled = 5,
   Expired = 6,
   Refunded = 7,
+  Cancelling = 8,
+  RefundPending = 9,
 }
 
 /**

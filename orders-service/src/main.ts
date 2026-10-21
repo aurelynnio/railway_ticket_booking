@@ -26,7 +26,7 @@ async function bootstrap() {
       urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
       queue: QUEUES.QUEUE_ORDERS,
       noAck: false,
-      prefetchCount: 1,
+      prefetchCount: Number(process.env.ORDER_QUEUE_PREFETCH_COUNT) || 10,
       queueOptions: {
         durable: true,
         arguments: {

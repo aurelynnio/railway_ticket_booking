@@ -83,6 +83,17 @@ describe('OrderService', () => {
       rollbackUsage: jest.fn().mockResolvedValue(true),
       reserveUsage: jest.fn().mockResolvedValue(true),
       releaseUsage: jest.fn().mockResolvedValue(undefined),
+      validateVoucher: jest.fn().mockImplementation(async (params: { code: string; orderAmount: number }) => ({
+        id: 'v-1',
+        voucherId: 'v-1',
+        code: params.code,
+        isValid: true,
+        voucher: { id: 'v-1', code: params.code },
+        discountType: 'FIXED',
+        discountValue: 10000,
+        discountAmount: BigInt(10000),
+        finalAmount: BigInt(params.orderAmount - 10000),
+      })),
     };
 
     service = new OrderService(
@@ -459,7 +470,9 @@ describe('OrderService', () => {
 
     const result = await service.cancelWorkflow({ orderId: created.id });
 
-    expect(result.order.status).toBe(OrderStatus.Cancelled);
+    // Cancellation does NOT become terminal Cancelled before compensation finishes;
+    // it remains in Cancelling state so that repeating cancellation or cron can resume it!
+    expect(result.order.status).toBe(OrderStatus.Cancelling);
     expect(result.cancelledPaymentIds).toEqual(['payment-1', 'payment-2']);
     expect(result.releasedSeatLabels).toEqual(['A1']);
     expect(result.releasedQuantity).toBe(2);
@@ -574,6 +587,149 @@ describe('OrderService', () => {
         unitPrice: 90000,
       }),
     ).rejects.toThrow(HttpException);
+  });
+
+  it('updateSeatLabels should be disabled to prevent releasing another customer seat', async () => {
+    await expect(
+      service.updateSeatLabels('order-1', { seatLabels: ['B1'] }),
+    ).rejects.toThrow('Direct seat label editing is disabled');
+  });
+
+  it('create should roll back and not persist order if voucher claim fails', async () => {
+    const voucherService = (service as any).voucherService;
+    voucherService.reserveUsage.mockResolvedValueOnce(false);
+
+    await expect(
+      service.create({
+        userId: 'user-1',
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        ticketTitle: 'SE1',
+        quantity: 1,
+        unitPrice: 90000,
+        voucherCode: 'PROMO10',
+      }),
+    ).rejects.toThrow('Mã khuyến mãi đã hết lượt sử dụng.');
+  });
+
+  it('handleOrderExpireCheck should fulfill instead of cancelling if payment settled before expiry', async () => {
+    const created = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+    });
+
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.listByOrderId') {
+        return of([
+          {
+            id: 'payment-1',
+            orderId: created.id,
+            status: 2, // PAYMENT_STATUS.Paid
+            amount: '90000',
+          },
+        ]);
+      }
+      return of({});
+    });
+
+    ticketClient.send.mockReturnValue(of({ success: true }));
+
+    await service.handleOrderExpireCheck({ orderId: created.id });
+
+    const orderAfter = await service.findOne(created.id);
+    expect(orderAfter.status).toBe(OrderStatus.TicketIssued);
+  });
+
+  it('handlePaymentPaidEvent on cancelled order should initiate refund workflow', async () => {
+    const created = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+    });
+
+    await service.cancel(created.id, { reason: 'Expired' });
+
+    paymentClient.send.mockImplementation((pattern: string) => {
+      if (pattern === 'payments.listByOrderId') {
+        return of([
+          {
+            id: 'payment-1',
+            orderId: created.id,
+            status: 2, // PAYMENT_STATUS.Paid
+            amount: '90000',
+          },
+        ]);
+      }
+      if (pattern === 'payments.markRefunded') {
+        return of({ success: true });
+      }
+      return of([]);
+    });
+
+    ticketClient.send.mockReturnValue(of({ success: true }));
+
+    const refundSpy = jest.spyOn(service, 'refund');
+    await service.handlePaymentPaidEvent({ orderId: created.id });
+
+    expect(refundSpy).toHaveBeenCalledWith(created.id);
+  });
+
+  it('checkout should release holds on preceding seats if a subsequent seat reservation fails', async () => {
+    ticketClient.send.mockImplementation((pattern: { cmd: string }, data: any) => {
+      if (pattern.cmd === 'tickets.find_one') return of(ticketSnapshot);
+      if (pattern.cmd === 'tickets.find_ticket_item') return of(ticketItemSnapshot);
+      if (pattern.cmd === 'tickets.reserve_seat') {
+        if (data.payload.seatLabel === 'A1') return of({ success: true });
+        if (data.payload.seatLabel === 'A2') return throwError(() => new Error('Seat A2 conflict'));
+      }
+      if (pattern.cmd === 'tickets.release_seat') {
+        return of({ success: true });
+      }
+      return of({});
+    });
+
+    await expect(
+      service.checkout({
+        userId: 'user-1',
+        ticketId: 'ticket-1',
+        ticketItemId: 'item-1',
+        ticketTitle: 'SE1',
+        quantity: 2,
+        unitPrice: 90000,
+        seatLabels: ['A1', 'A2'],
+      }),
+    ).rejects.toThrow('Seat A2 conflict');
+
+    expect(ticketClient.send).toHaveBeenCalledWith(
+      { cmd: 'tickets.release_seat' },
+      expect.objectContaining({
+        payload: { seatLabel: 'A1' },
+      }),
+    );
+  });
+
+  it('verifyPaymentSettledForOrder should re-throw transient RPC errors so message is not acked', async () => {
+    const created = await service.create({
+      userId: 'user-1',
+      ticketId: 'ticket-1',
+      ticketItemId: 'item-1',
+      ticketTitle: 'SE1',
+      quantity: 1,
+      unitPrice: 90000,
+    });
+
+    paymentClient.send.mockReturnValue(throwError(() => new Error('RPC connection refused')));
+
+    await expect(
+      service.handlePaymentPaidEvent({ orderId: created.id }),
+    ).rejects.toThrow('RPC connection refused');
   });
 
   it('create should return the existing order when idempotencyKey is reused', async () => {

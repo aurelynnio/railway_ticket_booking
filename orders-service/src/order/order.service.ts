@@ -5,7 +5,7 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, isNull, lt, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { DrizzleService } from '../drizzle/drizzle.service';
 import {
   orderPassengers,
@@ -15,7 +15,9 @@ import {
   type OrderSeatLabel,
 } from '../drizzle/schema';
 import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs';
+import { lastValueFrom, timeout } from 'rxjs';
+
+const ORDER_RPC_TIMEOUT_MS = Number(process.env.ORDER_RPC_TIMEOUT_MS) || 10000;
 import { Cron } from '@nestjs/schedule';
 import * as QUEUES from '../common/constants/queue.constants';
 import type {
@@ -137,7 +139,7 @@ export class OrderService {
       payload.ticketId,
       payload.ticketItemId,
     );
-    const normalizedSeatLabels = payload.seatLabels ?? [];
+    const normalizedSeatLabels = [...(payload.seatLabels ?? [])];
     const reservedSeatLabels: string[] = [];
     let reservedQuantity = 0;
     let orderId: string | null = null;
@@ -149,8 +151,11 @@ export class OrderService {
         payload.quantity,
         normalizedSeatLabels,
         reservedSeatLabels,
-        (quantity) => {
+        (quantity, allocatedLabels) => {
           reservedQuantity += quantity;
+          if (allocatedLabels?.length) {
+            normalizedSeatLabels.push(...allocatedLabels);
+          }
         },
       );
 
@@ -527,32 +532,34 @@ export class OrderService {
             .returning();
         }
 
+        // Claim the voucher INSIDE the same transaction before committing the order.
+        // If voucher claiming fails or is exhausted, the entire transaction rolls back,
+        // preventing dangling discounted orders with released inventory.
+        if (data.voucherId) {
+          const claimed = await this.voucherService.reserveUsage(
+            {
+              voucherId: data.voucherId,
+              userId: data.userId,
+              orderId: createdOrder.id,
+              discountAmount: data.discountAmount ?? BigInt(0),
+            },
+            tx,
+          );
+
+          if (!claimed) {
+            throw new HttpException(
+              'Mã khuyến mãi đã hết lượt sử dụng.',
+              HttpStatus.CONFLICT,
+            );
+          }
+        }
+
         return {
           ...createdOrder,
           seatLabels: createdSeatLabels,
           passengers: createdPassengers,
         };
       });
-
-      // Claim the voucher BEFORE returning the order. The claim is atomic, so a
-      // redemption this order cannot actually get is a hard failure rather than
-      // a silently-swallowed warning (which used to leave the order discounted
-      // while the usage counter never moved).
-      if (data.voucherId) {
-        const claimed = await this.voucherService.reserveUsage({
-          voucherId: data.voucherId,
-          userId: data.userId,
-          orderId: order.id,
-          discountAmount: data.discountAmount ?? BigInt(0),
-        });
-
-        if (!claimed) {
-          throw new HttpException(
-            'Mã khuyến mãi đã hết lượt sử dụng.',
-            HttpStatus.CONFLICT,
-          );
-        }
-      }
 
       return order;
     } catch (error) {
@@ -736,36 +743,10 @@ export class OrderService {
     orderId: string,
     payload: UpdateOrderSeatLabelsRequest,
   ): Promise<OrderResponse> {
-    const order = await this.getOrderOrThrow(orderId);
-    this.ensureMutable(order);
-
-    const seatLabels = normalizeSeatLabels(payload.seatLabels);
-    if (seatLabels.length > order.quantity) {
-      throw new HttpException(
-        'seatLabels cannot exceed quantity',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    await this.drizzle.db.transaction(async (tx) => {
-      await tx
-        .delete(orderSeatLabels)
-        .where(eq(orderSeatLabels.orderId, order.id));
-      if (seatLabels.length > 0) {
-        await tx.insert(orderSeatLabels).values(
-          seatLabels.map((seatLabel) => ({
-            orderId: order.id,
-            seatLabel,
-          })),
-        );
-      }
-      await tx
-        .update(orders)
-        .set({ updatedAt: new Date() })
-        .where(eq(orders.id, order.id));
-    });
-
-    return this.findOne(order.id);
+    throw new HttpException(
+      'Direct seat label editing is disabled. Seats must be selected during checkout reservation.',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   async markPendingPayment(orderId: string): Promise<OrderResponse> {
@@ -796,6 +777,28 @@ export class OrderService {
         OrderStatus.TicketIssued,
       ].includes(order.status)
     ) {
+      if (order.status === OrderStatus.TicketIssued) {
+        return {
+          order,
+          advancedOrderStatuses,
+        };
+      }
+
+      // Reconcile late settlement for closed orders: verify payment and trigger refund
+      try {
+        const settlement = await this.verifyPaymentSettledForOrder(payload, order);
+        if (settlement.ok) {
+          this.logger.warn(
+            `Late payment settlement confirmed for closed order ${order.id} (status=${order.status}). Triggering durable refund workflow.`,
+          );
+          await this.refund(order.id);
+        }
+      } catch (refundErr) {
+        this.logger.error(
+          `Failed to process refund reconciliation for late payment on order ${order.id}: ${this.getErrorMessage(refundErr)}`,
+        );
+      }
+
       return {
         order,
         advancedOrderStatuses,
@@ -963,14 +966,41 @@ export class OrderService {
     orderId: string;
     payload?: CancelOrderRequest;
   }): Promise<CancelOrderWorkflowResponse> {
-    const order = await this.findOne(data.orderId);
-    const cancelledOrder = await this.cancel(data.orderId, data.payload);
+    const rawOrder = await this.getOrderOrThrow(data.orderId);
+    const order = toOrderResponse(rawOrder);
+
+    // If order was already terminal Cancelled or Expired, check if compensation is needed or already done
+    if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Expired) {
+      return {
+        order,
+        releasedSeatLabels: order.seatLabels,
+        releasedQuantity: order.quantity,
+        cancelledPaymentIds: [],
+        warnings: [],
+      };
+    }
+
+    if (order.status === OrderStatus.Refunded) {
+      throw new HttpException('Order is already closed', HttpStatus.CONFLICT);
+    }
+
+    // Step 1: Transition to intermediate state Cancelling (CAS guarded)
+    if (rawOrder.status !== OrderStatus.Cancelling) {
+      await this.transitionStatus(rawOrder, OrderStatus.Cancelling, [
+        OrderStatus.Draft,
+        OrderStatus.PendingPayment,
+        OrderStatus.Cancelling,
+      ]);
+    }
+
     const warnings: string[] = [];
     const cancelledPaymentIds = await this.cancelPendingPayments(
       order.id,
       warnings,
     );
 
+    let compensationSucceeded = true;
+    // Step 2: Release reservation
     try {
       await this.retry(
         () =>
@@ -984,6 +1014,7 @@ export class OrderService {
         500,
       );
     } catch (error) {
+      compensationSucceeded = false;
       warnings.push(this.getErrorMessage(error));
       this.logger.error(
         `CRITICAL distributed transaction compensation failure in cancelWorkflow for order ${order.id}. Error: ${this.getErrorMessage(
@@ -991,6 +1022,42 @@ export class OrderService {
         )}`,
       );
     }
+
+    // Step 3: Release voucher usage if any
+    if (order.voucherId) {
+      try {
+        await this.voucherService.releaseUsage({
+          voucherId: order.voucherId,
+          orderId: order.id,
+        });
+      } catch (voucherErr) {
+        warnings.push(this.getErrorMessage(voucherErr));
+      }
+    }
+
+    // Step 4: Commit terminal state Cancelled ONLY when compensation succeeds
+    if (compensationSucceeded) {
+      await this.drizzle.db
+        .update(orders)
+        .set({
+          status: OrderStatus.Cancelled,
+          cancelReason: toNullableString(data.payload?.reason),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(orders.id, order.id),
+            or(
+              eq(orders.status, OrderStatus.Cancelling),
+              eq(orders.status, OrderStatus.PendingPayment),
+              eq(orders.status, OrderStatus.Draft),
+            ),
+            isNull(orders.deletedAt),
+          ),
+        );
+    }
+
+    const cancelledOrder = await this.findOne(order.id);
 
     return {
       order: cancelledOrder,
@@ -1010,15 +1077,26 @@ export class OrderService {
 
   async refund(orderId: string): Promise<OrderResponse> {
     const order = await this.getOrderOrThrow(orderId);
-    const updated = await this.transitionStatus(order, OrderStatus.Refunded, [
-      OrderStatus.Paid,
-      OrderStatus.Confirmed,
-      OrderStatus.TicketIssued,
-    ]);
+
+    if (order.status === OrderStatus.Refunded) {
+      return toOrderResponse(order);
+    }
+
+    // Step 1: Transition to intermediate state RefundPending
+    if (order.status !== OrderStatus.RefundPending) {
+      await this.transitionStatus(order, OrderStatus.RefundPending, [
+        OrderStatus.Paid,
+        OrderStatus.Confirmed,
+        OrderStatus.TicketIssued,
+        OrderStatus.Cancelled,
+        OrderStatus.Expired,
+        OrderStatus.RefundPending,
+      ]);
+    }
+
     const warnings: string[] = [];
 
-    // Compensation: cancel any leftover pending payments, mark settled
-    // payments as refunded, and release the held seats back to inventory.
+    // Step 2: Compensation
     const seatLabels = order.seatLabels.map((entry) => entry.seatLabel);
     await this.cancelPendingPayments(order.id, warnings);
     await this.markPaidPaymentsRefunded(order.id, warnings);
@@ -1039,7 +1117,19 @@ export class OrderService {
       this.logger.error(
         `CRITICAL seat release failure during refund for order ${order.id}: ${this.getErrorMessage(error)}`,
       );
+      // Remain in RefundPending for retry or cron
+      throw error;
     }
+
+    // Step 3: Commit terminal Refunded state
+    const updated = await this.transitionStatus(order, OrderStatus.Refunded, [
+      OrderStatus.RefundPending,
+      OrderStatus.Paid,
+      OrderStatus.Confirmed,
+      OrderStatus.TicketIssued,
+      OrderStatus.Cancelled,
+      OrderStatus.Expired,
+    ]);
 
     // Notify the customer — prefer the contact email supplied at checkout.
     const email = await this.resolveNotificationEmail(
@@ -1243,10 +1333,18 @@ export class OrderService {
         { orderId: order.id },
       );
     } catch (error) {
-      return {
-        ok: false,
-        reason: `could not load payments (${this.getErrorMessage(error)})`,
-      };
+      if (this.isNotFoundError(error)) {
+        return {
+          ok: false,
+          reason: 'no payment exists for this order',
+        };
+      }
+      this.logger.error(
+        `Transient lookup error verifying payment for order ${order.id}: ${this.getErrorMessage(error)}`,
+      );
+      // Re-throw transient errors so RmqAckInterceptor does NOT acknowledge
+      // the message, enabling durable redrive/retry.
+      throw error;
     }
 
     const settled = (Array.isArray(payments) ? payments : []).filter(
@@ -1318,30 +1416,27 @@ export class OrderService {
     quantity: number,
     seatLabels: string[],
     reservedSeatLabels: string[],
-    onReservedQuantity: (quantity: number) => void,
+    onReservedQuantity: (quantity: number, allocatedLabels?: string[]) => void,
   ) {
-    const reserveSeatPromises = seatLabels.map(
-      async (seatLabel: string): Promise<string> => {
-        await this.sendTicket(
-          {
-            cmd: 'tickets.reserve_seat',
-          },
-          {
-            ticketId,
-            ticketItemId,
-            payload: { seatLabel },
-          },
-        );
-        return seatLabel;
-      },
-    );
-
-    const reservedSeats = await Promise.all(reserveSeatPromises);
-    reservedSeatLabels.push(...reservedSeats);
+    for (const seatLabel of seatLabels) {
+      await this.sendTicket(
+        {
+          cmd: 'tickets.reserve_seat',
+        },
+        {
+          ticketId,
+          ticketItemId,
+          payload: { seatLabel },
+        },
+      );
+      reservedSeatLabels.push(seatLabel);
+    }
 
     const remainingQuantity = quantity - seatLabels.length;
     if (remainingQuantity > 0) {
-      await this.sendTicket(
+      const reserveResult = await this.sendTicket<{
+        allocatedSeatLabels?: string[];
+      }>(
         { cmd: 'tickets.reserve' },
         {
           ticketId,
@@ -1351,7 +1446,11 @@ export class OrderService {
           },
         },
       );
-      onReservedQuantity(remainingQuantity);
+      const allocatedLabels = reserveResult?.allocatedSeatLabels ?? [];
+      if (allocatedLabels.length > 0) {
+        reservedSeatLabels.push(...allocatedLabels);
+      }
+      onReservedQuantity(remainingQuantity, allocatedLabels);
     }
   }
 
@@ -1547,10 +1646,12 @@ export class OrderService {
 
     try {
       const userObj = await lastValueFrom(
-        this.usersClient.send<UserEmailResponse>(
-          { cmd: 'users.get_by_id' },
-          { userId: order.userId },
-        ),
+        this.usersClient
+          .send<UserEmailResponse>(
+            { cmd: 'users.get_by_id' },
+            { userId: order.userId },
+          )
+          .pipe(timeout(ORDER_RPC_TIMEOUT_MS)),
       );
       if (userObj?.email) {
         return userObj.email;
@@ -1565,14 +1666,22 @@ export class OrderService {
   }
 
   private async sendPayment<T>(pattern: string, payload: unknown): Promise<T> {
-    return lastValueFrom(this.paymentClient.send<T>(pattern, payload));
+    return lastValueFrom(
+      this.paymentClient
+        .send<T>(pattern, payload)
+        .pipe(timeout(ORDER_RPC_TIMEOUT_MS)),
+    );
   }
 
   private async sendTicket<T>(
     pattern: { cmd: string },
     payload: unknown,
   ): Promise<T> {
-    return lastValueFrom(this.ticketClient.send<T>(pattern, payload));
+    return lastValueFrom(
+      this.ticketClient
+        .send<T>(pattern, payload)
+        .pipe(timeout(ORDER_RPC_TIMEOUT_MS)),
+    );
   }
 
   private isNotFoundError(error: unknown): boolean {
@@ -1628,6 +1737,32 @@ export class OrderService {
       // Number() keeps the Drizzle `number` column comparable with the numeric
       // enum without tripping no-unsafe-enum-comparison.
       if (order.status === Number(OrderStatus.PendingPayment)) {
+        // Coordinated check: Reconcile before cancelling!
+        // If settlement occurred right before or during expiry check, fulfill it instead of cancelling
+        let payments: PaymentDto[] = [];
+        try {
+          payments = await this.sendPayment<PaymentDto[]>(
+            'payments.listByOrderId',
+            { orderId: data.orderId },
+          );
+        } catch (paymentLookupErr) {
+          this.logger.warn(
+            `Could not check payments before expiry for order ${data.orderId}: ${this.getErrorMessage(paymentLookupErr)}`,
+          );
+        }
+
+        const hasSettledPayment =
+          Array.isArray(payments) &&
+          payments.some((p) => Number(p.status) === PAYMENT_STATUS.Paid);
+
+        if (hasSettledPayment) {
+          this.logger.log(
+            `Order ${data.orderId} was paid before expiry. Fulfilling order instead of cancelling.`,
+          );
+          await this.handlePaymentPaidEvent({ orderId: data.orderId });
+          return;
+        }
+
         this.logger.log(
           `Order ${data.orderId} is unpaid after TTL. Triggering cancellation workflow...`,
         );
@@ -1654,11 +1789,15 @@ export class OrderService {
     const expirationThreshold = new Date(Date.now() - ttlMs);
 
     const expiredOrders = await this.drizzle.db
-      .select({ id: orders.id })
+      .select({ id: orders.id, status: orders.status })
       .from(orders)
       .where(
         and(
-          eq(orders.status, OrderStatus.PendingPayment),
+          or(
+            eq(orders.status, OrderStatus.PendingPayment),
+            eq(orders.status, OrderStatus.Cancelling),
+            eq(orders.status, OrderStatus.RefundPending),
+          ),
           isNull(orders.deletedAt),
           lt(orders.createdAt, expirationThreshold),
         ),
@@ -1668,19 +1807,23 @@ export class OrderService {
 
     if (expiredOrders.length > 0) {
       this.logger.log(
-        `Found ${expiredOrders.length} expired unpaid orders. Expiring them...`,
+        `Found ${expiredOrders.length} expired or compensation-pending orders. Processing them...`,
       );
       for (const order of expiredOrders) {
         try {
-          await this.cancelWorkflow({
-            orderId: order.id,
-            payload: {
-              reason: 'Order expired due to payment timeout (cron fallback)',
-            },
-          });
+          if (order.status === OrderStatus.RefundPending) {
+            await this.refund(order.id);
+          } else {
+            await this.cancelWorkflow({
+              orderId: order.id,
+              payload: {
+                reason: 'Order expired due to payment timeout (cron fallback)',
+              },
+            });
+          }
         } catch (error) {
           this.logger.error(
-            `Failed to cancel expired order ${order.id} in cron:`,
+            `Failed to complete compensation for order ${order.id} in cron:`,
             error,
           );
         }

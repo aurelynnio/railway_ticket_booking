@@ -157,15 +157,20 @@ export class VoucherService {
    *
    * @returns true when the redemption was recorded.
    */
-  async reserveUsage(params: {
-    voucherId: string;
-    userId: string;
-    orderId: string;
-    discountAmount: bigint;
-  }): Promise<boolean> {
+  async reserveUsage(
+    params: {
+      voucherId: string;
+      userId: string;
+      orderId: string;
+      discountAmount: bigint;
+    },
+    externalTx?: Parameters<Parameters<DrizzleService['db']['transaction']>[0]>[0],
+  ): Promise<boolean> {
     const { voucherId, userId, orderId, discountAmount } = params;
 
-    return this.drizzle.db.transaction(async (tx) => {
+    const execute = async (
+      tx: Parameters<Parameters<DrizzleService['db']['transaction']>[0]>[0],
+    ) => {
       const voucher = await tx.query.vouchers.findFirst({
         where: eq(vouchers.id, voucherId),
       });
@@ -221,7 +226,12 @@ export class VoucherService {
       });
 
       return true;
-    });
+    };
+
+    if (externalTx) {
+      return execute(externalTx);
+    }
+    return this.drizzle.db.transaction(execute);
   }
 
   /**
