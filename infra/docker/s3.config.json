@@ -1,14 +1,14 @@
 {
   "identities": [
     {
-      "name": "admin",
+      "name": "app-service",
       "credentials": [
         {
           "accessKey": "minioadmin",
           "secretKey": "minioadmin123"
         }
       ],
-      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+      "actions": ["Read", "List", "Tagging", "Write"]
     },
     {
       "name": "anonymous",
