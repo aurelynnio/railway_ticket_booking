@@ -106,7 +106,10 @@ export class OrderController {
     @Body() payload: UpdateOrderSeatLabelsRequest,
   ) {
     await this.assertOrderOwnership(request.user, orderId);
-    return this.orderService.updateSeatLabels({ orderId, payload });
+    throw new HttpException(
+      'Direct seat label editing is disabled. Seats must be selected during checkout reservation.',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   @Post(':orderId/mark-pending-payment')

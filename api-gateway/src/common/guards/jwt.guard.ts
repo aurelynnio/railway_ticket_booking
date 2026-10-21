@@ -7,11 +7,13 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Reflector } from '@nestjs/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { ACCESS_TOKEN_COOKIE_NAME } from '../../auth/auth.constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { Request } from 'express';
 import type { RequestUser } from '../interfaces/request-user.interface';
+
+const AUTH_RPC_TIMEOUT_MS = Number(process.env.AUTH_RPC_TIMEOUT_MS) || 5000;
 
 type AuthenticatedRequest = Omit<Request, 'cookies'> & {
   cookies?: Record<string, string | undefined>;
@@ -45,10 +47,12 @@ export class JwtAuthGuard implements CanActivate {
       if (token) {
         try {
           const user = await firstValueFrom<RequestUser>(
-            this.authClient.send<RequestUser>(
-              { cmd: 'auth.validate_token' },
-              { token },
-            ),
+            this.authClient
+              .send<RequestUser>(
+                { cmd: 'auth.validate_token' },
+                { token },
+              )
+              .pipe(timeout(AUTH_RPC_TIMEOUT_MS)),
           );
           request.user = user;
         } catch {
@@ -64,7 +68,9 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const user = await firstValueFrom<RequestUser>(
-        this.authClient.send<RequestUser>({ cmd: 'auth.validate_token' }, { token }),
+        this.authClient
+          .send<RequestUser>({ cmd: 'auth.validate_token' }, { token })
+          .pipe(timeout(AUTH_RPC_TIMEOUT_MS)),
       );
       request.user = user;
     } catch {

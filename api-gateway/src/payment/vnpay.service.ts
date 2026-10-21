@@ -195,6 +195,12 @@ export class VnpayPaymentService {
         return { RspCode: '00', Message: 'Order already confirmed' };
       }
 
+      if (payment.status === PaymentStatus.Cancelled) {
+        this.logger.warn(
+          `IPN received for cancelled payment txnRef=${verify.vnp_TxnRef}. Proceeding with settlement reconciliation.`,
+        );
+      }
+
       if (!verify.isSuccess) {
         await firstValueFrom(this.paymentService.markFailed({ id: payment.id }));
         this.logger.warn(`IPN payment failed for txnRef=${verify.vnp_TxnRef}`);
@@ -240,6 +246,13 @@ export class VnpayPaymentService {
     ) {
       throw new HttpException(
         'Order is already paid',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    if (order.status !== OrderStatus.PendingPayment) {
+      throw new HttpException(
+        'Order is not in pending payment status',
         HttpStatus.CONFLICT,
       );
     }
