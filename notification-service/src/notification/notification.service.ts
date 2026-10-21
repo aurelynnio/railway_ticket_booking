@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { and, count, desc, eq } from 'drizzle-orm';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { and, count, desc, eq, like, or } from 'drizzle-orm';
 import { DrizzleService } from '../drizzle/drizzle.service';
 import { notifications } from '../drizzle/schema';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
-export class NotificationService {
+export class NotificationService implements OnModuleInit {
   private readonly logger = new Logger(NotificationService.name);
   private transporter: nodemailer.Transporter | null = null;
 
@@ -45,11 +45,56 @@ export class NotificationService {
     }
   }
 
+  async onModuleInit(): Promise<void> {
+    try {
+      // Invalidate and redact any outstanding secret-bearing notification bodies in database
+      await this.drizzle.db
+        .update(notifications)
+        .set({
+          body: 'Hello,\n\nYou requested to reset your password. A reset link has been sent to your email address.\n\nThis link is valid for 10 minutes. If you did not request this, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team',
+        })
+        .where(
+          and(
+            eq(notifications.type, 'password_reset'),
+            or(
+              like(notifications.body, '%token=%'),
+              like(notifications.body, '%reset-password%'),
+            ),
+          ),
+        );
+
+      await this.drizzle.db
+        .update(notifications)
+        .set({
+          body: 'Hello,\n\nA verification email with your verification code has been sent to your email address.\n\nThis token expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team',
+        })
+        .where(
+          and(
+            eq(notifications.type, 'email_verification'),
+            like(notifications.body, '%verification token%'),
+          ),
+        );
+    } catch (error) {
+      this.logger.warn(`Failed to clean up legacy notification secrets on startup: ${error}`);
+    }
+  }
+
+  private sanitizeBody(body: string, type: string): string {
+    if (type === 'password_reset') {
+      return 'Hello,\n\nYou requested to reset your password. A reset link has been sent to your email address.\n\nThis link is valid for 10 minutes. If you did not request this, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team';
+    }
+    if (type === 'email_verification') {
+      return 'Hello,\n\nA verification email with your verification code has been sent to your email address.\n\nThis token expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team';
+    }
+    return body;
+  }
+
   private async sendAndPersist(
     data: { userId?: string; email: string; type: string },
     subject: string,
     text: string,
     html?: string,
+    persistedBody?: string,
   ) {
     const from = process.env.EMAIL_FROM || 'no-reply@railway-ticket.com';
     let status = 'sent';
@@ -83,7 +128,7 @@ export class NotificationService {
         recipientEmail: data.email,
         type: data.type,
         subject,
-        body: text,
+        body: persistedBody ?? this.sanitizeBody(text, data.type),
         status,
       });
     } catch (error) {
@@ -116,11 +161,14 @@ export class NotificationService {
     const baseUrl = process.env.CLIENT_URL || 'http://localhost:3000';
     const resetUrl = `${baseUrl}/reset-password?token=${data.token}&email=${encodeURIComponent(data.email)}`;
     const subject = 'Reset Your Password - Railway Ticket Booking';
-    const text = `Hello,\n\nYou requested to reset your password. Please use the following link to reset your password:\n\n${resetUrl}\n\nThis link is valid for 10 minutes. If you did not request this, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
+    const emailText = `Hello,\n\nYou requested to reset your password. Please use the following link to reset your password:\n\n${resetUrl}\n\nThis link is valid for 10 minutes. If you did not request this, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
+    const persistedBody = `Hello,\n\nYou requested to reset your password. A reset link has been sent to your email address.\n\nThis link is valid for 10 minutes. If you did not request this, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
     await this.sendAndPersist(
       { userId: data.userId, email: data.email, type: 'password_reset' },
       subject,
-      text,
+      emailText,
+      undefined,
+      persistedBody,
     );
   }
 
@@ -131,11 +179,14 @@ export class NotificationService {
     token: string;
   }) {
     const subject = 'Verify Your Railway Ticket Booking Email';
-    const text = `Hello ${data.fullName || 'User'},\n\nUse this verification token in your profile to verify your email address:\n\n${data.token}\n\nThis token expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
+    const emailText = `Hello ${data.fullName || 'User'},\n\nUse this verification token in your profile to verify your email address:\n\n${data.token}\n\nThis token expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
+    const persistedBody = `Hello ${data.fullName || 'User'},\n\nA verification email with your verification code has been sent to your email address.\n\nThis token expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\nBest regards,\nRailway Ticket Booking Team`;
     await this.sendAndPersist(
       { userId: data.userId, email: data.email, type: 'email_verification' },
       subject,
-      text,
+      emailText,
+      undefined,
+      persistedBody,
     );
   }
 
@@ -209,7 +260,10 @@ export class NotificationService {
     const total = Number(totalCount);
 
     return {
-      data: rows,
+      data: rows.map((r) => ({
+        ...r,
+        body: this.sanitizeBody(r.body, r.type),
+      })),
       pagination: {
         page,
         limit,
@@ -242,7 +296,10 @@ export class NotificationService {
     const total = Number(totalCount);
 
     return {
-      data: rows,
+      data: rows.map((r) => ({
+        ...r,
+        body: this.sanitizeBody(r.body, r.type),
+      })),
       pagination: {
         page,
         limit,
