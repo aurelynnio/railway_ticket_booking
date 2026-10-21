@@ -21,6 +21,7 @@ import { ORDERS_QUEUE, RAILWAY_DEAD_LETTER_QUEUE } from '../common/constants/que
         options: {
           urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
           queue: ORDERS_QUEUE,
+          persistent: true,
           queueOptions: {
             durable: true,
             arguments: {
